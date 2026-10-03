@@ -1,16 +1,18 @@
 // Lop Hop: a rabbit (then a cat, a dog, a fox) runs, jumps cacti and ducks under branches and crows. A small game
 // that drives the Stardrift engine the way a game would: one mood for each state of play, stingers for its events.
 //
+//   menu       the title                      go         a run starts
 //   highscore  the high scores                jump       the animal jumps
-//   menu       the title
-//   relaxed    knocked out
-//   exploring  the first stretch              reward     food
-//   tension    once crows fly in (300)        bump       it runs into something
-//   action     once the run is fast (700)     discovery  the chaser is left behind, the next animal unlocked
-//   danger     while the next animal chases   alert      knocked out
-//              it (the fox: a wolf)
-//   wonder     while it is night
-//   power      while a super power lasts      power, powerdown   golden food gives one, and it wears off
+//   relaxed    knocked out                    reward     food
+//   exploring  the first stretch              bump       it runs into something
+//   tension    once crows fly in (300)        smash      a super power smashes something
+//   action     once the run is fast (700)     chased     the next animal gives chase
+//   danger     while the next animal chases   escape     … and is left behind
+//              it (the fox: a wolf)           dusk, dawn night falls, and ends
+//   wonder     while it is night              discovery  the next animal unlocked (at nightfall)
+//   power      while a super power lasts      record     past the best score so far
+//                                             alert      knocked out (fanfare: into the high scores)
+//                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from 'stardrift-engine';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
   FOOD, FACE, cloud, moon, heart, star, golden, icy, chrome, text, textWidth, hits } from './art.js';
@@ -108,6 +110,7 @@ let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock 
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
 let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
 let fresh = null; // a knock-out's new entry in the high scores, to name
+let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
 const score = () => Math.floor(dist * SCORE_PER_PX * T().mult + bonus); // what it scores: harder animals count more
 const rnd = Math.random;
@@ -126,10 +129,12 @@ blinkT = 0;
 function start() {
   if (gained && unlocked(gained)) { kind = gained; try { localStorage.setItem('lop.animal', kind); } catch { /* no storage */ } } // the one just unlocked runs next
   gained = null;
+  beat = best(); // the best so far: passing it plays a fanfare
   if (kind === newKind) { newKind = null; try { localStorage.removeItem('lop.new'); } catch { /* no storage */ } } // (no longer new)
   reset();
   state = 'run';
   updateMood();
+  call('sting', 'go');
 }
 
 function choose(k) {
@@ -206,7 +211,7 @@ function smash(o, quiet = false) {
   bonus += worth;
   floats.push({ text: `+${worth}`, x: o.x, y: Math.max(8, o.y) - 4, life: 0.6 });
   for (let i = 0; i < 6; i++) parts.push({ x: o.x + o.sprite.w / 2, y: Math.max(o.y, GROUND - 12), vx: (rnd() - 0.2) * 120, vy: -40 - rnd() * 80, life: 0.4, color: kind === 'sabre' ? COLOR.ICE : COLOR.YELLOW });
-  if (!quiet) call('sting', 'bump');
+  if (!quiet) call('sting', 'smash');
 }
 
 // golden food: a super power, for a while
@@ -229,9 +234,9 @@ function sparkle(n, v = 40) {
 function knockOut(why) {
   state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = false; power = 0;
   if (chase) chase.leaving = true;
-  call('sting', 'alert');
-  updateMood({ within: 0 });
   if (!AUTO) fresh = record(kind, score());
+  call('sting', fresh ? 'fanfare' : 'alert'); // (into the high scores: a fanfare)
+  updateMood({ within: 0 });
 }
 
 // ------------------------------------------------------------------------------------------------------------- input
@@ -671,7 +676,7 @@ function update(dt) {
     if (chase.x < -40 && (chase.leaving || chase.t > FOX_SECS)) {
       if (!chase.leaving) {
         bonus += 100;
-        call('sting', 'discovery');
+        call('sting', 'escape');
         floats.push({ text: 'ESCAPED! +100', x: RUN_X, y: GROUND - 40, life: 1.4 });
       }
       chase = null;
@@ -688,7 +693,7 @@ function update(dt) {
     if (kind === 'rhino' && (quake -= dt) <= 0) { // quake: a stomp every so often, everything on the screen flies off
       quake = 1.4; shake = 0.3;
       for (const o of obstacles) if (!o.smashed && o.x < W) smash(o, true);
-      call('sting', 'bump');
+      call('sting', 'smash');
     }
     if (kind === 'skunk') { // stink: a green cloud behind it, crows flap off
       if (rnd() < dt * 40) parts.push({ x: RUN_X + 2, y: animalY() + 6 + rnd() * 8, vx: -30 - rnd() * 40, vy: -10 - rnd() * 20, life: 0.6, color: COLOR.LEAF });
@@ -722,13 +727,19 @@ function update(dt) {
 
   // the events: night falls now and then, the next animal gives chase now and then (never both at once)
   const s = far();
-  if (night) { night = Math.max(0, night - dt); }
+  if (night) { night = Math.max(0, night - dt); if (!night) call('sting', 'dawn'); }
   else if (!chase && s >= nextNight) {
     night = NIGHT_SECS; nextNight += NIGHT_EVERY;
     const c = chaserOf(kind);
     if (c && !unlocked(c) && !AUTO) unlock(c); // night reached: the chaser joins
+    else call('sting', 'dusk');
   }
-  if (!chase && !night && s >= nextFox && !(power && kind === 'fox')) { chase = { t: 0, x: -40 }; nextFox += FOX_EVERY; }
+  if (!chase && !night && s >= nextFox && !(power && kind === 'fox')) { chase = { t: 0, x: -40 }; nextFox += FOX_EVERY; call('sting', 'chased'); }
+  if (beat && score() > beat && !AUTO) { // past the best score so far
+    beat = 0;
+    call('sting', 'record');
+    floats.push({ text: 'NEW BEST!', x: W / 2 - textWidth('NEW BEST!') / 2, y: 30, life: 2, rise: 0 });
+  }
   if (Math.floor(score() / 100) > hundreds) { hundreds = Math.floor(score() / 100); flash = 1; } // the score blinks every 100
   updateMood();
 }

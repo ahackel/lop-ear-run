@@ -40,7 +40,11 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 | the next animal gives chase (from 500, every 1000) | `danger` |
 | night falls (every 900) | `wonder` |
 | a super power (golden food, 8 s) | `power`, with `sting('power')` and `sting('powerdown')` |
-| jump, food, a bump, the fox left behind, knocked out | `sting('jump')`, `reward`, `bump`, `discovery`, `alert` |
+| a run starts, a jump, food, a bump, a smash | `sting('go')`, `jump`, `reward`, `bump`, `smash` |
+| the chaser comes, and is left behind | `sting('chased')`, `escape` |
+| night falls (unlocking the chaser: `discovery`), and ends | `sting('dusk')`, `dawn` |
+| past the best score so far | `sting('record')` |
+| knocked out (into the high scores) | `sting('alert')` (`fanfare`) |
 
 ## Working on it
 

@@ -37,13 +37,36 @@
   },
 
   "stingers": [
+    { "id": "go", "at": "step", "beats": 2, "duck": 0.3, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "0 . 4 . 7 . 14 -" },
+      { "track": "drums", "pattern": "k . . . k . s! ." } ] },
     { "id": "jump", "at": "step", "beats": 1, "duck": 0.15, "parts": [
-      { "track": "bell", "pattern": "2 3 4 -" } ] },
-    { "id": "reward", "at": "step", "beats": 2, "duck": 0.3, "parts": [
-      { "track": "bell", "mode": "key", "pattern": "4 . 7 . 9 . 11 -" } ] },
+      { "track": "sfx", "pattern": "2 3 4 -" } ] },
+    { "id": "reward", "at": "step", "beats": 1, "duck": 0.2, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "7 11 14 -" } ] },
     { "id": "bump", "at": "step", "beats": 1, "duck": 0.3, "parts": [
-      { "track": "bell", "mode": "key", "pattern": "4 . 0 -" },
+      { "track": "sfx", "mode": "key", "pattern": "4 . 0 -" },
       { "track": "drums", "pattern": "t . t ." } ] },
+    { "id": "smash", "at": "step", "beats": 1, "duck": 0.2, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "9 14 - ." },
+      { "track": "drums", "pattern": "k! . s! ." } ] },
+    { "id": "chased", "at": "step", "beats": 2, "duck": 0.4, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "4 . 3 . 4 . 3 ." },
+      { "track": "bass", "pattern": "0 . 0 . 0 . 0 ." },
+      { "track": "drums", "pattern": "t . t . t! . . ." } ] },
+    { "id": "escape", "at": "step", "beats": 2, "duck": 0.4, "parts": [
+      { "track": "lead", "mode": "key", "pattern": "4 5 7 . 9 - - -" },
+      { "track": "drums", "pattern": "s . s . s! . . ." } ] },
+    { "id": "dusk", "at": "beat", "beats": 4, "duck": 0.3, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "11 . 9 . 7 . 4 . 2 -*7" },
+      { "track": "bell", "mode": "key", "pattern": ". . . . . . . . 9 -*7" } ] },
+    { "id": "dawn", "at": "beat", "beats": 4, "duck": 0.3, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "0 . 2 . 4 . 7 . 9 -*7" },
+      { "track": "drums", "pattern": "c .*15" } ] },
+    { "id": "record", "at": "step", "beats": 2, "duck": 0.5, "parts": [
+      { "track": "sfx", "mode": "key", "pattern": "7 . 7 . 9 . 11 -" },
+      { "track": "lead", "mode": "key", "pattern": ". . . . . . 14 -" },
+      { "track": "drums", "pattern": "k . s . k s s! ." } ] },
     { "id": "discovery", "at": "beat", "beats": 4, "chords": "IV:2 V(7):2", "duck": 0.5, "parts": [
       { "track": "lead", "pattern": "0 1 2 3 1 2 3 4 2 3 4 5 6 -*3" },
       { "track": "bell", "pattern": ". . . . . . . . . . . . 6 -*3" },
@@ -52,21 +75,26 @@
       { "track": "lead", "mode": "key", "pattern": "5 . 4 . 3 . 2 . 1 -*7" },
       { "track": "bass", "pattern": "0 -*7 0 -*7" },
       { "track": "drums", "pattern": "t . t . m . m . c! .*7" } ] },
+    { "id": "fanfare", "at": "beat", "beats": 4, "chords": "IV:2 V:1 I:1", "duck": 0.8, "parts": [
+      { "track": "lead", "mode": "key", "pattern": "0 . 4 . 7 . 9 . 11 . 9 . 14 -*3" },
+      { "track": "sfx", "mode": "key", "pattern": ". . . . . . . . . . . . 21 -*3" },
+      { "track": "drums", "pattern": "k . . . s . . . k . s . c! .*3" } ] },
     { "id": "power", "at": "step", "beats": 2, "duck": 0.6, "parts": [
       { "track": "lead", "mode": "key", "pattern": "0 2 4 7 9 11 14 -" },
-      { "track": "bell", "mode": "key", "pattern": "7 9 11 14 16 18 21 -" },
+      { "track": "sfx", "mode": "key", "pattern": "7 9 11 14 16 18 21 -" },
       { "track": "drums", "pattern": "s s s s s! s! s! s!" } ] },
     { "id": "powerdown", "at": "step", "beats": 2, "duck": 0.4, "parts": [
-      { "track": "bell", "mode": "key", "pattern": "14 . 11 . 7 . 4 -" } ] }
+      { "track": "sfx", "mode": "key", "pattern": "14 . 11 . 7 . 4 -" } ] }
   ],
 
   "instruments": {
     "square": { "type": "pulse", "duty": 0.25, "env": { "a": 0.002, "d": 0.12, "s": 0.55, "r": 0.05 }, "vibrato": { "depth": 0.08, "rate": 6, "delay": 0.2 }, "cutoff": 6500 },
     "stab": { "poly": 3, "type": "pulse", "duty": 0.125, "env": { "a": 0.002, "d": 0.08, "s": 0.2, "r": 0.04 }, "cutoff": 4500 },
-    "tri": { "type": "triangle", "env": { "a": 0.002, "d": 0.25, "s": 0.7, "r": 0.04 }, "cutoff": 4000 },
+    "tri": { "type": "wave", "wave": "saw", "smooth": true, "env": { "a": 0.003, "d": 0.3, "s": 0.6, "r": 0.06 }, "cutoff": 600, "resonance": 1.1, "filterEnv": { "amount": 1.8, "decay": 0.12 }, "drive": 0.25 },
     "bell": { "type": "pulse", "duty": 0.5, "env": { "a": 0.001, "d": 0.22, "s": 0, "r": 0.2 }, "cutoff": 7000 },
     "flute": { "poly": 6, "type": "wave", "wave": "sine", "smooth": true, "unison": 2, "detune": 6, "env": { "a": 0.3, "d": 1, "s": 0.75, "r": 0.8 }, "vibrato": { "depth": 0.1, "rate": 4.5, "delay": 0.4 }, "cutoff": 2500, "breath": 0.15 },
-    "noise": { "type": "drums", "kit": "clean", "cutoff": 10000 }
+    "blip": { "type": "pulse", "duty": 0.25, "env": { "a": 0.001, "d": 0.12, "s": 0.3, "r": 0.08 }, "cutoff": 6000 },
+    "noise": { "type": "drums", "preset": "clean", "cutoff": 8000, "kit": { "k": { "noise": { "amp": 0.03, "decay": 0.008, "filter": "lp", "freq": 2500 } }, "s": { "tones": [{ "amp": 0.6, "f0": 220, "f1": 180, "sweep": 0.012, "decay": 0.07 }, { "amp": 0.25, "f0": 340, "f1": 330, "sweep": 0.01, "decay": 0.04 }], "noise": { "amp": 0.38, "decay": 0.06, "filter": "bp", "freq": 1900, "q": 0.7 }, "click": 0.1, "drive": 1.3, "len": 0.5 }, "h": { "sample": "hat_closed", "level": 0.7 }, "o": { "sample": "hat_open", "level": 0.45 }, "c": { "sample": "crash", "level": 1.6 } } }
   },
 
   "tracks": [
@@ -75,7 +103,8 @@
     { "id": "stabs", "name": "Stabs", "instrument": "stab", "octave": 4, "volume": 0.11, "pan": -0.3, "echo": 0.15, "reverb": 0.2, "stickiness": 2, "color": "#6ff0a8", "clips": ["s_off", "s_skip", "s_tense", "s_star"] },
     { "id": "lead", "name": "Lead", "instrument": "square", "octave": 5, "volume": 0.17, "pan": 0.15, "echo": 0.2, "reverb": 0.25, "stickiness": 1.5, "color": "#ff8a5c", "clips": ["theme", "theme_run", "hops", "creep", "fox_run", "star_lead"] },
     { "id": "bell", "name": "Bell", "instrument": "bell", "octave": 5, "volume": 0.09, "pan": 0.4, "echo": 0.45, "reverb": 0.4, "color": "#c3ef6b", "clips": ["twinkle", "bell_theme", "carrots", "sparkle"] },
-    { "id": "drums", "name": "Drums", "instrument": "noise", "volume": 0.5, "pan": 0, "echo": 0.03, "reverb": 0.1, "stickiness": 2, "color": "#ff6b9a", "clips": ["d_hop", "d_run", "d_bramble", "d_fox", "d_star", "fill_roll", "fill_toms", "fill_splash"] }
+    { "id": "drums", "name": "Drums", "instrument": "noise", "volume": 0.4, "pan": 0, "echo": 0.03, "reverb": 0.1, "stickiness": 2, "color": "#ff6b9a", "clips": ["d_hop", "d_run", "d_bramble", "d_fox", "d_star", "fill_roll", "fill_toms", "fill_splash"] },
+    { "id": "sfx", "name": "Effects", "instrument": "blip", "octave": 5, "volume": 0.13, "pan": 0, "echo": 0.08, "reverb": 0.1, "color": "#ffd166", "clips": [] }
   ],
 
   "sections": [
