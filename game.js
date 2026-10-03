@@ -439,8 +439,8 @@ function autopilot() {
 // the rabbit's tail: it bobs with every hop, and wiggles in quick bursts when the rabbit is not hopping
 function wiggle() {
   if (kind !== 'rabbit') return 0;
-  if (hopping()) return Math.round(Math.sin(phase * Math.PI * 4));
-  return blinkT % 1.7 < 0.45 ? Math.round(Math.sin(blinkT * 40)) : 0;
+  if (hopping()) return phase % 0.5 < 0.25 ? 1 : 0; // up a pixel, down again: twice a hop
+  return blinkT % 1.7 < 0.45 && Math.floor(blinkT * 12) % 2 ? 1 : 0;
 }
 function animalSprite() {
   const blink = (blinkT % 3.2) < 0.12, w = wiggle();
