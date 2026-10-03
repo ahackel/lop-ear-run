@@ -8,9 +8,10 @@
 //   danger     while the fox chases it        alert      knocked out
 //              (a wolf, when the runner is the fox: it plays once every other animal has a high score)
 //   wonder     while it is night
+//   power      while a super power lasts      power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from 'stardrift-engine';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow, chaser,
-  FOOD, cloud, moon, heart, text, hits } from './art.js';
+  FOOD, cloud, moon, heart, star, golden, text, textWidth, hits } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas');
@@ -24,6 +25,14 @@ const RUN_X = 30, SCORE_PER_PX = 0.1;
 const BRANCHES_FROM = 150, CROWS_FROM = 300, FAST_FROM = 700; // the scores where branches, crows (tension) and speed (action) begin
 const NIGHT_EVERY = 900, NIGHT_SECS = 14, FOX_FIRST = 500, FOX_EVERY = 1000, FOX_SECS = 12;
 const DRAIN = 2, BUMP = 30, MEAL = 12, SAFE_SECS = 1.5; // energy (of 100): lost per second, per bump; won per food; blinking after a bump
+// golden food (the first after 250, then one in every 400-700 points) gives a super power for 8 seconds, each animal its own
+const POWER_SECS = 8, GOLD_FIRST = 250, GOLD_GAP = [400, 700];
+const POWERS = {
+  rabbit: 'SUPER HOP!', // jumps higher, and once more in the air
+  dog: 'ZOOMIES!', // runs faster and bowls everything over
+  cat: 'NINE LIVES!', // bumps cost nothing: it bounces off
+  fox: 'SLY FOX!', // food comes to it, the chaser loses its trail
+};
 
 // --------------------------------------------------------------------------------------------------------- the music
 const music = new StardriftPlayer();
@@ -61,6 +70,7 @@ async function startAudio() {
 // which mood the game is in: the music follows it
 function wantedMood() {
   if (state !== 'run') return 'relaxed';
+  if (power) return 'power';
   if (chase) return 'danger';
   if (night) return 'wonder';
   return score() < CROWS_FROM ? 'exploring' : score() < FAST_FROM ? 'tension' : 'action';
@@ -77,7 +87,7 @@ function updateMood(options) {
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
-let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow;
+let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps;
 let fresh = null; // a knock-out's new entry in the high scores, to name
 const score = () => Math.floor(dist * SCORE_PER_PX) + bonus;
 const rnd = Math.random;
@@ -88,6 +98,7 @@ function reset() {
   obstacles = []; food = []; parts = []; floats = [];
   spawnIn = 120; chase = null; night = 0; nextNight = NIGHT_EVERY; nextFox = FOX_FIRST; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
+  power = 0; gold = null; nextGold = GOLD_FIRST + rnd() * 150; airJumps = 0;
 }
 reset();
 blinkT = 0;
@@ -113,7 +124,14 @@ const chooseNext = (d) => choose(nextKind(kind, d));
 const playable = () => KINDS.filter(unlocked); // the ones on the title (the fox only once it is unlocked: a surprise)
 
 // a bump costs energy and leaves the animal blinking (safe) for a moment; with none left it is knocked out
-function bump() {
+function bump(o) {
+  if (power && kind === 'dog') return smash(o);
+  if (power && kind === 'cat') { // nine lives: it bounces off, no harm done
+    safe = 0.4; vAlt = Math.max(vAlt, 220); softVel -= 10;
+    floats.push({ text: 'BOING!', x: RUN_X, y: animalY() - 6, life: 0.6 });
+    call('sting', 'jump');
+    return;
+  }
   energy = Math.max(0, energy - BUMP);
   safe = SAFE_SECS; hurtT = 0.35; slow = 1;
   if (alt === 0) vAlt = 150; // knocked up a little
@@ -125,8 +143,34 @@ function bump() {
   call('sting', 'bump');
 }
 
+// zoomies: what the dog runs into tumbles away (and is worth 10)
+function smash(o) {
+  o.smashed = true; o.vx = 90 + rnd() * 60; o.vy = -140 - rnd() * 60;
+  bonus += 10;
+  floats.push({ text: '+10', x: o.x, y: Math.max(8, o.y) - 4, life: 0.6 });
+  for (let i = 0; i < 6; i++) parts.push({ x: o.x + o.sprite.w / 2, y: Math.max(o.y, GROUND - 12), vx: (rnd() - 0.2) * 120, vy: -40 - rnd() * 80, life: 0.4, color: COLOR.YELLOW });
+  call('sting', 'bump');
+}
+
+// golden food: a super power, for a while
+function startPower() {
+  power = POWER_SECS; airJumps = 0;
+  call('sting', 'power');
+  updateMood({ within: 0 });
+  floats.push({ text: POWERS[kind], x: W / 2 - textWidth(POWERS[kind]) / 2, y: 28, life: 1.6 });
+  sparkle(16, 140);
+  if (kind === 'fox' && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: 'LOST YOU!', x: 4, y: GROUND - 32, life: 1.2 }); }
+}
+// golden sparks around the animal
+function sparkle(n, v = 40) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd() * Math.PI * 2;
+    parts.push({ x: RUN_X + 4 + rnd() * 16, y: animalY() + 4 + rnd() * 14, vx: Math.cos(a) * v * rnd(), vy: Math.sin(a) * v * rnd() - 20, life: 0.3 + rnd() * 0.3, color: rnd() < 0.5 ? COLOR.YELLOW : COLOR.WHITE });
+  }
+}
+
 function knockOut(why) {
-  state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = false;
+  state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = false; power = 0;
   if (chase) chase.leaving = true;
   call('sting', 'alert');
   updateMood({ within: 0 });
@@ -146,11 +190,18 @@ function press() {
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
   held = true;
   if (alt === 0 && !ducking) {
-    vAlt = JUMP;
+    vAlt = JUMP * (superHop() ? 1.25 : 1);
     softVel -= 9; // the ear flicks down as it takes off
+    call('sting', 'jump');
+  } else if (alt > 0 && superHop() && airJumps < 1) { // super hop: once more, in the air
+    airJumps++;
+    vAlt = JUMP;
+    softVel -= 9;
+    sparkle(8, 60);
     call('sting', 'jump');
   }
 }
+const superHop = () => power > 0 && kind === 'rabbit';
 function release() {
   held = false;
   if (vAlt > JUMP_CUT) vAlt = JUMP_CUT;
@@ -433,7 +484,12 @@ function spawn() {
   obstacles.push(o);
   const gap = speed * (0.75 + rnd() * 0.9) + 24 + (o.duck ? 20 : 0);
   spawnIn = o.sprite.w + (o.extra || 0) + gap;
-  if (rnd() < 0.35) {
+  // golden food, now and then: high over a ground obstacle (jump it at the right moment)
+  if (o.kind === 'ground' && !gold && !power && s >= nextGold) {
+    gold = { x: o.x + (o.sprite.w + (o.extra || 0)) / 2 - 6, y: GROUND - Math.min(48, o.sprite.h + 26) };
+    nextGold = s + GOLD_GAP[0] + rnd() * (GOLD_GAP[1] - GOLD_GAP[0]);
+  }
+  if (rnd() < (power && kind === 'fox' ? 0.8 : 0.35)) { // (the sly fox finds more)
     const sp = FOOD[ANIMALS[kind].food];
     food.push({ x: W + o.sprite.w + (o.extra || 0) + gap / 2, y: rnd() < 0.5 ? GROUND - sp.h - 3 : GROUND - 30 - rnd() * 10 });
   }
@@ -443,6 +499,7 @@ function spawn() {
 function autopilot() {
   const ahead = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
   ducking = false;
+  if (power && (kind === 'dog' || kind === 'cat')) return; // zoomies, nine lives: straight through
   const gap = ahead ? ahead.x - (RUN_X + 22) : Infinity;
   if (ahead?.duck) { ducking = alt === 0 && gap < 30; return; }
   if (alt === 0 && gap < speed * 0.1 && gap > -8) return press();
@@ -489,7 +546,7 @@ function update(dt) {
     if (AUTO) autopilot();
     t += dt;
     slow = Math.max(0, slow - dt / 1.2);
-    speed = Math.min(MAX_SPEED, START_SPEED + ACCEL * t) * (chase ? 1.12 : 1) * (1 - 0.45 * slow);
+    speed = Math.min(MAX_SPEED, START_SPEED + ACCEL * t) * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * (power && kind === 'dog' ? 1.3 : 1);
   } else speed *= Math.exp(-5 * dt); // knocked out: the world rolls to a stop (back a little, after a bump)
   const dx = speed * dt;
   dist += state === 'run' ? dx : 0;
@@ -507,8 +564,9 @@ function update(dt) {
   if (alt > 0 || vAlt > 0) {
     vAlt -= GRAVITY * (ducking ? 3 : 1) * dt;
     alt += vAlt * dt;
+    if (alt > 56) { alt = 56; vAlt = Math.min(vAlt, 0); } // (a super hop stays on the screen)
     if (alt <= 0) {
-      alt = 0; vAlt = 0;
+      alt = 0; vAlt = 0; airJumps = 0;
       softVel += 7; // flop
       for (let i = 0; i < 3; i++) parts.push({ x: RUN_X + 8 + i * 3, y: GROUND - 1, vx: -30 - rnd() * 30, vy: -20 - rnd() * 20, life: 0.35, color: COLOR.INK });
     }
@@ -518,11 +576,13 @@ function update(dt) {
   if (state === 'run') { spawnIn -= dx; if (spawnIn <= 0) spawn(); }
   for (const o of obstacles) {
     o.x -= dx + o.fly * dt;
+    if (o.smashed) { o.x += o.vx * dt; o.y += o.vy * dt; o.vy += 600 * dt; } // bowled over: tumbling away
     if (o.kind === 'crow') o.sprite = crow(Math.floor(blinkT * 6) % 2);
   }
-  obstacles = obstacles.filter((o) => o.x > -o.sprite.w);
+  obstacles = obstacles.filter((o) => o.x > -o.sprite.w && o.y < H);
   for (const f of food) f.x -= dx;
   food = food.filter((f) => f.x > -14);
+  if (gold) { gold.x -= dx; if (gold.x < -14) gold = null; }
   for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + rnd() * 80; c.y = 8 + rnd() * 30; } }
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
@@ -541,10 +601,22 @@ function update(dt) {
   }
   if (state !== 'run') return;
 
+  // a super power wears off (a little warning first: the animal flashes slower)
+  if (power) {
+    power = Math.max(0, power - dt);
+    if (rnd() < dt * 30) sparkle(1);
+    if (!power) { call('sting', 'powerdown'); updateMood({ within: 0 }); }
+  }
+
   // what the animal runs into, what it eats
   const sp = animalSprite(), ay = animalY();
-  if (!safe) for (const o of obstacles) if (hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(); if (state !== 'run') return; break; }
+  if (!safe) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
   const meal = FOOD[ANIMALS[kind].food];
+  if (power && kind === 'fox') for (const f of food) { // sly: the food comes to the fox
+    const tx = RUN_X + 10 - f.x, ty = ay + 8 - f.y, d = Math.hypot(tx, ty);
+    if (d < 120 && d > 1) { f.x += (tx / d) * 160 * dt; f.y += (ty / d) * 160 * dt; }
+  }
+  if (gold && gold.x + meal.w > RUN_X + 3 && gold.x < RUN_X + 22 && gold.y + meal.h > ay + 3 && gold.y < ay + FOOT) { gold = null; startPower(); }
   food = food.filter((f) => {
     if (!(f.x + meal.w > RUN_X + 3 && f.x < RUN_X + 22 && f.y + meal.h > ay + 3 && f.y < ay + FOOT)) return true;
     energy = Math.min(100, energy + MEAL);
@@ -563,7 +635,7 @@ function update(dt) {
   const s = score();
   if (night) { night = Math.max(0, night - dt); }
   else if (!chase && s >= nextNight) { night = NIGHT_SECS; nextNight += NIGHT_EVERY; }
-  if (!chase && !night && s >= nextFox) { chase = { t: 0, x: -40 }; nextFox += FOX_EVERY; }
+  if (!chase && !night && s >= nextFox && !(power && kind === 'fox')) { chase = { t: 0, x: -40 }; nextFox += FOX_EVERY; }
   if (Math.floor(s / 100) > hundreds) { hundreds = Math.floor(s / 100); flash = 1; } // the score blinks every 100
   updateMood();
 }
@@ -608,6 +680,18 @@ function energyBar(pal) {
   ctx.fillRect(14, 6, 40, 3);
   ctx.fillStyle = pal[low ? COLOR.BERRY : COLOR.ENERGY];
   ctx.fillRect(14, 6, Math.ceil((40 * energy) / 100), 3);
+}
+
+// what is left of a super power, under the energy: a star and a golden bar (blinking in its last two seconds)
+function powerBar(pal) {
+  if (!power || (power < 2 && Math.floor(power * 6) % 2)) return;
+  star.draw(ctx, 6, 12, pal);
+  ctx.fillStyle = pal[COLOR.INK];
+  ctx.fillRect(13, 12, 42, 5);
+  ctx.fillStyle = pal.bg;
+  ctx.fillRect(14, 13, 40, 3);
+  ctx.fillStyle = pal[COLOR.YELLOW];
+  ctx.fillRect(14, 13, Math.ceil((40 * power) / POWER_SECS), 3);
 }
 
 // birds circling a knocked-out head; the ones behind it are drawn first
@@ -660,6 +744,15 @@ function draw() {
 
   const meal = FOOD[ANIMALS[kind].food];
   for (const f of food) meal.draw(ctx, f.x, f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
+  if (gold) { // golden, with a glint going round it
+    const y = gold.y + Math.round(Math.sin(blinkT * 5));
+    meal.draw(ctx, gold.x, y, golden(pal));
+    const a = blinkT * 6;
+    ctx.fillStyle = pal[COLOR.YELLOW];
+    ctx.fillRect(Math.round(gold.x + meal.w / 2 + Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 + Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
+    ctx.fillStyle = pal[COLOR.WHITE];
+    ctx.fillRect(Math.round(gold.x + meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
+  }
   for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
   if (chase) chaser(kind === 'fox', Math.floor(chase.t * 10) % 2).draw(ctx, chase.x - 4, GROUND - 19, pal);
 
@@ -667,7 +760,8 @@ function draw() {
   else {
     if (state === 'ko') dizzyBirds(pal, true);
     ctx.globalAlpha = safe > 0 && state === 'run' && Math.floor(safe * 10) % 2 ? 0.35 : 1;
-    animalSprite().draw(ctx, RUN_X, animalY(), pal);
+    const flashing = power > 0 && Math.floor(power / (power > 2 ? 0.1 : 0.25)) % 2 === 0; // slower in the last two seconds
+    animalSprite().draw(ctx, RUN_X, animalY(), flashing ? golden(pal) : pal);
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
   }
@@ -678,7 +772,7 @@ function draw() {
   }
 
   // the energy, the score (blinking at every hundred)
-  if (state === 'run' || state === 'paused') energyBar(pal);
+  if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); }
   const pad = (n) => String(n).padStart(5, '0');
   if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - 6, 5, pal[COLOR.INK], 'right');
   if (best(kind)) text(ctx, `HI ${pad(best(kind))}`, W - 30, 5, pal[COLOR.DIM], 'right');

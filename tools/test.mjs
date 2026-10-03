@@ -40,6 +40,18 @@ const silent = song.stingers.filter((x) => {
   return !notes;
 }).map((x) => x.id);
 ok(!silent.length, `every stinger plays (${song.stingers.map((x) => x.id)})${silent.length ? ` — silent: ${silent}` : ''}`);
+// a super power lasts 8 s: its music has to come at once (within: 0, the next bar line) and leave as fast
+{
+  e.setMood('exploring');
+  run(30, (en) => en.drainEvents());
+  e.setMood('power', { within: 0 });
+  let at = null, t = 0;
+  run(4, (en) => { t += 128 / SR; if (at === null && en.section?.id === 'star') at = t; en.drainEvents(); });
+  e.setMood('exploring', { within: 0 });
+  let back = null; t = 0;
+  run(4, (en) => { t += 128 / SR; if (back === null && en.section?.id !== 'star') back = t; en.drainEvents(); });
+  ok(at !== null && at < 2 && back !== null && back < 2, `the power music comes within ${at?.toFixed(1)} s and leaves within ${back?.toFixed(1)} s`);
+}
 const used = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
 const calls = [...used.matchAll(/call\('sting', '(\w+)'\)/g)].map((m) => m[1]);
 ok(calls.every((id) => song.stingers.some((x) => x.id === id)), `every stinger the game calls is in the song (${[...new Set(calls)]})`);

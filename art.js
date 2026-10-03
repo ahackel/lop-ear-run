@@ -8,7 +8,7 @@ export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: t
 const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF = 8, FAINT = 9, LIGHT = 10, FOX = 11, BELLY = 12,
   TAN = 14, BROWN = 15, GINGER = 16, STRIPE = 17, CACTUS = 18, CACTUS_DARK = 19, CACTUS_LIGHT = 20, YELLOW = 21, BARK = 22,
   WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28;
-export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT };
+export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT, WHITE: BELLY };
 
 export const PALETTES = {
   day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ee8a2a', 8: '#62b04f', 9: '#dedbd0',
@@ -503,6 +503,24 @@ export const moon = fromRows([
   '.mm...',
   '..mmm.',
 ], { m: INK });
+
+// the golden look of a super power (golden food, the animal flashing): every color but the outlines turned to gold
+const golds = {};
+export function golden(pal) {
+  return (golds[pal.bg] ||= { ...Object.fromEntries(Object.entries(pal).map(([k, hex]) => {
+    if (k === 'bg' || +k === OUT || +k === INK) return [k, hex];
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255), l = 0.3 * r + 0.59 * g + 0.11 * b;
+    return [k, l > 0.8 ? '#fff4b8' : l > 0.5 ? '#ffd23f' : '#e3a21a'];
+  })), bg: `${pal.bg} gold` });
+}
+
+export const star = fromRows([
+  '..y..',
+  '.yyy.',
+  'yyyyy',
+  '.yyy.',
+  '.y.y.',
+], { y: YELLOW });
 
 export const heart = fromRows([
   'rr.rr',

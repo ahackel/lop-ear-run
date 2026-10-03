@@ -1,6 +1,6 @@
 # Lop Ear Run
 
-A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Ten high scores per animal, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own (the rabbit jumps higher and once more in the air, the dog's zoomies bowl everything over, the cat's nine lives bounce it off what it hits, and so on). Ten high scores per animal, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 **Play: https://andreashackel.de/lop-ear-run/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 
@@ -19,6 +19,7 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
 | a fox gives chase (from 500, every 1000) | `danger` |
 | night falls (every 900) | `wonder` |
+| a super power (golden food, 8 s) | `power`, with `sting('power')` and `sting('powerdown')` |
 | jump, food, a bump, the fox left behind, knocked out | `sting('jump')`, `reward`, `bump`, `discovery`, `alert` |
 
 ## Working on it
