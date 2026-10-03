@@ -29,7 +29,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | pick an animal | <kbd>←</kbd> <kbd>→</kbd> on the title | tap it on the title |
 | sound, high scores, full screen | <kbd>M</kbd>, <kbd>H</kbd>, <kbd>F</kbd> | the buttons at the top left of the game |
 
-The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`), played by a small orchestra (strings, cellos, pizzicato, flute, glockenspiel, xylophone and percussion), has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (`?auto` lets the animal run by itself, to hear the moods come and go):
+The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`), played by a small orchestra of recorded instruments (violins, pizzicato strings and basses, flute, glockenspiel, xylophone and orchestral percussion: CC0 recordings from VSCO 2), has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (`?auto` lets the animal run by itself, to hear the moods come and go):
 
 | Game | Music |
 |---|---|

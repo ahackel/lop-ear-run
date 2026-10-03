@@ -19,9 +19,9 @@
   "startSection": "intro",
   "master": { "gain": 1.1 },
   "fx": {
-    "echo": { "beats": 0.75, "feedback": 0.25, "damp": 0.45, "level": 0.25 },
-    "reverb": { "size": 0.6, "damp": 0.5, "level": 0.2 },
-    "echoToReverb": 0.2
+    "echo": { "beats": 0.75, "feedback": 0.2, "damp": 0.55, "level": 0.15 },
+    "reverb": { "size": 0.8, "damp": 0.45, "level": 0.3 },
+    "echoToReverb": 0.3
   },
 
   "moods": {
@@ -88,23 +88,23 @@
   ],
 
   "instruments": {
-    "flute": { "type": "wave", "wave": "sine", "smooth": true, "breath": 0.3, "env": { "a": 0.03, "d": 0.4, "s": 0.8, "r": 0.15 }, "vibrato": { "depth": 0.12, "rate": 5, "delay": 0.3 }, "cutoff": 5000 },
-    "pizz": { "poly": 3, "type": "string", "string": { "decay": 0.5, "bright": 0.35 }, "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.1 }, "cutoff": 3500 },
-    "cello": { "poly": 2, "type": "bowed", "bow": { "pressure": 0.8, "position": 0.4 }, "body": "cello", "env": { "a": 0.04, "d": 0.3, "s": 0.9, "r": 0.15 }, "vibrato": { "depth": 0.15, "rate": 5.2, "delay": 0.3 }, "cutoff": 3500, "unison": 3, "detune": 8, "ensemble": 0.8, "gain": 1.5 },
-    "glock": { "type": "wave", "wave": "sine", "smooth": true, "env": { "a": 0.001, "d": 0.9, "s": 0, "r": 0.8 }, "cutoff": 9000 },
-    "strings": { "poly": 10, "type": "wave", "wave": "saw", "smooth": true, "unison": 3, "detune": 10, "env": { "a": 0.35, "d": 1, "s": 0.85, "r": 0.9 }, "vibrato": { "depth": 0.06, "rate": 5, "delay": 0.3 }, "cutoff": 3300, "breath": 0.1, "body": "strings", "ensemble": 0.8, "swell": 0.8 },
-    "xylo": { "type": "wave", "wave": "hollow", "smooth": true, "env": { "a": 0.001, "d": 0.18, "s": 0, "r": 0.15 }, "cutoff": 7000 },
-    "perc": { "type": "drums", "preset": "orchestra", "cutoff": 12000, "kit": { "k": { "decay": 0.35 }, "o": { "sample": null, "metal": null, "noise": { "amp": 0.3, "decay": 0.12, "attack": 0.01, "filter": "bp", "freq": 6000, "q": 0.8 }, "len": 0.5 } } }
+    "flute": { "type": "sample", "sample": "flute", "env": { "a": 0.01, "d": 0.3, "s": 0.9, "r": 0.12 }, "cutoff": 12000 },
+    "pizz": { "poly": 6, "type": "sample", "sample": "violins_pizz", "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.3 }, "cutoff": 12000 },
+    "basses": { "poly": 2, "type": "sample", "sample": "bass_pizz", "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.3 }, "cutoff": 8000 },
+    "glock": { "poly": 4, "type": "sample", "sample": "glockenspiel", "env": { "a": 0.001, "d": 1, "s": 1, "r": 1.2 }, "cutoff": 14000 },
+    "violins": { "poly": 10, "type": "sample", "sample": "violins", "env": { "a": 0.25, "d": 1, "s": 0.9, "r": 0.8 }, "cutoff": 10000 },
+    "xylo": { "poly": 4, "type": "sample", "sample": "xylophone", "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.6 }, "cutoff": 14000 },
+    "perc": { "type": "drums", "preset": "orchestra", "cutoff": 14000, "kit": { "k": { "sample": "bass_drum", "level": 1.5 }, "s": { "sample": "snare" }, "h": { "sample": "shaker" }, "o": { "sample": "triangle", "level": 0.5 }, "t": { "sample": "timpani" }, "m": { "sample": "claves" } } }
   },
 
   "tracks": [
-    { "id": "pad", "name": "String ensemble", "instrument": "strings", "octave": 4, "volume": 0.17, "pan": -0.1, "echo": 0.1, "reverb": 0.5, "follow": true, "stickiness": 3, "color": "#a79bff", "clips": ["pad_hold", "pad_moon"] },
-    { "id": "bass", "name": "Cellos", "instrument": "cello", "octave": 2, "volume": 0.62, "pan": 0, "echo": 0, "reverb": 0.05, "follow": true, "stickiness": 2.5, "color": "#5b8cff", "clips": ["b_hold", "b_sway", "b_bounce", "b_hop", "b_eighths", "b_gallop", "b_star"] },
-    { "id": "stabs", "name": "Pizzicato", "instrument": "pizz", "octave": 4, "volume": 0.08, "pan": -0.3, "echo": 0.15, "reverb": 0.2, "stickiness": 2, "color": "#6ff0a8", "clips": ["s_off", "s_skip", "s_tense", "s_star"] },
-    { "id": "lead", "name": "Flute", "instrument": "flute", "octave": 5, "volume": 0.15, "pan": 0.15, "echo": 0.2, "reverb": 0.25, "stickiness": 1.5, "color": "#ff8a5c", "clips": ["theme", "theme_run", "hops", "creep", "fox_run", "star_lead"] },
-    { "id": "bell", "name": "Glockenspiel", "instrument": "glock", "octave": 5, "volume": 0.06, "pan": 0.4, "echo": 0.45, "reverb": 0.4, "color": "#c3ef6b", "clips": ["twinkle", "bell_theme", "carrots", "sparkle"] },
-    { "id": "drums", "name": "Percussion", "instrument": "perc", "volume": 0.42, "pan": 0, "echo": 0.03, "reverb": 0.1, "stickiness": 2, "color": "#ff6b9a", "clips": ["d_hop", "d_run", "d_bramble", "d_fox", "d_star", "fill_roll", "fill_toms", "fill_splash"] },
-    { "id": "sfx", "name": "Xylophone", "instrument": "xylo", "octave": 5, "volume": 0.13, "pan": 0, "echo": 0.08, "reverb": 0.1, "color": "#ffd166", "clips": [] }
+    { "id": "pad", "name": "Violins", "instrument": "violins", "octave": 4, "volume": 0.17, "pan": -0.1, "echo": 0.1, "reverb": 0.5, "follow": true, "stickiness": 3, "color": "#a79bff", "clips": ["pad_hold", "pad_moon"] },
+    { "id": "bass", "name": "Basses", "instrument": "basses", "octave": 2, "volume": 0.1, "pan": 0, "echo": 0, "reverb": 0.2, "follow": true, "stickiness": 2.5, "color": "#5b8cff", "clips": ["b_hold", "b_sway", "b_bounce", "b_hop", "b_eighths", "b_gallop", "b_star"] },
+    { "id": "stabs", "name": "Pizzicato", "instrument": "pizz", "octave": 4, "volume": 0.025, "pan": -0.3, "echo": 0.05, "reverb": 0.35, "stickiness": 2, "color": "#6ff0a8", "clips": ["s_off", "s_skip", "s_tense", "s_star"] },
+    { "id": "lead", "name": "Flute", "instrument": "flute", "octave": 5, "volume": 0.22, "pan": 0.15, "echo": 0.12, "reverb": 0.35, "stickiness": 1.5, "color": "#ff8a5c", "clips": ["theme", "theme_run", "hops", "creep", "fox_run", "star_lead"] },
+    { "id": "bell", "name": "Glockenspiel", "instrument": "glock", "octave": 5, "volume": 0.04, "pan": 0.4, "echo": 0.25, "reverb": 0.45, "color": "#c3ef6b", "clips": ["twinkle", "bell_theme", "carrots", "sparkle"] },
+    { "id": "drums", "name": "Percussion", "instrument": "perc", "volume": 0.55, "pan": 0, "echo": 0, "reverb": 0.25, "stickiness": 2, "color": "#ff6b9a", "clips": ["d_hop", "d_run", "d_bramble", "d_fox", "d_star", "fill_roll", "fill_toms", "fill_splash"] },
+    { "id": "sfx", "name": "Xylophone", "instrument": "xylo", "octave": 5, "volume": 0.13, "pan": 0, "echo": 0.05, "reverb": 0.25, "color": "#ffd166", "clips": [] }
   ],
 
   "sections": [
