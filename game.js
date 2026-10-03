@@ -11,7 +11,7 @@
 //   power      while a super power lasts      power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from 'stardrift-engine';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, text, textWidth, hits } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, chrome, text, textWidth, hits } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas');
@@ -38,8 +38,15 @@ const POWERS = {
   skunk: 'STINK!', // obstacles fade (it runs right through them), crows and the chaser flee
   wolf: 'HOWL!', // what is just ahead is blown away
   boar: 'TUSK CHARGE!', // faster, and smashes everything (worth double)
+  bear: 'HONEY RUSH!', // double points, and food fills it twice as much
+  cheetah: 'SPRINT!', // very fast, and untouchable
+  rhino: 'QUAKE!', // stomps: everything on the screen flies off
+  sabre: 'ICE AGE!', // obstacles freeze, and shatter when it runs into them
+  dino: 'CHROME MODE!', // the world in the greys of Google's game: it runs through everything, for double points
 };
-const SMASHES = ['dog', 'hedgehog', 'otter', 'boar']; // what these run into while their power lasts tumbles away
+const SMASHES = ['dog', 'hedgehog', 'otter', 'boar', 'sabre']; // what these run into while their power lasts tumbles away
+const passes = () => power > 0 && ['skunk', 'cheetah', 'dino'].includes(kind); // these run through everything
+const doubles = () => power > 0 && ['bear', 'dino'].includes(kind); // these score double
 const T = () => ANIMALS[kind]; // the animal's dials (see art.js)
 
 // --------------------------------------------------------------------------------------------------------- the music
@@ -95,10 +102,10 @@ function updateMood(options) {
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
-let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps;
+let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
 let fresh = null; // a knock-out's new entry in the high scores, to name
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
-const score = () => Math.floor(dist * SCORE_PER_PX * T().mult) + bonus; // what it scores: harder animals count more
+const score = () => Math.floor(dist * SCORE_PER_PX * T().mult + bonus); // what it scores: harder animals count more
 const rnd = Math.random;
 const AUTO = new URLSearchParams(location.search).has('auto'); // ?auto: the animal runs by itself (to hear the moods)
 
@@ -107,7 +114,7 @@ function reset() {
   obstacles = []; food = []; parts = []; floats = [];
   spawnIn = 120; chase = null; night = 0; nextNight = NIGHT_EVERY; nextFox = FOX_FIRST; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
-  power = 0; gold = null; nextGold = GOLD_FIRST + rnd() * 150; airJumps = 0;
+  power = 0; gold = null; nextGold = GOLD_FIRST + rnd() * 150; airJumps = 0; quake = 0;
 }
 reset();
 blinkT = 0;
@@ -134,7 +141,7 @@ const playable = () => KINDS.filter(unlocked); // the ones on the title (the oth
 
 // The animals come one by one: a run starts with the rabbit, chased by the cat; reaching night with an animal unlocks
 // the one that chases it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
-const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'bear'; // (the bear only chases)
+const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
 let open = ['rabbit'];
 try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
 function unlocked(k) { return open.includes(k); }
@@ -185,7 +192,7 @@ function smash(o, quiet = false) {
   o.smashed = true; o.vx = 90 + rnd() * 60; o.vy = -140 - rnd() * 60;
   bonus += worth;
   floats.push({ text: `+${worth}`, x: o.x, y: Math.max(8, o.y) - 4, life: 0.6 });
-  for (let i = 0; i < 6; i++) parts.push({ x: o.x + o.sprite.w / 2, y: Math.max(o.y, GROUND - 12), vx: (rnd() - 0.2) * 120, vy: -40 - rnd() * 80, life: 0.4, color: COLOR.YELLOW });
+  for (let i = 0; i < 6; i++) parts.push({ x: o.x + o.sprite.w / 2, y: Math.max(o.y, GROUND - 12), vx: (rnd() - 0.2) * 120, vy: -40 - rnd() * 80, life: 0.4, color: kind === 'sabre' ? COLOR.ICE : COLOR.YELLOW });
   if (!quiet) call('sting', 'bump');
 }
 
@@ -548,7 +555,7 @@ function spawn() {
 function autopilot() {
   const ahead = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
   ducking = false;
-  if (power && [...SMASHES, 'cat', 'wolf', 'skunk'].includes(kind)) return; // straight through (the otter slides by itself)
+  if (power && [...SMASHES, 'cat', 'wolf', 'skunk', 'cheetah', 'rhino', 'dino'].includes(kind)) return; // straight through (the otter slides by itself)
   const gap = ahead ? ahead.x - (RUN_X + 22) : Infinity;
   if (ahead?.duck) { ducking = alt === 0 && gap < 30; return; }
   if (alt === 0 && gap < speed * 0.1 && gap > -8) return press();
@@ -578,6 +585,8 @@ const headAt = () => { const sp = animalSprite(); return [RUN_X + sp.head[0], an
 
 function update(dt) {
   blinkT += dt;
+  const sel = playable().indexOf(kind);
+  carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
   // the ear (the cat's tail) swings on a spring toward where the run, the wind and the jump would put it
   const target = state === 'title' ? 0.15 + 0.05 * Math.sin(blinkT * 2)
     : state === 'ko' ? (kind === 'rabbit' ? -0.3 : 1.2)
@@ -596,11 +605,12 @@ function update(dt) {
     if (AUTO) autopilot();
     t += dt;
     slow = Math.max(0, slow - dt / 1.2);
-    const boost = power ? { dog: 1.3, boar: 1.35 }[kind] || 1 : 1;
+    const boost = power ? { dog: 1.3, boar: 1.35, cheetah: 1.6 }[kind] || 1 : 1;
     speed = Math.min(MAX_SPEED, START_SPEED + ACCEL * t) * T().speed * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * boost;
   } else speed *= Math.exp(-5 * dt); // knocked out: the world rolls to a stop (back a little, after a bump)
   const dx = speed * dt;
   dist += state === 'run' ? dx : 0;
+  if (doubles() && state === 'run') bonus += dx * SCORE_PER_PX * T().mult; // double points
   const was = phase;
   phase = (phase + dt * (1.6 + speed / 90)) % 1;
   if (phase < was && hopping() && kind === 'rabbit') { // a hop lands: the ear flops, a puff of dust
@@ -608,6 +618,7 @@ function update(dt) {
     for (let i = 0; i < 2; i++) parts.push({ x: RUN_X + 6 + i * 4, y: GROUND - 1, vx: -20 - rnd() * 20, vy: -10 - rnd() * 15, life: 0.25, color: COLOR.FAINT });
   }
   flash = Math.max(0, flash - dt);
+  shake = Math.max(0, shake - dt);
   safe = Math.max(0, safe - dt);
   hurtT = Math.max(0, hurtT - dt);
 
@@ -659,6 +670,11 @@ function update(dt) {
     if (rnd() < dt * 30) sparkle(1);
     if (kind === 'otter') ducking = power > 0; // belly slide
     if (kind === 'wolf') for (const o of obstacles) if (!o.smashed && o.x > RUN_X + 12 && o.x < RUN_X + 80) smash(o, true); // howl
+    if (kind === 'rhino' && (quake -= dt) <= 0) { // quake: a stomp every so often, everything on the screen flies off
+      quake = 1.4; shake = 0.3;
+      for (const o of obstacles) if (!o.smashed && o.x < W) smash(o, true);
+      call('sting', 'bump');
+    }
     if (kind === 'skunk') { // stink: a green cloud behind it, crows flap off
       if (rnd() < dt * 40) parts.push({ x: RUN_X + 2, y: animalY() + 6 + rnd() * 8, vx: -30 - rnd() * 40, vy: -10 - rnd() * 20, life: 0.6, color: COLOR.LEAF });
       for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
@@ -668,7 +684,7 @@ function update(dt) {
 
   // what the animal runs into, what it eats
   const sp = animalSprite(), ay = animalY();
-  if (!safe && !stinks()) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
+  if (!safe && !passes()) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
   const meal = FOOD[ANIMALS[kind].food];
   if (power && kind === 'fox') for (const f of food) { // sly: the food comes to the fox
     const tx = RUN_X + 10 - f.x, ty = ay + 8 - f.y, d = Math.hypot(tx, ty);
@@ -677,7 +693,7 @@ function update(dt) {
   if (gold && gold.x + meal.w > RUN_X + 3 && gold.x < RUN_X + 22 && gold.y + meal.h > ay + 3 && gold.y < ay + FOOT) { gold = null; startPower(); }
   food = food.filter((f) => {
     if (!(f.x + meal.w > RUN_X + 3 && f.x < RUN_X + 22 && f.y + meal.h > ay + 3 && f.y < ay + FOOT)) return true;
-    energy = Math.min(100, energy + MEAL);
+    energy = Math.min(100, energy + MEAL * (power && kind === 'bear' ? 2 : 1));
     bonus += 25;
     call('sting', 'reward');
     floats.push({ text: '+25', x: f.x, y: f.y - 6, life: 0.8 }, { sprite: heart, x: f.x + 14, y: f.y - 6, life: 0.8 });
@@ -716,12 +732,15 @@ let hillX = 0, groundX = 0;
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GROUND_LOOP), kind: rnd() < 0.15 ? 'tuft' : rnd() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(rnd() * 4) }));
 let stageBg = null;
-const titleX = (i) => { const n = playable().length; return Math.round(W / 2 - 13 + (i - (n - 1) / 2) * Math.min(34, Math.floor((W - 30) / n))); }; // where the animals stand on the title
+// the title's animals in a row, the one picked in the middle: the row slides to it (carousel: where it is now)
+let carousel = null;
+const titleX = (i) => Math.round(W / 2 - 13 + (i - carousel) * 34);
 
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
 // faded behind
 function standing(k, i, on, pal) {
   const x = titleX(i), blink = (blinkT % 3.2) < 0.12;
+  if (x < -26 || x > W) return;
   ctx.globalAlpha = on ? 1 : 0.4;
   (on && !board ? animalSprite() : animal(k, 'idle', on ? Math.floor(blinkT * 5) % 2 : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
@@ -768,7 +787,7 @@ function dizzyBirds(pal, behind) {
 }
 
 function draw() {
-  const pal = night ? PALETTES.night : PALETTES.day;
+  const pal = power && kind === 'dino' && state === 'run' ? chrome(night ? PALETTES.night : PALETTES.day) : night ? PALETTES.night : PALETTES.day; // (chrome mode: all grey)
   if (stageBg !== pal.bg) { // around the game in full screen, and the phone's bars
     document.documentElement.style.setProperty('--game-bg', stageBg = pal.bg);
     document.querySelector('meta[name=theme-color]').content = pal.bg;
@@ -817,18 +836,27 @@ function draw() {
     ctx.fillRect(Math.round(gold.x + meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
   }
   ctx.globalAlpha = stinks() ? 0.35 : 1; // (faded while the skunk stinks: it runs through them)
-  for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
+  const frozen = power && kind === 'sabre'; // (ice age: ice)
+  for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, frozen ? icy(pal) : pal);
   ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
     animal(c, 'run', Math.floor(chase.t * 12) % 4, 0.45).draw(ctx, chase.x + 4, GROUND - FOOT, pal);
   }
 
-  if (state === 'title') playable().forEach((k, i) => standing(k, i, k === kind, pal));
+  if (state === 'title') {
+    playable().forEach((k, i) => standing(k, i, k === kind, pal));
+    if (titleX(0) < 0) text(ctx, '<', 4, GROUND - 13, pal[COLOR.DIM]); // more this way
+    if (titleX(playable().length - 1) > W - 26) text(ctx, '>', W - 7, GROUND - 13, pal[COLOR.DIM]);
+  }
   else {
     if (state === 'ko') dizzyBirds(pal, true);
     ctx.globalAlpha = safe > 0 && state === 'run' && Math.floor(safe * 10) % 2 ? 0.35 : 1;
     const flashing = power > 0 && Math.floor(power / (power > 2 ? 0.1 : 0.25)) % 2 === 0; // slower in the last two seconds
+    if (power && kind === 'cheetah') { // sprint: a blur behind it
+      for (const [d, a] of [[12, 0.15], [6, 0.3]]) { ctx.globalAlpha = a; animalSprite().draw(ctx, RUN_X - d, animalY(), pal); }
+      ctx.globalAlpha = 1;
+    }
     animalSprite().draw(ctx, RUN_X, animalY(), flashing ? golden(pal) : pal);
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
@@ -866,7 +894,8 @@ function draw() {
 // up to the screen, in whole pixels
 function present() {
   vctx.imageSmoothingEnabled = false;
-  vctx.drawImage(world, 0, 0, view.width, view.height);
+  const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * (view.width / W) : 0; // a quake shakes the screen
+  vctx.drawImage(world, q, q && (rnd() < 0.5 ? -q : q), view.width, view.height);
 }
 
 function fit() {
