@@ -120,6 +120,9 @@ reset();
 blinkT = 0;
 
 function start() {
+  if (gained && unlocked(gained)) { kind = gained; try { localStorage.setItem('lop.animal', kind); } catch { /* no storage */ } } // the one just unlocked runs next
+  gained = null;
+  if (kind === newKind) { newKind = null; try { localStorage.removeItem('lop.new'); } catch { /* no storage */ } } // (no longer new)
   reset();
   state = 'run';
   updateMood();
@@ -130,7 +133,7 @@ function choose(k) {
   if (!unlocked(k)) return;
   kind = k;
   try { localStorage.setItem('lop.animal', k); } catch { /* no storage */ }
-  if (state === 'ko') { reset(); state = 'title'; }
+  if (state === 'ko') { gained = null; reset(); state = 'title'; }
   softVel -= 6; // a little bounce for the one picked
 }
 const KINDS = Object.keys(ANIMALS);
@@ -145,10 +148,15 @@ const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, l
 let open = ['rabbit'];
 try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
 function unlocked(k) { return open.includes(k); }
+// the one unlocked last: in this run (gained, played next, from the knock-out or the title) and until played (newKind,
+// marked NEW on the title)
+let gained = null, newKind = null;
+try { const k = localStorage.getItem('lop.new'); if (ANIMALS[k] && unlocked(k)) newKind = k; } catch { /* no storage */ }
 try { const k = localStorage.getItem('lop.animal'); if (ANIMALS[k] && unlocked(k)) kind = k; } catch { /* no storage */ }
 function unlock(k) {
   open.push(k);
-  try { localStorage.setItem('lop.unlocked', JSON.stringify(open)); } catch { /* no storage */ }
+  gained = newKind = k;
+  try { localStorage.setItem('lop.unlocked', JSON.stringify(open)); localStorage.setItem('lop.new', k); } catch { /* no storage */ }
   call('sting', 'discovery');
   const t = `${ANIMALS[k].name} UNLOCKED!`;
   floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2.5, rise: 0 });
@@ -160,6 +168,7 @@ function goHome() {
   if (state === 'title') return;
   if (state === 'paused' && audio === 'on') music.play();
   fresh = null;
+  if (gained) { kind = gained; gained = null; try { localStorage.setItem('lop.animal', kind); } catch { /* no storage */ } } // the new one, picked
   reset();
   state = 'title';
   fingers.clear();
@@ -744,11 +753,11 @@ function standing(k, i, on, pal) {
   ctx.globalAlpha = on ? 1 : 0.4;
   (on && !board ? animalSprite() : animal(k, 'idle', on ? Math.floor(blinkT * 5) % 2 : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
+  if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
   if (!on) return;
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
-  if (ANIMALS[k].mult > 1) text(ctx, `X${ANIMALS[k].mult}`, ax + 1, ay - 7, pal[COLOR.DIM], 'center'); // what its score counts
 }
 
 // the energy bar, top left: a heart and a bar that turns red (and blinks) when it runs low
@@ -883,6 +892,7 @@ function draw() {
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8 && fresh && TOUCH) text(ctx, 'NEW HIGH SCORE! TAP TO ENTER YOUR NAME', W / 2, 36, pal[7], 'center');
+    else if (koT > 0.8 && !fresh && gained) text(ctx, `${TOUCH ? 'TAP' : 'SPACE OR TAP'} TO RUN AS THE ${ANIMALS[gained].name}!`, W / 2, 36, pal[7], 'center');
     else if (koT > 0.8 && !fresh) text(ctx, TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');
   } else if (state === 'paused') {
     text(ctx, TOUCH ? 'PAUSED - TAP TO GO ON' : 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');

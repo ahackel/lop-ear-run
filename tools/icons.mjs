@@ -1,31 +1,36 @@
-// node tools/icons.mjs — draws the app icons (icons/*.png) from the game's own pixel art: the rabbit on a meadow.
-// Each icon is the same 32×32 picture, scaled by whole pixels; the maskable one keeps it inside the safe circle.
+// node tools/icons.mjs — draws the app icons (icons/*.png) from the game's own pixel art: the rabbit, mid-leap, on
+// nothing (transparent). Each icon is the same 32×32 picture, scaled by whole pixels. Where a background is a must (the
+// maskable icon, which Android crops to a shape, and the iPhone's, which turns transparency black) it is the sky.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { animal, PALETTES } from '../art.js';
 
-const SKY = '#bfe6f2', GRASS = '#62b04f', GRASS_DARK = '#3f8a3a', CLOUD = '#ffffff';
-const rabbit = animal('rabbit', 'idle', 0, 0.15);
+const SKY = '#bfe6f2', OUT = 1;
+const rabbit = animal('rabbit', 'run', 1, 0.45); // the leap, stretched out
 const pal = PALETTES.day;
+const at = (x, y) => (x >= 0 && y >= 0 && x < rabbit.w && y < rabbit.h ? rabbit.px[y * rabbit.w + x] : 0);
+// where it is drawn: its pixels, centered (the hind foot touches the grid's left edge, and loses its outline there:
+// put back, one column further left)
+let x0 = rabbit.w, x1 = -1, y0 = rabbit.h, y1 = -1;
+for (let y = 0; y < rabbit.h; y++) for (let x = 0; x < rabbit.w; x++) if (at(x, y)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+const edge = Array.from({ length: rabbit.h }, (_, y) => at(0, y) && at(0, y) !== OUT);
+if (edge.some(Boolean)) x0 -= 1;
+const ox = Math.floor((32 - (x1 - x0 + 1)) / 2) - x0, oy = Math.floor((32 - (y1 - y0 + 1)) / 2) - y0;
 
-// the picture: a color for each logical pixel; outside 0…31 the sky and the meadow go on
-function color(x, y) {
-  const rx = x - 5, ry = y - 6; // the rabbit, its feet on row 25
-  if (rx >= 0 && ry >= 0 && rx < rabbit.w && ry < rabbit.h && rabbit.px[ry * rabbit.w + rx]) return pal[rabbit.px[ry * rabbit.w + rx]];
-  if (y === 26) return GRASS_DARK;
-  if (y > 26) return GRASS;
-  if (y === 25 && [1, 3, 27, 29].includes(x)) return GRASS_DARK; // tufts
-  if ((y === 4 && x >= 21 && x <= 26) || (y === 5 && x >= 19 && x <= 28)) return CLOUD;
-  return SKY;
+// the picture: a color for each logical pixel (null: transparent)
+function color(x, y, bg) {
+  const rx = x - ox, ry = y - oy;
+  if (rx === -1 && edge[ry]) return pal[OUT];
+  return at(rx, ry) ? pal[at(rx, ry)] : bg;
 }
 
-function png(size, scale) {
+function png(size, scale, bg = null) {
   const off = (size - 32 * scale) / 2, raw = Buffer.alloc(size * (size * 4 + 1));
   for (let Y = 0; Y < size; Y++) {
     raw[Y * (size * 4 + 1)] = 0;
     for (let X = 0; X < size; X++) {
-      const hex = color(Math.floor((X - off) / scale), Math.floor((Y - off) / scale)), i = Y * (size * 4 + 1) + 1 + X * 4;
-      raw[i] = parseInt(hex.slice(1, 3), 16); raw[i + 1] = parseInt(hex.slice(3, 5), 16); raw[i + 2] = parseInt(hex.slice(5, 7), 16); raw[i + 3] = 255;
+      const hex = color(Math.floor((X - off) / scale), Math.floor((Y - off) / scale), bg), i = Y * (size * 4 + 1) + 1 + X * 4;
+      if (hex) { raw[i] = parseInt(hex.slice(1, 3), 16); raw[i + 1] = parseInt(hex.slice(3, 5), 16); raw[i + 2] = parseInt(hex.slice(5, 7), 16); raw[i + 3] = 255; }
     }
   }
   const chunk = (type, data) => {
@@ -41,7 +46,7 @@ const CRC = Array.from({ length: 256 }, (_, n) => { for (let k = 0; k < 8; k++) 
 const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
 
 mkdirSync(new URL('../icons/', import.meta.url), { recursive: true });
-for (const [name, size, scale] of [['icon-192', 192, 6], ['icon-512', 512, 16], ['maskable-512', 512, 12], ['apple-touch-icon', 180, 5], ['favicon', 64, 2]]) {
-  writeFileSync(new URL(`../icons/${name}.png`, import.meta.url), png(size, scale));
+for (const [name, size, scale, bg] of [['icon-192', 192, 6], ['icon-512', 512, 16], ['maskable-512', 512, 12, SKY], ['apple-touch-icon', 180, 5, SKY], ['favicon', 64, 2]]) {
+  writeFileSync(new URL(`../icons/${name}.png`, import.meta.url), png(size, scale, bg));
 }
 console.log('icons/ written');
