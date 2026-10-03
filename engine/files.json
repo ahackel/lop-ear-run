@@ -1,6 +1,7 @@
 [
  "LICENSE",
  "VERSION",
+ "library/LICENSE",
  "library/samples.json",
  "library/samples/cello-36.wav",
  "library/samples/cello-43.wav",
