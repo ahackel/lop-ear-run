@@ -95,7 +95,6 @@ blinkT = 0;
 function start() {
   reset();
   state = 'run';
-  showAnimals();
   updateMood();
 }
 
@@ -105,7 +104,6 @@ function choose(k) {
   try { localStorage.setItem('lop.animal', k); } catch { /* no storage */ }
   if (state === 'ko') { reset(); state = 'title'; }
   softVel -= 6; // a little bounce for the one picked
-  showAnimals();
 }
 const KINDS = Object.keys(ANIMALS);
 const chooseNext = (d) => choose(KINDS[(KINDS.indexOf(kind) + d + KINDS.length) % KINDS.length]);
@@ -129,7 +127,6 @@ function knockOut(why) {
   call('sting', 'alert');
   updateMood({ within: 0 });
   if (!AUTO) fresh = record(kind, score());
-  showAnimals();
 }
 
 // ------------------------------------------------------------------------------------------------------------- input
@@ -155,17 +152,22 @@ const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'], DUCK_KEYS = ['ArrowDown', 'KeyS'
 addEventListener('keydown', (e) => {
   if (e.target.closest?.('input')) return; // typing a name
   if (e.target.closest?.('button') && (e.code === 'Space' || e.code === 'Enter')) return; // the buttons take their own keys
-  if (scoresOpen()) { // the high scores: Space or Enter runs (again), Esc closes
+  if (e.code === 'KeyM') return toggleMute();
+  if (e.code === 'KeyF') return toggleFull();
+  if (e.code === 'KeyH' && state !== 'run' && state !== 'paused') return ACTS.scores();
+  if (scoresOpen()) { // the high scores: ← → another animal's, Space or Enter runs (again), Esc goes back
     if (e.code === 'Escape') closeScores();
     else if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); closeScores(); press(); }
+    else if (['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) {
+      e.preventDefault();
+      board.k = KINDS[(KINDS.indexOf(board.k) + (/Left|KeyA/.test(e.code) ? -1 : 1) + KINDS.length) % KINDS.length];
+    }
     return;
   }
   if (JUMP_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) press(); }
   else if (DUCK_KEYS.includes(e.code)) { e.preventDefault(); startAudio(); ducking = true; }
   else if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseNext(-1); }
   else if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chooseNext(1); }
-  else if (e.code === 'KeyM') toggleMute();
-  else if (e.code === 'KeyF') toggleFull();
 });
 addEventListener('keyup', (e) => {
   if (JUMP_KEYS.includes(e.code)) release();
@@ -177,9 +179,11 @@ const TOUCH = matchMedia('(pointer: coarse)').matches;
 const fingers = new Map(); // pointer id → 'duck' | 'jump'
 view.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  if (scoresOpen()) return;
+  const x = (e.offsetX / view.clientWidth) * W, y = (e.offsetY / view.clientHeight) * H;
   view.setPointerCapture(e.pointerId);
-  const x = (e.offsetX / view.clientWidth) * W;
+  const btn = buttonAt(x, y);
+  if (btn) { pressedBtn = btn.id; return; }
+  if (scoresOpen()) { startAudio(); return tapScores(x, y); }
   if (state === 'title') {
     const k = KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
     if (k && k !== kind) { startAudio(); choose(k); return; }
@@ -188,6 +192,11 @@ view.addEventListener('pointerdown', (e) => {
   else { fingers.set(e.pointerId, 'jump'); press(); }
 });
 const lift = (e) => {
+  if (pressedBtn) {
+    const btn = e.type === 'pointerup' && buttonAt((e.offsetX / view.clientWidth) * W, (e.offsetY / view.clientHeight) * H);
+    if (btn?.id === pressedBtn) { startAudio(); ACTS[btn.id](); }
+    pressedBtn = null;
+  }
   const what = fingers.get(e.pointerId);
   fingers.delete(e.pointerId);
   if (what === 'duck' && ![...fingers.values()].includes('duck')) ducking = false;
@@ -213,28 +222,22 @@ function pause() {
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
-// the buttons: on the page, and on the game (the hud) where the page's are out of sight
-const button = (id, fn) => { const b = document.getElementById(id); b.addEventListener('click', () => { startAudio(); fn(); b.blur(); }); return b; };
-const muteBtns = [button('mute', toggleMute), button('hud-sound', toggleMute)];
 function toggleMute() {
   muted = !muted;
   try { localStorage.setItem('lop.muted', muted ? '1' : '0'); } catch { /* no storage */ }
   if (audio === 'on') music.setVolume(muted ? 0 : 1, 0.1);
-  showMute();
 }
-function showMute() {
-  for (const b of muteBtns) { b.textContent = muted ? 'Sound off' : 'Sound on'; b.setAttribute('aria-pressed', String(muted)); }
-}
-showMute();
-button('hud-animals', () => { if (state === 'ko') { reset(); state = 'title'; showAnimals(); } });
 
-// full screen: only the game (Esc, F or the button leaves), sideways on a phone. Where the browser has none (iPhone), or
+// full screen: only the game (Esc, F or its button leaves), sideways on a phone. Where the browser has none (iPhone), or
 // its request fails or never answers (some embedded browsers), the game fills the window instead. Phones, tablets and
 // the installed app show only the game anyway (the page's CSS).
 const stage = document.getElementById('stage');
 const APP = matchMedia('(pointer: coarse), (display-mode: standalone), (display-mode: fullscreen)');
+const isFull = () => !!document.fullscreenElement || stage.classList.contains('full');
+// installed, the app is full screen already; on a phone without the API (iPhone) the game fills the screen anyway
+const CAN_FULL = !matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches && (document.fullscreenEnabled || !APP.matches);
 function toggleFull() {
-  if (document.fullscreenElement || stage.classList.contains('full')) {
+  if (isFull()) {
     stage.classList.remove('full');
     if (document.fullscreenElement) document.exitFullscreen();
     return;
@@ -243,32 +246,47 @@ function toggleFull() {
   stage.requestFullscreen().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
   setTimeout(() => { if (!document.fullscreenElement && !APP.matches) stage.classList.add('full'); }, 500);
 }
-const fullBtn = button('hud-full', toggleFull);
-button('full', toggleFull);
-function showFull() {
-  const full = !!document.fullscreenElement || stage.classList.contains('full');
-  fullBtn.textContent = full ? 'Leave full screen' : 'Full screen';
-  // installed, the app is full screen already; on a phone without the API (iPhone) the game fills the screen anyway
-  fullBtn.hidden = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (APP.matches && !document.fullscreenEnabled);
-}
-document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) stage.classList.remove('full'); showFull(); });
-new MutationObserver(showFull).observe(stage, { attributes: true, attributeFilter: ['class'] });
-showFull();
+document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) stage.classList.remove('full'); });
 
-const animalsEl = document.getElementById('animals');
-for (const b of animalsEl.querySelectorAll('button')) b.addEventListener('click', () => { startAudio(); choose(b.dataset.animal); b.blur(); });
-const hudAnimals = document.getElementById('hud-animals');
-const scoreBtns = [button('scores-open', () => showScores()), button('hud-scores', () => showScores())];
-function showAnimals() {
-  for (const b of animalsEl.querySelectorAll('button')) {
-    b.setAttribute('aria-pressed', String(b.dataset.animal === kind));
-    b.disabled = state === 'run' || state === 'paused';
-  }
-  hudAnimals.hidden = state !== 'ko'; // back to the title, to pick another
-  for (const b of scoreBtns) b.hidden = b.id === 'hud-scores' && (state === 'run' || state === 'paused');
-  for (const b of scoreBtns) b.disabled = state === 'run' || state === 'paused';
+// the game's buttons, in its own pixels (top left): sound, the high scores, full screen, and after a knock-out, back to
+// the animals; while running only the sound. A button acts when the press ends on it (a phone lets full screen start
+// only then).
+const ICONS = {
+  soundOn: ['..x....', '.xx.x..', 'xxx..x.', 'xxx..x.', 'xxx..x.', '.xx.x..', '..x....'],
+  soundOff: ['..x....', '.xx....', 'xxx.x.x', 'xxx..x.', 'xxx.x.x', '.xx....', '..x....'],
+  scores: ['xxxxxxx', 'x.xxx.x', '.xxxxx.', '..xxx..', '...x...', '..xxx..', '.xxxxx.'],
+  full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
+  leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
+  animals: ['.x...x.', '.x.x.x.', '...x...', '..xxx..', '.xxxxx.', '.xxxxx.', '..x.x..'],
+};
+const ACTS = {
+  sound: toggleMute,
+  scores: () => (board ? closeScores() : showScores()),
+  full: toggleFull,
+  animals: () => { if (state === 'ko') { reset(); state = 'title'; } },
+};
+const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
+function buttons() {
+  if (state === 'run' || state === 'paused') return [{ id: 'sound', x: 60, y: 2 }];
+  const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state === 'ko' && !board ? ['animals'] : [])];
+  return ids.map((id, i) => ({ id, x: 4 + i * (BTN + 2), y: 2 }));
 }
-showAnimals();
+const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
+let pressedBtn = null;
+function drawButtons(pal) {
+  const ink = pal[COLOR.INK];
+  for (const b of buttons()) {
+    const on = b.id === pressedBtn || (b.id === 'scores' && board);
+    ctx.fillStyle = ink;
+    ctx.fillRect(b.x + 1, b.y, BTN - 2, 1); ctx.fillRect(b.x + 1, b.y + BTN - 1, BTN - 2, 1);
+    ctx.fillRect(b.x, b.y + 1, 1, BTN - 2); ctx.fillRect(b.x + BTN - 1, b.y + 1, 1, BTN - 2);
+    ctx.fillStyle = on ? ink : pal.bg;
+    ctx.fillRect(b.x + 1, b.y + 1, BTN - 2, BTN - 2);
+    const rows = ICONS[b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id];
+    ctx.fillStyle = on ? pal.bg : ink;
+    rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === 'x') ctx.fillRect(b.x + 2 + x, b.y + 2 + y, 1, 1); }));
+  }
+}
 
 // ------------------------------------------------------------------------------------------------- the music panel
 const status = document.getElementById('status'), moodsEl = document.getElementById('moods'), callsEl = document.getElementById('calls');
@@ -303,56 +321,77 @@ function record(k, s) {
   return entry;
 }
 
-const scoresEl = document.getElementById('scores'), listEl = document.getElementById('score-list'), nameForm = document.getElementById('name-form');
-const nameEl = document.getElementById('name'), tabsEl = document.getElementById('score-tabs');
-let shown = kind, naming = null; // the table on show; the entry being named
-const scoresOpen = () => !scoresEl.hidden;
+// The high scores screen is drawn in the game, like the rest: the table of the animal standing out below (the others
+// pick theirs), the new entry marked. A text field, invisible, lies over the new entry's name and takes the typing; on a
+// phone a tap there brings up the keyboard.
+let board = null; // the screen on show: { k: whose table, entry: the new one (marked), typing }
+const scoresOpen = () => !!board;
+const nameEl = document.getElementById('name');
+const NAME_LEN = 10, ROW = 8, COLS = [57, 157]; // a row's height; the columns' left edges (rank, name, score: 92 wide)
+const rowAt = (i) => [COLS[Math.floor(i / 5)], 16 + (i % 5) * ROW];
+
 function showScores(k = kind, entry = null) {
-  shown = k; naming = entry;
-  scoresEl.hidden = false;
-  nameForm.hidden = !entry;
-  if (entry) { nameEl.value = lastName; if (!TOUCH) nameEl.focus(); } // a phone opens its keyboard on a tap in the field
-  else document.getElementById('scores-run').focus({ preventScroll: true });
-  document.getElementById('scores-run').textContent = state === 'ko' ? 'Run again' : 'Run';
-  renderScores();
+  board = { k, entry, typing: !!entry };
+  if (entry) {
+    nameEl.value = entry.name === '???' ? '' : entry.name;
+    nameEl.hidden = false;
+    placeName();
+    if (!TOUCH) nameEl.focus({ preventScroll: true }); // a phone brings up its keyboard on a tap in the field
+  }
 }
 function closeScores() {
-  if (naming) nameForm.requestSubmit();
-  scoresEl.hidden = true;
-  naming = null;
-  document.activeElement?.blur();
+  if (board?.typing) doneTyping();
+  board = null;
 }
-function renderScores() {
-  for (const b of tabsEl.children) b.setAttribute('aria-pressed', String(b.dataset.animal === shown));
-  const t = table(shown);
-  listEl.replaceChildren(...Array.from({ length: TOP }, (_, i) => {
-    const li = document.createElement('li'), e = t[i];
-    li.innerHTML = '<span class="rank"></span><span class="who"></span><span class="pts"></span>';
-    li.children[0].textContent = `${i + 1}.`;
-    li.children[1].textContent = e ? e.name : '–';
-    li.children[2].textContent = e ? e.score : '';
-    if (e) li.title = e.date;
-    li.classList.toggle('new', !!e && e === naming);
-    return li;
-  }));
-}
-for (const b of tabsEl.children) b.addEventListener('click', () => { shown = b.dataset.animal; renderScores(); });
-nameEl.addEventListener('input', () => {
-  if (!naming) return;
-  naming.name = nameEl.value.trim() || '???';
-  saveTables();
-  renderScores();
-});
-nameForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  lastName = nameEl.value.trim();
+function doneTyping() {
+  board.typing = false;
+  lastName = board.entry.name === '???' ? '' : board.entry.name;
   try { localStorage.setItem('lop.name', lastName); } catch { /* no storage */ }
-  nameForm.hidden = true;
   nameEl.blur();
-  renderScores(); // still marked: the one just named
+  nameEl.hidden = true;
+}
+// the text field over the new entry's name, in the page's pixels
+function placeName() {
+  if (!board?.typing) return;
+  const i = table(board.k).indexOf(board.entry), [x, y] = rowAt(i), s = view.clientWidth / W;
+  Object.assign(nameEl.style, { left: `${view.offsetLeft + (x + 14) * s}px`, top: `${view.offsetTop + (y - 2) * s}px`, width: `${48 * s}px`, height: `${9 * s}px` });
+}
+new ResizeObserver(placeName).observe(view);
+nameEl.addEventListener('input', () => {
+  const v = nameEl.value.toUpperCase().replace(/[^A-Z0-9 .!-]/g, '').slice(0, NAME_LEN); // what the pixel font has
+  if (v !== nameEl.value) nameEl.value = v;
+  board.entry.name = v.trim() || '???';
+  saveTables();
 });
-button('scores-close', closeScores);
-button('scores-run', () => { closeScores(); press(); });
+nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); doneTyping(); } });
+
+// a tap on the screen: an animal shows its table, anywhere else ends the typing, or runs
+function tapScores(x, y) {
+  const k = y > GROUND - 24 && KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
+  if (board.typing) doneTyping();
+  else if (k) board.k = k;
+  else { closeScores(); press(); }
+}
+
+function drawBoard(pal) {
+  const ink = pal[COLOR.INK], dim = pal[COLOR.DIM], t = table(board.k);
+  text(ctx, 'HIGH SCORES', W / 2, 4, ink, 'center');
+  for (let i = 0; i < TOP; i++) {
+    const [x, y] = rowAt(i), e = t[i], mark = e && e === board.entry;
+    if (mark) { ctx.fillStyle = pal[7]; ctx.fillRect(x - 2, y - 2, 96, 9); }
+    const c = mark ? pal.bg : e ? ink : dim;
+    text(ctx, `${i + 1}.`, x + 11, y, c, 'right');
+    text(ctx, e ? (board.typing && mark && e.name === '???' ? '' : e.name) : '-', x + 15, y, c);
+    if (e) text(ctx, e.score, x + 91, y, c, 'right');
+    if (mark && board.typing && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 15 + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
+  }
+  KINDS.forEach((k, i) => standing(k, i, k === board.k, pal));
+  const [l1, l2, r1, r2] = board.typing
+    ? ['NEW HIGH SCORE!', TOUCH ? 'TAP IT, TYPE A NAME' : 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
+    : [TOUCH ? 'TAP AN ANIMAL' : '< > ANIMALS', TOUCH ? 'FOR ITS SCORES' : '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
+  text(ctx, l1, 6, GROUND - 16, board.typing ? pal[7] : ink); text(ctx, l2, 6, GROUND - 9, ink);
+  text(ctx, r1, W - 6, GROUND - 16, ink, 'right'); text(ctx, r2, W - 6, GROUND - 9, ink, 'right');
+}
 
 // ------------------------------------------------------------------------------------------------------------ world
 // low obstacles to jump (cacti, rocks, logs, low crows), high ones to duck under (branches, crows at head height),
@@ -531,6 +570,19 @@ const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GRO
 let stageBg = null;
 const titleX = (i) => Math.round(W / 2 - 13 + (i - 1) * 34); // where the animals stand on the title
 
+// an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
+// faded behind
+function standing(k, i, on, pal) {
+  const x = titleX(i), blink = (blinkT % 3.2) < 0.12;
+  ctx.globalAlpha = on ? 1 : 0.4;
+  (on && !board ? animalSprite() : animal(k, 'idle', on ? Math.floor(blinkT * 5) % 2 : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
+  ctx.globalAlpha = 1;
+  if (!on) return;
+  const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
+  ctx.fillStyle = pal[COLOR.INK];
+  ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
+}
+
 // the energy bar, top left: a heart and a bar that turns red (and blinks) when it runs low
 function energyBar(pal) {
   const low = energy < 30;
@@ -586,20 +638,19 @@ function draw() {
     else { ctx.fillRect(x, GROUND - 1, 1, 1); ctx.fillRect(x + 2, GROUND - 2, 1, 2); ctx.fillRect(x + 4, GROUND - 1, 1, 1); }
   }
 
+  if (board) { // the high scores, in place of the run
+    drawBoard(pal);
+    drawButtons(pal);
+    return present();
+  }
+
   const meal = FOOD[ANIMALS[kind].food];
   for (const f of food) meal.draw(ctx, f.x, f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
   for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
   if (chase) fox(Math.floor(chase.t * 10) % 2).draw(ctx, chase.x - 4, GROUND - 19, pal);
 
-  if (state === 'title') {
-    KINDS.forEach((k, i) => {
-      const on = k === kind, x = titleX(i);
-      ctx.globalAlpha = on ? 1 : 0.45;
-      (on ? animalSprite() : animal(k, 'idle', 0, 0.15)).draw(ctx, x, GROUND - FOOT, pal);
-      ctx.globalAlpha = 1;
-      text(ctx, ANIMALS[k].name, x + 12, GROUND - 28, pal[on ? COLOR.INK : COLOR.DIM], 'center');
-    });
-  } else {
+  if (state === 'title') KINDS.forEach((k, i) => standing(k, i, k === kind, pal));
+  else {
     if (state === 'ko') dizzyBirds(pal, true);
     ctx.globalAlpha = safe > 0 && state === 'run' && Math.floor(safe * 10) % 2 ? 0.35 : 1;
     animalSprite().draw(ctx, RUN_X, animalY(), pal);
@@ -613,7 +664,7 @@ function draw() {
   }
 
   // the energy, the score (blinking at every hundred)
-  if (state !== 'title') energyBar(pal);
+  if (state === 'run' || state === 'paused') energyBar(pal);
   const pad = (n) => String(n).padStart(5, '0');
   if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - 6, 5, pal[COLOR.INK], 'right');
   if (best(kind)) text(ctx, `HI ${pad(best(kind))}`, W - 30, 5, pal[COLOR.DIM], 'right');
@@ -631,7 +682,11 @@ function draw() {
     text(ctx, TOUCH ? 'PAUSED - TAP TO GO ON' : 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');
   }
 
-  // up to the screen, in whole pixels
+  drawButtons(pal);
+  present();
+}
+// up to the screen, in whole pixels
+function present() {
   vctx.imageSmoothingEnabled = false;
   vctx.drawImage(world, 0, 0, view.width, view.height);
 }

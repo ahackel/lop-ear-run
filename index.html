@@ -26,17 +26,12 @@
   main { max-width: 900px; margin: 0 auto; padding: 24px 16px 40px; }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
   h1 { font-size: 16px; margin: 0; letter-spacing: 0.04em; }
-  button { font: inherit; color: var(--fg); background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-  button[aria-pressed="true"] { background: var(--on); border-color: var(--on); color: var(--on-fg); }
-  button:disabled { cursor: default; opacity: .6; }
   [hidden] { display: none !important; }
-  .bar { display: flex; gap: 6px; flex-wrap: wrap; }
   canvas { display: block; width: 100%; aspect-ratio: 300 / 90; image-rendering: pixelated; border-radius: 6px; touch-action: none; cursor: pointer; outline: 1px solid var(--line);
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   #stage { position: relative; }
-  /* the buttons on the game, where the page's own are out of sight (full screen, the app) */
-  #hud { display: none; position: absolute; right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); gap: 6px; }
-  #hud button { font-size: 12px; padding: 4px 9px; color: #3a3a3a; background: #ffffffb0; border-color: #0000001a; -webkit-tap-highlight-color: transparent; }
+  /* the name for a high score: typed here, drawn by the game (the field lies, invisible, over the name) */
+  #name { position: absolute; z-index: 2; margin: 0; padding: 0; border: 0; outline: 0; background: transparent; color: transparent; caret-color: transparent; font-size: 16px; }
   .help { color: var(--dim); margin: 10px 0 20px; }
   kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
   h2 { font-size: 13px; margin: 0 0 8px; color: var(--dim); font-weight: normal; }
@@ -48,30 +43,11 @@
   #status { color: var(--dim); margin: 0 0 8px; }
   #calls { margin: 0; padding: 10px 12px; min-height: 7.5em; background: var(--chip); border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
   #rotate { display: none; }
-  /* the high scores, over the game */
-  #scores { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: #0000002e; }
-  #scores .panel { width: min(440px, 94%); max-height: calc(100% - 12px); overflow: auto; padding: 10px 14px; border-radius: 8px;
-    background: #fbfaf5; color: #3a3a3a; font-size: 12px; line-height: 1.35; box-shadow: 0 4px 18px #0003; }
-  #scores button { font-size: 12px; padding: 2px 8px; color: #3a3a3a; background: #ecebe3; border-color: #dedbd0; }
-  #scores button[aria-pressed="true"] { background: #ee8a2a; border-color: #ee8a2a; color: #fff; }
-  #scores .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-  #scores .end { justify-content: flex-end; }
-  #scores h3 { margin: 0; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
-  #name-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; color: #c4561a; font-weight: bold; }
-  #name-form[hidden] { display: none; }
-  #name { font: inherit; font-weight: normal; width: 13ch; padding: 2px 6px; border: 1px solid #c9c6ba; border-radius: 4px; color: #3a3a3a; background: #fff; text-transform: uppercase; }
-  #score-list { columns: 2; column-gap: 18px; list-style: none; margin: 8px 0; padding: 0; }
-  #score-list li { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; break-inside: avoid; }
-  #score-list .rank { width: 3ch; color: #9a9a94; }
-  #score-list .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; }
-  #score-list .new { background: #ee8a2a; color: #fff; }
-  #score-list .new .rank { color: inherit; }
 
   /* only the game, as large as it fits: in full screen, where the browser has none (the .full fallback), on phones and
      tablets, and installed as an app */
   #stage:fullscreen, #stage.full { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); }
   #stage:fullscreen canvas, #stage.full canvas { width: min(100vw, calc(100dvh * 300 / 90)); border-radius: 0; outline: none; }
-  #stage:fullscreen #hud, #stage.full #hud { display: flex; }
   body:has(#stage.full) { overflow: hidden; }
   @media (pointer: coarse), (display-mode: standalone), (display-mode: fullscreen) {
     html, body { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--game-bg, #f7f6f0); }
@@ -80,7 +56,6 @@
     #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0);
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
     #stage canvas { width: min(100%, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 300 / 90)); border-radius: 0; outline: none; }
-    #hud { display: flex; }
   }
   /* phones play sideways */
   @media (pointer: coarse) and (orientation: portrait) {
@@ -95,49 +70,12 @@
 <main>
   <header>
     <h1>LOP EAR RUN</h1>
-    <div class="bar">
-      <div id="animals" class="bar" role="group" aria-label="Animal">
-        <button type="button" data-animal="rabbit">Rabbit</button>
-        <button type="button" data-animal="dog">Dog</button>
-        <button type="button" data-animal="cat">Cat</button>
-      </div>
-      <button id="mute" type="button" title="M">Sound on</button>
-      <button id="scores-open" type="button">High scores</button>
-      <button id="full" type="button" title="F">Full screen</button>
-    </div>
   </header>
   <div id="stage">
     <canvas id="game" aria-label="Lop Ear Run: a rabbit, a dog or a cat runs, jumps and ducks"></canvas>
-    <div id="hud">
-      <button id="hud-animals" type="button" hidden>Animals</button>
-      <button id="hud-scores" type="button">High scores</button>
-      <button id="hud-sound" type="button" title="M">Sound on</button>
-      <button id="hud-full" type="button" title="F">Full screen</button>
-    </div>
-    <div id="scores" role="dialog" aria-labelledby="scores-title" hidden>
-      <div class="panel">
-        <div class="row">
-          <h3 id="scores-title">High scores</h3>
-          <div id="score-tabs" class="bar">
-            <button type="button" data-animal="rabbit">Rabbit</button>
-            <button type="button" data-animal="dog">Dog</button>
-            <button type="button" data-animal="cat">Cat</button>
-          </div>
-        </div>
-        <form id="name-form" hidden>
-          <label for="name">New high score! Your name</label>
-          <input id="name" maxlength="12" autocomplete="nickname" autocapitalize="characters" enterkeyhint="done" spellcheck="false">
-          <button type="submit">OK</button>
-        </form>
-        <ol id="score-list"></ol>
-        <div class="row end">
-          <button id="scores-close" type="button" title="Esc">Close</button>
-          <button id="scores-run" type="button" title="Space">Run</button>
-        </div>
-      </div>
-    </div>
+    <input id="name" hidden maxlength="10" autocomplete="nickname" autocapitalize="characters" autocorrect="off" enterkeyhint="done" spellcheck="false" aria-label="Your name for the high scores">
   </div>
-  <p class="help"><kbd>Space</kbd> / <kbd>↑</kbd> jump (hold to jump higher) · <kbd>↓</kbd> duck · <kbd>←</kbd> <kbd>→</kbd> pick an animal · <kbd>M</kbd> sound · <kbd>F</kbd> full screen. On a phone: tap the right half to jump, hold the left half to duck.<br>
+  <p class="help"><kbd>Space</kbd> / <kbd>↑</kbd> jump (hold to jump higher) · <kbd>↓</kbd> duck · <kbd>←</kbd> <kbd>→</kbd> pick an animal · <kbd>M</kbd> sound · <kbd>H</kbd> high scores · <kbd>F</kbd> full screen (or the buttons at the top left of the game). On a phone: tap the right half to jump, hold the left half to duck.<br>
   Jump the cacti, rocks and logs, duck under the branches. Running tires: eat (carrots, bones, fish) to keep the energy up. Every bump costs energy; with none left, the animal is knocked out.</p>
 
   <section aria-label="Music">

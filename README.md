@@ -1,6 +1,6 @@
 # Lop Ear Run
 
-A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Ten high scores per animal, kept in the browser.
+A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Ten high scores per animal, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 **Play: https://andreashackel.de/lop-ear-run/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too.
 
@@ -9,7 +9,7 @@ A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops ove
 | jump (hold to jump higher) | <kbd>Space</kbd> / <kbd>↑</kbd> | tap the right half |
 | duck | <kbd>↓</kbd> | hold the left half |
 | pick an animal | <kbd>←</kbd> <kbd>→</kbd> on the title | tap it on the title |
-| sound, full screen | <kbd>M</kbd>, <kbd>F</kbd> | the buttons on the game |
+| sound, high scores, full screen | <kbd>M</kbd>, <kbd>H</kbd>, <kbd>F</kbd> | the buttons at the top left of the game |
 
 The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`) has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (`?auto` lets the animal run by itself, to hear the moods come and go):
 
@@ -34,8 +34,8 @@ npm run icons      # draws icons/ from the game's own pixel art
 
 | Path | |
 |---|---|
-| `index.html` | the page: the game, the music panel, the high scores; on phones and installed, only the game |
-| `game.js` | the game: input, the run, energy, the high scores, the calls to the music |
+| `index.html` | the page: the game and the music panel; on phones and installed, only the game |
+| `game.js` | the game: input, the run, energy, its buttons, the high scores, the calls to the music |
 | `art.js` | the pixel art, drawn from shapes: animals (with swinging ears and tails), obstacles, food, a 3×5 font |
 | `song.json` | the music |
 | `engine/` | a copy of the Stardrift engine (`engine/VERSION` says which commit); `npm run engine` refreshes it |
