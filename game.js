@@ -355,6 +355,8 @@ const ICONS = {
   full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
   leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
   home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
+  duck: ['...x...', '...x...', '.x.x.x.', '..xxx..', '...x...', '.......', 'xxxxxxx'],
+  jump: ['...x...', '..xxx..', '.x.x.x.', '...x...', '...x...', '.......', 'xxxxxxx'],
 };
 const ACTS = {
   sound: toggleMute,
@@ -371,18 +373,26 @@ function buttons() {
 const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
 let pressedBtn = null;
 function drawButtons(pal) {
-  const ink = pal[COLOR.INK];
   for (const b of buttons()) {
-    const on = b.id === pressedBtn || (b.id === 'scores' && board);
-    ctx.fillStyle = ink;
-    ctx.fillRect(b.x + 1, b.y, BTN - 2, 1); ctx.fillRect(b.x + 1, b.y + BTN - 1, BTN - 2, 1);
-    ctx.fillRect(b.x, b.y + 1, 1, BTN - 2); ctx.fillRect(b.x + BTN - 1, b.y + 1, 1, BTN - 2);
-    ctx.fillStyle = on ? ink : pal.bg;
-    ctx.fillRect(b.x + 1, b.y + 1, BTN - 2, BTN - 2);
-    const rows = ICONS[b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id];
-    ctx.fillStyle = on ? pal.bg : ink;
-    rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === 'x') ctx.fillRect(b.x + 2 + x, b.y + 2 + y, 1, 1); }));
+    const icon = b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id;
+    drawButton(b.x, b.y, icon, b.id === pressedBtn || (b.id === 'scores' && board), pal);
   }
+  // on a phone: where to tap, in the bottom corners (the whole half works): duck on the left, jump on the right
+  if (TOUCH && !board && (state === 'title' || state === 'run' || state === 'paused')) {
+    drawButton(4, H - BTN, 'duck', ducking, pal);
+    drawButton(W - 4 - BTN, H - BTN, 'jump', [...fingers.values()].includes('jump'), pal);
+  }
+}
+// a button: a frame with rounded corners, an icon in it (inverted while pressed)
+function drawButton(x, y, icon, on, pal) {
+  const ink = pal[COLOR.INK];
+  ctx.fillStyle = ink;
+  ctx.fillRect(x + 1, y, BTN - 2, 1); ctx.fillRect(x + 1, y + BTN - 1, BTN - 2, 1);
+  ctx.fillRect(x, y + 1, 1, BTN - 2); ctx.fillRect(x + BTN - 1, y + 1, 1, BTN - 2);
+  ctx.fillStyle = on ? ink : pal.bg;
+  ctx.fillRect(x + 1, y + 1, BTN - 2, BTN - 2);
+  ctx.fillStyle = on ? pal.bg : ink;
+  ICONS[icon].forEach((r, dy) => [...r].forEach((c, dx) => { if (c === 'x') ctx.fillRect(x + 2 + dx, y + 2 + dy, 1, 1); }));
 }
 
 // ------------------------------------------------------------------------------------------------- the music panel
