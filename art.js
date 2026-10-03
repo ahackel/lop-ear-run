@@ -90,11 +90,13 @@ function fromRows(rows, keys) {
 // 1 falling), duck (0/1), idle (0/1: the tail wags), hurt, ko. soft: the angle of the ear (rabbit, dog) or the tail
 // (cat) in radians, swung by a spring in the game: 0 hangs down, more swings it back and up.
 export const FOOT = 19;
+// in the order they are unlocked: each is chased by the next (the fox by a wolf), and reaching night with one unlocks
+// the next
 export const ANIMALS = {
   rabbit: { name: 'RABBIT', food: 'carrot' },
-  dog: { name: 'DOG', food: 'bone' },
   cat: { name: 'CAT', food: 'fish' },
-  fox: { name: 'FOX', food: 'grapes', locked: true }, // played once each of the others has a high score
+  dog: { name: 'DOG', food: 'bone' },
+  fox: { name: 'FOX', food: 'grapes' },
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
@@ -442,18 +444,17 @@ export const crow = (f) => crows[f];
 // the lowest row of a crow's mask, in either frame
 export const CROW_BOTTOM = Math.max(...crows.map((c) => Math.max(...[...c.mask.keys()].filter((i) => c.mask[i]).map((i) => Math.floor(i / c.w)))));
 
-// the fox that chases the runner (running right, behind it), two frames; a grey wolf when the runner is the fox
-const chasers = [FOX, WOLF].map((fur) => [0, 1].map((f) => {
-  const g = new Grid(34, 20);
-  const mask = g.layer([ellipse(16, 11, 9, 4.5), ellipse(25, 8.5, 4, 3.6), capsule(26, 9, 31.5, 10.5, 1.6), capsule(23.5, 6, 24, 1.5, 1.2), capsule(26.5, 6, 27.5, 1.5, 1.2),
-    capsule(8, 10, 1.5, f ? 7 : 12, 2.4),
-    ...(f ? [capsule(11, 13, 7, 18, 1.2), capsule(21, 13, 25, 18, 1.2)] : [capsule(11, 13, 13, 18, 1.2), capsule(21, 13, 19, 18, 1.2)])], fur, OUT);
-  g.layer([ellipse(1.8, f ? 6.6 : 12.4, 1.8, 1.8)], BELLY);
-  g.layer([ellipse(17, 14, 5, 1.6), ellipse(29, 11.2, 2.5, 1)], BELLY);
-  g.dot(26, 7, OUT); g.dot(32, 10, OUT);
-  return sprite(g, mask);
-}));
-export const chaser = (wolf, f) => chasers[wolf ? 1 : 0][f];
+// the wolf that chases the fox: the fox, in grey
+const wolves = {};
+export const wolfish = (pal) => (wolves[pal.bg] ||= { ...pal, [FOX]: pal[WOLF], [BROWN]: '#4b4d57', bg: `${pal.bg} wolf` });
+
+// each animal's face, for the high scores
+export const FACE = {
+  rabbit: fromRows(['.ooooo.', 'oewwweo', 'oekwkeo', 'oewpweo', '.owwwo.', '..ooo..'], { o: OUT, e: EAR, w: FUR, k: OUT, p: PINK }),
+  cat: fromRows(['oo...oo', 'ogooogo', 'ogkgkgo', 'oggpggo', '.owwwo.', '..ooo..'], { o: OUT, g: GINGER, w: BELLY, k: OUT, p: PINK }),
+  dog: fromRows(['.ooooo.', 'obtttbo', 'obktkbo', 'obwkwbo', '.owwwo.', '..ooo..'], { o: OUT, b: BROWN, t: TAN, w: FUR, k: OUT }),
+  fox: fromRows(['oo...oo', 'ofooofo', 'ofkfkfo', 'owfkfwo', '.owwwo.', '..ooo..'], { o: OUT, f: FOX, w: BELLY, k: OUT }),
+};
 
 // ------------------------------------------------------------------------------------------------------------- food
 function bone() {

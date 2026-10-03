@@ -1,17 +1,17 @@
-// Lop Ear Run: a rabbit, a dog or a cat runs, jumps cacti and ducks under branches and crows. A small game that drives
-// the Stardrift engine the way a game would: one mood for each state of play, stingers for its events.
+// Lop Ear Run: a rabbit (then a cat, a dog, a fox) runs, jumps cacti and ducks under branches and crows. A small game
+// that drives the Stardrift engine the way a game would: one mood for each state of play, stingers for its events.
 //
 //   relaxed    the title, knocked out         jump       the animal jumps
 //   exploring  the first stretch              reward     food
 //   tension    once crows fly in (300)        bump       it runs into something
-//   action     once the run is fast (700)     discovery  the fox is left behind
-//   danger     while the fox chases it        alert      knocked out
-//              (a wolf, when the runner is the fox: it plays once every other animal has a high score)
+//   action     once the run is fast (700)     discovery  the chaser is left behind, the next animal unlocked
+//   danger     while the next animal chases   alert      knocked out
+//              it (the fox: a wolf)
 //   wonder     while it is night
 //   power      while a super power lasts      power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from 'stardrift-engine';
-import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow, chaser,
-  FOOD, cloud, moon, heart, star, golden, text, textWidth, hits } from './art.js';
+import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow, wolfish,
+  FOOD, FACE, cloud, moon, heart, star, golden, text, textWidth, hits } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas');
@@ -121,7 +121,34 @@ const KINDS = Object.keys(ANIMALS);
 // the next animal one way or the other, from k, among those that can be played
 const nextKind = (k, d) => { let i = KINDS.indexOf(k); do i = (i + d + KINDS.length) % KINDS.length; while (!unlocked(KINDS[i])); return KINDS[i]; };
 const chooseNext = (d) => choose(nextKind(kind, d));
-const playable = () => KINDS.filter(unlocked); // the ones on the title (the fox only once it is unlocked: a surprise)
+const playable = () => KINDS.filter(unlocked); // the ones on the title (the others stay a surprise)
+
+// The animals come one by one: a run starts with the rabbit, chased by the cat; reaching night with an animal unlocks
+// the one that chases it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
+const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1]; // (none for the fox: the wolf)
+let open = ['rabbit'];
+try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
+function unlocked(k) { return open.includes(k); }
+try { const k = localStorage.getItem('lop.animal'); if (ANIMALS[k] && unlocked(k)) kind = k; } catch { /* no storage */ }
+function unlock(k) {
+  open.push(k);
+  try { localStorage.setItem('lop.unlocked', JSON.stringify(open)); } catch { /* no storage */ }
+  call('sting', 'discovery');
+  const t = `${ANIMALS[k].name} UNLOCKED!`;
+  floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2.5, rise: 0 });
+}
+
+// home: back to the title, from wherever (a run is given up)
+function goHome() {
+  if (board) closeScores();
+  if (state === 'title') return;
+  if (state === 'paused' && audio === 'on') music.play();
+  fresh = null;
+  reset();
+  state = 'title';
+  fingers.clear();
+  updateMood({ within: 0 });
+}
 
 // a bump costs energy and leaves the animal blinking (safe) for a moment; with none left it is knocked out
 function bump(o) {
@@ -174,11 +201,7 @@ function knockOut(why) {
   if (chase) chase.leaving = true;
   call('sting', 'alert');
   updateMood({ within: 0 });
-  if (!AUTO) {
-    const was = unlocked('fox');
-    fresh = record(kind, score());
-    if (fresh && !was && unlocked('fox')) fresh.unlocks = 'fox'; // this score unlocks the fox
-  }
+  if (!AUTO) fresh = record(kind, score());
 }
 
 // ------------------------------------------------------------------------------------------------------------- input
@@ -186,7 +209,7 @@ function press() {
   startAudio();
   if (scoresOpen()) return;
   if (state === 'title') return start();
-  if (state === 'ko') { if (koT > 0.8) start(); return; }
+  if (state === 'ko') { if (koT > 0.8 && !fresh) start(); return; } // (a new high score is named first)
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
   held = true;
   if (alt === 0 && !ducking) {
@@ -214,15 +237,12 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') return toggleMute();
   if (e.code === 'KeyF') return toggleFull();
   if (e.code === 'KeyH' && state !== 'run' && state !== 'paused') return ACTS.scores();
-  if (scoresOpen()) { // the high scores: ← → another animal's, Space or Enter runs (again), Esc goes back
+  if (scoresOpen()) { // the high scores: Space or Enter runs (again), Esc goes back
     if (e.code === 'Escape') closeScores();
     else if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); closeScores(); press(); }
-    else if (['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) {
-      e.preventDefault();
-      board.k = nextKind(board.k, /Left|KeyA/.test(e.code) ? -1 : 1);
-    }
     return;
   }
+  if (e.code === 'Escape') return goHome();
   if (JUMP_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) press(); }
   else if (DUCK_KEYS.includes(e.code)) { e.preventDefault(); startAudio(); ducking = true; }
   else if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseNext(-1); }
@@ -242,7 +262,7 @@ view.addEventListener('pointerdown', (e) => {
   view.setPointerCapture(e.pointerId);
   const btn = buttonAt(x, y);
   if (btn) { pressedBtn = btn.id; return; }
-  if (scoresOpen()) { startAudio(); return tapScores(x, y); }
+  if (scoresOpen()) { startAudio(); return tapScores(); }
   if (state === 'title') {
     const k = playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
     if (k && k !== kind) { startAudio(); choose(k); return; }
@@ -262,6 +282,14 @@ const lift = (e) => {
   if (what === 'jump') release();
 };
 view.addEventListener('pointerup', lift);
+// a phone brings up its keyboard only for a field focused during a tap: after a knock-out with a new high score, the tap
+// opens the high scores with the name field focused
+view.addEventListener('touchend', (e) => {
+  if (!TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
+  e.preventDefault();
+  showScores(fresh);
+  fresh = null;
+});
 view.addEventListener('pointercancel', lift);
 // phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
 addEventListener('pointerup', () => {
@@ -316,18 +344,18 @@ const ICONS = {
   scores: ['xxxxxxx', 'x.xxx.x', '.xxxxx.', '..xxx..', '...x...', '..xxx..', '.xxxxx.'],
   full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
   leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
-  animals: ['.x...x.', '.x.x.x.', '...x...', '..xxx..', '.xxxxx.', '.xxxxx.', '..x.x..'],
+  home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
 };
 const ACTS = {
   sound: toggleMute,
-  scores: () => (board ? closeScores() : showScores()),
+  scores: () => { if (board) closeScores(); else { showScores(fresh); fresh = null; } },
   full: toggleFull,
-  animals: () => { if (state === 'ko') { reset(); state = 'title'; } },
+  home: goHome,
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 function buttons() {
-  if (state === 'run' || state === 'paused') return [{ id: 'sound', x: 60, y: 2 }];
-  const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state === 'ko' && !board ? ['animals'] : [])];
+  if (state === 'run' || state === 'paused') return [{ id: 'sound', x: 60, y: 2 }, { id: 'home', x: 60 + BTN + 2, y: 2 }];
+  const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   return ids.map((id, i) => ({ id, x: 4 + i * (BTN + 2), y: 2 }));
 }
 const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
@@ -359,47 +387,45 @@ function showMood() {
 function showCalls() { callsEl.textContent = calls.join('\n'); }
 
 // ------------------------------------------------------------------------------------------------------ high scores
-// ten for each animal, kept in this browser (localStorage lop.scores: { rabbit: [{ name, score, date }], … }). A
+// one table of ten, every animal in it, kept in this browser (localStorage lop.scores: [{ name, score, kind, date }]). A
 // knock-out that makes the table goes in at once, under the last name typed; the table then opens to name it.
 const TOP = 10;
-let tables = {}, lastName = '';
-try { tables = JSON.parse(localStorage.getItem('lop.scores')) || {}; lastName = localStorage.getItem('lop.name') || ''; } catch { /* no storage */ }
-const table = (k) => (tables[k] ||= []);
-const best = (k) => table(k)[0]?.score || 0;
-const saveTables = () => { try { localStorage.setItem('lop.scores', JSON.stringify(tables)); } catch { /* no storage */ } };
-// the fox plays once every other animal has a high score
-const unlocked = (k) => !ANIMALS[k].locked || KINDS.every((o) => ANIMALS[o].locked || table(o).length > 0);
-try { const k = localStorage.getItem('lop.animal'); if (ANIMALS[k] && unlocked(k)) kind = k; } catch { /* no storage */ }
+let scores = [], lastName = '';
+try {
+  const s = JSON.parse(localStorage.getItem('lop.scores'));
+  if (Array.isArray(s)) scores = s;
+  else if (s) scores = Object.entries(s).flatMap(([k, t]) => t.map((e) => ({ ...e, kind: k }))).sort((a, b) => b.score - a.score).slice(0, TOP); // one table per animal, before
+  lastName = localStorage.getItem('lop.name') || '';
+} catch { /* no storage */ }
+const best = () => scores[0]?.score || 0;
+const saveScores = () => { try { localStorage.setItem('lop.scores', JSON.stringify(scores)); } catch { /* no storage */ } };
 
 // → the new entry, if the score makes the table (below those it ties with)
 function record(k, s) {
-  const t = table(k);
-  if (s <= 0 || (t.length >= TOP && s <= t[TOP - 1].score)) return null;
-  const entry = { name: lastName || '???', score: s, date: new Date().toISOString().slice(0, 10) };
-  const at = t.findIndex((e) => s > e.score);
-  t.splice(at < 0 ? t.length : at, 0, entry);
-  t.length = Math.min(t.length, TOP);
-  saveTables();
+  if (s <= 0 || (scores.length >= TOP && s <= scores[TOP - 1].score)) return null;
+  const entry = { name: lastName || '???', score: s, kind: k, date: new Date().toISOString().slice(0, 10) };
+  const at = scores.findIndex((e) => s > e.score);
+  scores.splice(at < 0 ? scores.length : at, 0, entry);
+  scores.length = Math.min(scores.length, TOP);
+  saveScores();
   return entry;
 }
 
-// The high scores screen is drawn in the game, like the rest: the table of the animal standing out below (the others
-// pick theirs), the new entry marked. A text field, invisible, lies over the new entry's name and takes the typing; on a
-// phone a tap there brings up the keyboard.
-let board = null; // the screen on show: { k: whose table, entry: the new one (marked), typing }
+// The high scores screen is drawn in the game, like the rest: rank, the animal's face, name, score; the new entry
+// marked. A text field, invisible, lies over the new entry's name and takes the typing.
+let board = null; // the screen on show: { entry: the new one (marked), typing }
 const scoresOpen = () => !!board;
 const nameEl = document.getElementById('name');
-const NAME_LEN = 10, ROW = 8, COLS = [57, 157]; // a row's height; the columns' left edges (rank, name, score: 92 wide)
+const NAME_LEN = 10, ROW = 8, COLS = [57, 157]; // a row's height; the columns' left edges (rank, face, name, score: 92 wide)
 const rowAt = (i) => [COLS[Math.floor(i / 5)], 14 + (i % 5) * ROW];
 
-function showScores(k = kind, entry = null) {
-  board = { k, entry, typing: !!entry, unlocks: entry?.unlocks };
-  if (board.unlocks) { delete entry.unlocks; call('sting', 'discovery'); }
+function showScores(entry = null) {
+  board = { entry, typing: !!entry };
   if (entry) {
     nameEl.value = entry.name === '???' ? '' : entry.name;
     nameEl.hidden = false;
     placeName();
-    if (!TOUCH) nameEl.focus({ preventScroll: true }); // a phone brings up its keyboard on a tap in the field
+    nameEl.focus({ preventScroll: true }); // (a phone brings up its keyboard when this comes from a tap)
   }
 }
 function closeScores() {
@@ -416,45 +442,42 @@ function doneTyping() {
 // the text field over the new entry's name, in the page's pixels
 function placeName() {
   if (!board?.typing) return;
-  const i = table(board.k).indexOf(board.entry), [x, y] = rowAt(i), s = view.clientWidth / W;
-  Object.assign(nameEl.style, { left: `${view.offsetLeft + (x + 14) * s}px`, top: `${view.offsetTop + (y - 2) * s}px`, width: `${48 * s}px`, height: `${9 * s}px` });
+  const [x, y] = rowAt(scores.indexOf(board.entry)), s = view.clientWidth / W;
+  Object.assign(nameEl.style, { left: `${view.offsetLeft + (x + 21) * s}px`, top: `${view.offsetTop + (y - 2) * s}px`, width: `${42 * s}px`, height: `${9 * s}px` });
 }
 new ResizeObserver(placeName).observe(view);
 nameEl.addEventListener('input', () => {
   const v = nameEl.value.toUpperCase().replace(/[^A-Z0-9 .!-]/g, '').slice(0, NAME_LEN); // what the pixel font has
   if (v !== nameEl.value) nameEl.value = v;
   board.entry.name = v.trim() || '???';
-  saveTables();
+  saveScores();
 });
 nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); doneTyping(); } });
 
-// a tap on the screen: an animal shows its table, anywhere else ends the typing, or runs
-function tapScores(x, y) {
-  const k = y > GROUND - 24 && playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
+// a tap on the screen ends the typing, or runs
+function tapScores() {
   if (board.typing) doneTyping();
-  else if (k) board.k = k;
   else { closeScores(); press(); }
 }
 
 function drawBoard(pal) {
-  const ink = pal[COLOR.INK], dim = pal[COLOR.DIM], t = table(board.k);
+  const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
   text(ctx, 'HIGH SCORES', W / 2, 4, ink, 'center');
   for (let i = 0; i < TOP; i++) {
-    const [x, y] = rowAt(i), e = t[i], mark = e && e === board.entry;
+    const [x, y] = rowAt(i), e = scores[i], mark = e && e === board.entry;
     if (mark) { ctx.fillStyle = pal[7]; ctx.fillRect(x - 2, y - 2, 96, 9); }
     const c = mark ? pal.bg : e ? ink : dim;
     text(ctx, `${i + 1}.`, x + 11, y, c, 'right');
-    text(ctx, e ? (board.typing && mark && e.name === '???' ? '' : e.name) : '-', x + 15, y, c);
+    if (e) FACE[e.kind]?.draw(ctx, x + 13, y - 1, pal);
+    text(ctx, e ? (board.typing && mark && e.name === '???' ? '' : e.name) : '-', x + 22, y, c);
     if (e) text(ctx, e.score, x + 91, y, c, 'right');
-    if (mark && board.typing && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 15 + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
+    if (mark && board.typing && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 22 + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
   }
-  playable().forEach((k, i) => standing(k, i, k === board.k, pal));
+  animal(kind, 'idle', Math.floor(blinkT * 5) % 2, 0.15, blinkT % 3.2 < 0.12).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
   const [l1, l2, r1, r2] = board.typing
-    ? ['NEW HIGH SCORE!', TOUCH ? 'TAP IT, TYPE A NAME' : 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
-    : board.unlocks
-      ? ['FOX UNLOCKED!', 'PICK IT TO PLAY IT', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK']
-      : [TOUCH ? 'TAP AN ANIMAL' : '< > ANIMALS', TOUCH ? 'FOR ITS SCORES' : '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
-  text(ctx, l1, 6, GROUND - 16, board.typing || board.unlocks ? pal[7] : ink); text(ctx, l2, 6, GROUND - 9, ink);
+    ? ['NEW HIGH SCORE!', 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
+    : ['', '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
+  text(ctx, l1, 6, GROUND - 16, pal[7]); text(ctx, l2, 6, GROUND - 9, ink);
   text(ctx, r1, W - 6, GROUND - 16, ink, 'right'); text(ctx, r2, W - 6, GROUND - 9, ink, 'right');
 }
 
@@ -538,7 +561,7 @@ function update(dt) {
   softVel += ((target - soft) * 170 - softVel * 11) * dt;
   soft += softVel * dt;
   if (state === 'ko') koT += dt;
-  if (state === 'ko' && fresh && koT > 1.2) { showScores(kind, fresh); fresh = null; } // a new high score: its name
+  if (state === 'ko' && fresh && !TOUCH && koT > 1.2) { showScores(fresh); fresh = null; } // a new high score: its name (on a phone: on a tap)
   if (AUTO && state === 'ko' && koT > 3) start();
   if (state !== 'run' && state !== 'ko') return;
 
@@ -634,7 +657,11 @@ function update(dt) {
   // the events: night falls now and then, a fox gives chase now and then (never both at once)
   const s = score();
   if (night) { night = Math.max(0, night - dt); }
-  else if (!chase && s >= nextNight) { night = NIGHT_SECS; nextNight += NIGHT_EVERY; }
+  else if (!chase && s >= nextNight) {
+    night = NIGHT_SECS; nextNight += NIGHT_EVERY;
+    const c = chaserOf(kind);
+    if (c && !unlocked(c) && !AUTO) unlock(c); // night reached: the chaser joins
+  }
   if (!chase && !night && s >= nextFox && !(power && kind === 'fox')) { chase = { t: 0, x: -40 }; nextFox += FOX_EVERY; }
   if (Math.floor(s / 100) > hundreds) { hundreds = Math.floor(s / 100); flash = 1; } // the score blinks every 100
   updateMood();
@@ -643,7 +670,7 @@ function update(dt) {
 function updateBits(dt) {
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; p.life -= dt; }
   parts = parts.filter((p) => p.life > 0);
-  for (const f of floats) { f.y -= 12 * dt; f.life -= dt; }
+  for (const f of floats) { f.y -= (f.rise ?? 12) * dt; f.life -= dt; }
   floats = floats.filter((f) => f.life > 0);
 }
 
@@ -754,7 +781,10 @@ function draw() {
     ctx.fillRect(Math.round(gold.x + meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
   }
   for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
-  if (chase) chaser(kind === 'fox', Math.floor(chase.t * 10) % 2).draw(ctx, chase.x - 4, GROUND - 19, pal);
+  if (chase) { // the next animal (the fox: a wolf)
+    const c = chaserOf(kind);
+    animal(c || 'fox', 'run', Math.floor(chase.t * 12) % 4, 0.45).draw(ctx, chase.x + 4, GROUND - FOOT, c ? pal : wolfish(pal));
+  }
 
   if (state === 'title') playable().forEach((k, i) => standing(k, i, k === kind, pal));
   else {
@@ -775,17 +805,19 @@ function draw() {
   if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); }
   const pad = (n) => String(n).padStart(5, '0');
   if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - 6, 5, pal[COLOR.INK], 'right');
-  if (best(kind)) text(ctx, `HI ${pad(best(kind))}`, W - 30, 5, pal[COLOR.DIM], 'right');
+  if (best()) text(ctx, `HI ${pad(best())}`, W - 30, 5, pal[COLOR.DIM], 'right');
 
   if (state === 'title') {
     text(ctx, 'LOP EAR RUN', W / 2, 14, pal[COLOR.INK], 'center');
+    const pick = playable().length > 1;
     if (TOUCH) {
-      text(ctx, 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+      text(ctx, pick ? 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN' : 'TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
       text(ctx, 'HOLD LEFT: DUCK      TAP RIGHT: JUMP', W / 2, GROUND + 6, pal[COLOR.DIM], 'center');
-    } else text(ctx, '< > PICK - SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+    } else text(ctx, pick ? '< > PICK - SPACE OR TAP TO RUN' : 'SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
-    if (koT > 0.8) text(ctx, TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');
+    if (koT > 0.8 && fresh && TOUCH) text(ctx, 'NEW HIGH SCORE! TAP TO ENTER YOUR NAME', W / 2, 36, pal[7], 'center');
+    else if (koT > 0.8 && !fresh) text(ctx, TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');
   } else if (state === 'paused') {
     text(ctx, TOUCH ? 'PAUSED - TAP TO GO ON' : 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');
   }
