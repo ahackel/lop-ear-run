@@ -100,7 +100,7 @@ function start() {
 
 function choose(k) {
   if (state === 'run' || state === 'paused' || !ANIMALS[k]) return;
-  if (!unlocked(k)) { lockedHint = 2.5; return; }
+  if (!unlocked(k)) return;
   kind = k;
   try { localStorage.setItem('lop.animal', k); } catch { /* no storage */ }
   if (state === 'ko') { reset(); state = 'title'; }
@@ -110,7 +110,7 @@ const KINDS = Object.keys(ANIMALS);
 // the next animal one way or the other, from k, among those that can be played
 const nextKind = (k, d) => { let i = KINDS.indexOf(k); do i = (i + d + KINDS.length) % KINDS.length; while (!unlocked(KINDS[i])); return KINDS[i]; };
 const chooseNext = (d) => choose(nextKind(kind, d));
-let lockedHint = 0; // seconds left of the hint on how to unlock the fox
+const playable = () => KINDS.filter(unlocked); // the ones on the title (the fox only once it is unlocked: a surprise)
 
 // a bump costs energy and leaves the animal blinking (safe) for a moment; with none left it is knocked out
 function bump() {
@@ -193,8 +193,8 @@ view.addEventListener('pointerdown', (e) => {
   if (btn) { pressedBtn = btn.id; return; }
   if (scoresOpen()) { startAudio(); return tapScores(x, y); }
   if (state === 'title') {
-    const k = KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
-    if (k && k !== kind) { startAudio(); choose(k); return; } // (a locked one shows how to unlock it)
+    const k = playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
+    if (k && k !== kind) { startAudio(); choose(k); return; }
   }
   if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); ducking = true; fingers.set(e.pointerId, 'duck'); }
   else { fingers.set(e.pointerId, 'jump'); press(); }
@@ -379,9 +379,9 @@ nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === '
 
 // a tap on the screen: an animal shows its table, anywhere else ends the typing, or runs
 function tapScores(x, y) {
-  const k = y > GROUND - 24 && KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
+  const k = y > GROUND - 24 && playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
   if (board.typing) doneTyping();
-  else if (k) { if (unlocked(k)) board.k = k; }
+  else if (k) board.k = k;
   else { closeScores(); press(); }
 }
 
@@ -397,7 +397,7 @@ function drawBoard(pal) {
     if (e) text(ctx, e.score, x + 91, y, c, 'right');
     if (mark && board.typing && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 15 + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
   }
-  KINDS.forEach((k, i) => standing(k, i, k === board.k, pal));
+  playable().forEach((k, i) => standing(k, i, k === board.k, pal));
   const [l1, l2, r1, r2] = board.typing
     ? ['NEW HIGH SCORE!', TOUCH ? 'TAP IT, TYPE A NAME' : 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
     : board.unlocks
@@ -480,7 +480,6 @@ function update(dt) {
     : 0.45 + 0.12 * Math.sin(phase * Math.PI * 2);
   softVel += ((target - soft) * 170 - softVel * 11) * dt;
   soft += softVel * dt;
-  lockedHint = Math.max(0, lockedHint - dt);
   if (state === 'ko') koT += dt;
   if (state === 'ko' && fresh && koT > 1.2) { showScores(kind, fresh); fresh = null; } // a new high score: its name
   if (AUTO && state === 'ko' && koT > 3) start();
@@ -583,20 +582,12 @@ let hillX = 0, groundX = 0;
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GROUND_LOOP), kind: rnd() < 0.15 ? 'tuft' : rnd() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(rnd() * 4) }));
 let stageBg = null;
-const titleX = (i) => Math.round(W / 2 - 13 + (i - (KINDS.length - 1) / 2) * 34); // where the animals stand on the title
-// a palette that draws a sprite as a flat shadow (a locked animal)
-const shadows = {};
-const shadow = (pal) => (shadows[pal.bg] ||= { ...Object.fromEntries(Object.keys(pal).map((k) => [k, pal[COLOR.FAINT]])), bg: `${pal.bg} shadow` });
+const titleX = (i) => Math.round(W / 2 - 13 + (i - (playable().length - 1) / 2) * 34); // where the animals stand on the title
 
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
-// faded behind; a locked one as a shadow with a question mark
+// faded behind
 function standing(k, i, on, pal) {
   const x = titleX(i), blink = (blinkT % 3.2) < 0.12;
-  if (!unlocked(k)) {
-    animal(k, 'idle', 0, 0.15).draw(ctx, x, GROUND - FOOT, shadow(pal));
-    text(ctx, '?', x + 10, GROUND - 26 + Math.round(Math.sin(blinkT * 3)), pal[COLOR.DIM]);
-    return;
-  }
   ctx.globalAlpha = on ? 1 : 0.4;
   (on && !board ? animalSprite() : animal(k, 'idle', on ? Math.floor(blinkT * 5) % 2 : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
@@ -672,7 +663,7 @@ function draw() {
   for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
   if (chase) chaser(kind === 'fox', Math.floor(chase.t * 10) % 2).draw(ctx, chase.x - 4, GROUND - 19, pal);
 
-  if (state === 'title') KINDS.forEach((k, i) => standing(k, i, k === kind, pal));
+  if (state === 'title') playable().forEach((k, i) => standing(k, i, k === kind, pal));
   else {
     if (state === 'ko') dizzyBirds(pal, true);
     ctx.globalAlpha = safe > 0 && state === 'run' && Math.floor(safe * 10) % 2 ? 0.35 : 1;
@@ -698,7 +689,6 @@ function draw() {
       text(ctx, 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
       text(ctx, 'HOLD LEFT: DUCK      TAP RIGHT: JUMP', W / 2, GROUND + 6, pal[COLOR.DIM], 'center');
     } else text(ctx, '< > PICK - SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
-    if (lockedHint > 0) text(ctx, 'A HIGH SCORE WITH EACH ANIMAL UNLOCKS THE FOX', W / 2, 36, pal[7], 'center');
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8) text(ctx, TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');

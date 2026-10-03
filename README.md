@@ -1,6 +1,6 @@
 # Lop Ear Run
 
-A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Ten high scores per animal, kept in the browser; a high score with each of the three unlocks the fox (it eats grapes, and a wolf chases it). Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Ten high scores per animal, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 **Play: https://andreashackel.de/lop-ear-run/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 
@@ -17,9 +17,9 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 |---|---|
 | title, knocked out | `setMood('relaxed')` |
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
-| a fox (a wolf, for the fox) gives chase (from 500, every 1000) | `danger` |
+| a fox gives chase (from 500, every 1000) | `danger` |
 | night falls (every 900) | `wonder` |
-| jump, food, a bump, the chaser left behind (or the fox unlocked), knocked out | `sting('jump')`, `reward`, `bump`, `discovery`, `alert` |
+| jump, food, a bump, the fox left behind, knocked out | `sting('jump')`, `reward`, `bump`, `discovery`, `alert` |
 
 ## Working on it
 
