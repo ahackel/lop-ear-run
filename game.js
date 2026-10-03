@@ -6,9 +6,10 @@
 //   tension    once crows fly in (300)        bump       it runs into something
 //   action     once the run is fast (700)     discovery  the fox is left behind
 //   danger     while the fox chases it        alert      knocked out
+//              (a wolf, when the runner is the fox: it plays once every other animal has a high score)
 //   wonder     while it is night
 import { StardriftPlayer } from 'stardrift-engine';
-import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow, fox,
+import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow, chaser,
   FOOD, cloud, moon, heart, text, hits } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
@@ -74,8 +75,7 @@ function updateMood(options) {
 
 // ----------------------------------------------------------------------------------------------------------- state
 let state = 'title'; // title | run | ko | paused
-let kind = 'rabbit';
-try { if (ANIMALS[localStorage.getItem('lop.animal')]) kind = localStorage.getItem('lop.animal'); } catch { /* no storage */ }
+let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
 let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow;
 let fresh = null; // a knock-out's new entry in the high scores, to name
@@ -100,13 +100,17 @@ function start() {
 
 function choose(k) {
   if (state === 'run' || state === 'paused' || !ANIMALS[k]) return;
+  if (!unlocked(k)) { lockedHint = 2.5; return; }
   kind = k;
   try { localStorage.setItem('lop.animal', k); } catch { /* no storage */ }
   if (state === 'ko') { reset(); state = 'title'; }
   softVel -= 6; // a little bounce for the one picked
 }
 const KINDS = Object.keys(ANIMALS);
-const chooseNext = (d) => choose(KINDS[(KINDS.indexOf(kind) + d + KINDS.length) % KINDS.length]);
+// the next animal one way or the other, from k, among those that can be played
+const nextKind = (k, d) => { let i = KINDS.indexOf(k); do i = (i + d + KINDS.length) % KINDS.length; while (!unlocked(KINDS[i])); return KINDS[i]; };
+const chooseNext = (d) => choose(nextKind(kind, d));
+let lockedHint = 0; // seconds left of the hint on how to unlock the fox
 
 // a bump costs energy and leaves the animal blinking (safe) for a moment; with none left it is knocked out
 function bump() {
@@ -126,7 +130,11 @@ function knockOut(why) {
   if (chase) chase.leaving = true;
   call('sting', 'alert');
   updateMood({ within: 0 });
-  if (!AUTO) fresh = record(kind, score());
+  if (!AUTO) {
+    const was = unlocked('fox');
+    fresh = record(kind, score());
+    if (fresh && !was && unlocked('fox')) fresh.unlocks = 'fox'; // this score unlocks the fox
+  }
 }
 
 // ------------------------------------------------------------------------------------------------------------- input
@@ -160,7 +168,7 @@ addEventListener('keydown', (e) => {
     else if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); closeScores(); press(); }
     else if (['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD'].includes(e.code)) {
       e.preventDefault();
-      board.k = KINDS[(KINDS.indexOf(board.k) + (/Left|KeyA/.test(e.code) ? -1 : 1) + KINDS.length) % KINDS.length];
+      board.k = nextKind(board.k, /Left|KeyA/.test(e.code) ? -1 : 1);
     }
     return;
   }
@@ -186,7 +194,7 @@ view.addEventListener('pointerdown', (e) => {
   if (scoresOpen()) { startAudio(); return tapScores(x, y); }
   if (state === 'title') {
     const k = KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
-    if (k && k !== kind) { startAudio(); choose(k); return; }
+    if (k && k !== kind) { startAudio(); choose(k); return; } // (a locked one shows how to unlock it)
   }
   if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); ducking = true; fingers.set(e.pointerId, 'duck'); }
   else { fingers.set(e.pointerId, 'jump'); press(); }
@@ -308,6 +316,9 @@ try { tables = JSON.parse(localStorage.getItem('lop.scores')) || {}; lastName = 
 const table = (k) => (tables[k] ||= []);
 const best = (k) => table(k)[0]?.score || 0;
 const saveTables = () => { try { localStorage.setItem('lop.scores', JSON.stringify(tables)); } catch { /* no storage */ } };
+// the fox plays once every other animal has a high score
+const unlocked = (k) => !ANIMALS[k].locked || KINDS.every((o) => ANIMALS[o].locked || table(o).length > 0);
+try { const k = localStorage.getItem('lop.animal'); if (ANIMALS[k] && unlocked(k)) kind = k; } catch { /* no storage */ }
 
 // → the new entry, if the score makes the table (below those it ties with)
 function record(k, s) {
@@ -328,10 +339,11 @@ let board = null; // the screen on show: { k: whose table, entry: the new one (m
 const scoresOpen = () => !!board;
 const nameEl = document.getElementById('name');
 const NAME_LEN = 10, ROW = 8, COLS = [57, 157]; // a row's height; the columns' left edges (rank, name, score: 92 wide)
-const rowAt = (i) => [COLS[Math.floor(i / 5)], 16 + (i % 5) * ROW];
+const rowAt = (i) => [COLS[Math.floor(i / 5)], 14 + (i % 5) * ROW];
 
 function showScores(k = kind, entry = null) {
-  board = { k, entry, typing: !!entry };
+  board = { k, entry, typing: !!entry, unlocks: entry?.unlocks };
+  if (board.unlocks) { delete entry.unlocks; call('sting', 'discovery'); }
   if (entry) {
     nameEl.value = entry.name === '???' ? '' : entry.name;
     nameEl.hidden = false;
@@ -369,7 +381,7 @@ nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === '
 function tapScores(x, y) {
   const k = y > GROUND - 24 && KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
   if (board.typing) doneTyping();
-  else if (k) board.k = k;
+  else if (k) { if (unlocked(k)) board.k = k; }
   else { closeScores(); press(); }
 }
 
@@ -388,8 +400,10 @@ function drawBoard(pal) {
   KINDS.forEach((k, i) => standing(k, i, k === board.k, pal));
   const [l1, l2, r1, r2] = board.typing
     ? ['NEW HIGH SCORE!', TOUCH ? 'TAP IT, TYPE A NAME' : 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
-    : [TOUCH ? 'TAP AN ANIMAL' : '< > ANIMALS', TOUCH ? 'FOR ITS SCORES' : '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
-  text(ctx, l1, 6, GROUND - 16, board.typing ? pal[7] : ink); text(ctx, l2, 6, GROUND - 9, ink);
+    : board.unlocks
+      ? ['FOX UNLOCKED!', 'PICK IT TO PLAY IT', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK']
+      : [TOUCH ? 'TAP AN ANIMAL' : '< > ANIMALS', TOUCH ? 'FOR ITS SCORES' : '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
+  text(ctx, l1, 6, GROUND - 16, board.typing || board.unlocks ? pal[7] : ink); text(ctx, l2, 6, GROUND - 9, ink);
   text(ctx, r1, W - 6, GROUND - 16, ink, 'right'); text(ctx, r2, W - 6, GROUND - 9, ink, 'right');
 }
 
@@ -466,6 +480,7 @@ function update(dt) {
     : 0.45 + 0.12 * Math.sin(phase * Math.PI * 2);
   softVel += ((target - soft) * 170 - softVel * 11) * dt;
   soft += softVel * dt;
+  lockedHint = Math.max(0, lockedHint - dt);
   if (state === 'ko') koT += dt;
   if (state === 'ko' && fresh && koT > 1.2) { showScores(kind, fresh); fresh = null; } // a new high score: its name
   if (AUTO && state === 'ko' && koT > 3) start();
@@ -568,12 +583,20 @@ let hillX = 0, groundX = 0;
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GROUND_LOOP), kind: rnd() < 0.15 ? 'tuft' : rnd() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(rnd() * 4) }));
 let stageBg = null;
-const titleX = (i) => Math.round(W / 2 - 13 + (i - 1) * 34); // where the animals stand on the title
+const titleX = (i) => Math.round(W / 2 - 13 + (i - (KINDS.length - 1) / 2) * 34); // where the animals stand on the title
+// a palette that draws a sprite as a flat shadow (a locked animal)
+const shadows = {};
+const shadow = (pal) => (shadows[pal.bg] ||= { ...Object.fromEntries(Object.keys(pal).map((k) => [k, pal[COLOR.FAINT]])), bg: `${pal.bg} shadow` });
 
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
-// faded behind
+// faded behind; a locked one as a shadow with a question mark
 function standing(k, i, on, pal) {
   const x = titleX(i), blink = (blinkT % 3.2) < 0.12;
+  if (!unlocked(k)) {
+    animal(k, 'idle', 0, 0.15).draw(ctx, x, GROUND - FOOT, shadow(pal));
+    text(ctx, '?', x + 10, GROUND - 26 + Math.round(Math.sin(blinkT * 3)), pal[COLOR.DIM]);
+    return;
+  }
   ctx.globalAlpha = on ? 1 : 0.4;
   (on && !board ? animalSprite() : animal(k, 'idle', on ? Math.floor(blinkT * 5) % 2 : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
@@ -647,7 +670,7 @@ function draw() {
   const meal = FOOD[ANIMALS[kind].food];
   for (const f of food) meal.draw(ctx, f.x, f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
   for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
-  if (chase) fox(Math.floor(chase.t * 10) % 2).draw(ctx, chase.x - 4, GROUND - 19, pal);
+  if (chase) chaser(kind === 'fox', Math.floor(chase.t * 10) % 2).draw(ctx, chase.x - 4, GROUND - 19, pal);
 
   if (state === 'title') KINDS.forEach((k, i) => standing(k, i, k === kind, pal));
   else {
@@ -675,6 +698,7 @@ function draw() {
       text(ctx, 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
       text(ctx, 'HOLD LEFT: DUCK      TAP RIGHT: JUMP', W / 2, GROUND + 6, pal[COLOR.DIM], 'center');
     } else text(ctx, '< > PICK - SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+    if (lockedHint > 0) text(ctx, 'A HIGH SCORE WITH EACH ANIMAL UNLOCKS THE FOX', W / 2, 36, pal[7], 'center');
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8) text(ctx, TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');

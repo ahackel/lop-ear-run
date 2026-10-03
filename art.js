@@ -7,16 +7,16 @@ export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: t
 // palette indices
 const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF = 8, FAINT = 9, LIGHT = 10, FOX = 11, BELLY = 12,
   TAN = 14, BROWN = 15, GINGER = 16, STRIPE = 17, CACTUS = 18, CACTUS_DARK = 19, CACTUS_LIGHT = 20, YELLOW = 21, BARK = 22,
-  WOOD = 23, FISH = 24, LEAF_DARK = 25;
+  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28;
 export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT };
 
 export const PALETTES = {
   day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ee8a2a', 8: '#62b04f', 9: '#dedbd0',
     10: '#f7f6f0', 11: '#d9682b', 12: '#fdfbf6', 13: '#9a9a94', 14: '#dfa45e', 15: '#8a5a3b', 16: '#f2a65a', 17: '#c46f34', 18: '#6eae4c',
-    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c' },
+    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c' },
   night: { bg: '#1d2033', 1: '#141625', 2: '#f4f1ea', 3: '#d3c3b3', 4: '#e88aa3', 5: '#c3c6d8', 6: '#e8607e', 7: '#ee8a2a', 8: '#4f9a48', 9: '#2e3350',
     10: '#1d2033', 11: '#d9682b', 12: '#f4f1ea', 13: '#6a7090', 14: '#cf975a', 15: '#7a5038', 16: '#e69a52', 17: '#b06232', 18: '#4f9446',
-    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c' },
+    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3' },
 };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -94,10 +94,11 @@ export const ANIMALS = {
   rabbit: { name: 'RABBIT', food: 'carrot' },
   dog: { name: 'DOG', food: 'bone' },
   cat: { name: 'CAT', food: 'fish' },
+  fox: { name: 'FOX', food: 'grapes', locked: true }, // played once each of the others has a high score
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
-// as it rises, gathered as it falls), the dog and the cat gallop
+// as it rises, gathered as it falls), the others gallop
 export function stride(kind, phase) {
   if (kind === 'rabbit') {
     if (phase < 0.3) return { frame: 0, lift: 0 };
@@ -274,6 +275,60 @@ const DRAW = {
     g.dot(nose[0], nose[1], PINK);
     return { mask: union(farMask, bodyMask), head: [eye[0] - 1, eye[1] - 6] };
   },
+
+  // the fox: slim, a long snout, ears with dark tips, dark socks, a bushy tail with a white tip (on the spring)
+  fox(g, pose, f, tailA, blink) {
+    let body, far = [], near, tail, eye, nose, ears, tipsAbove = -1, white, socks;
+    if (pose === 'duck' || pose === 'ko') {
+      const ko = pose === 'ko', hy = ko ? 15.6 : 15.3;
+      body = [ellipse(11.5, 16.3, 7.5, 2.9), ellipse(19.5, hy, 3.4, 3.1), capsule(21, hy + 1, 24.6, hy + 1.6, 1.2)];
+      ears = [triangle(16.8, hy - 1.9, 15.3, hy - 4.4, 18.6, hy - 2.7), triangle(19.5, hy - 2.9, 20.3, hy - 4.8, 21.6, hy - 2.7)];
+      near = ko ? legs([[8, 14.5, 7, 11], [14.5, 14.5, 14, 11]], 0.9) : [ellipse(f ? 22 : 21, 18.9, 2.3, 1), ellipse(f ? 6 : 8, 18.9, 2.6, 1)];
+      far = ko ? legs([[10.5, 14.5, 11, 11], [16.5, 14.5, 17.5, 11]], 0.9) : [];
+      white = [ellipse(13, 18.3, 5, 1), ellipse(22.5, hy + 2, 2, 0.9)];
+      socks = ko ? (x, y) => y < 12.5 : (x, y) => y >= 18;
+      tail = [5.5, 15.5, 1.5];
+      eye = [20.5, hy - 1]; nose = [25, hy + 1];
+    } else if (pose === 'idle') { // sitting, the tail around its feet
+      body = [ellipse(10.5, 14, 5, 4.6), ellipse(14, 12.5, 2.8, 4.2), ellipse(16, 7.5, 3.5, 3.2), capsule(17, 9, 20.8, 9.6, 1.3), ellipse(11, 18.6, 3.2, 1.1)];
+      ears = [triangle(13.6, 5.3, 14.1, 0.8, 16.2, 4.3), triangle(16.4, 4.3, 18, 0.6, 18.8, 5.4)];
+      near = legs([[14, 15, 14, 18.5]], 0.9); far = legs([[16, 15, 16.2, 18.5]], 0.9);
+      white = [ellipse(14.5, 12.5, 1.8, 3), ellipse(18.5, 10.2, 2.2, 0.9)];
+      socks = (x, y) => y >= 17;
+      tipsAbove = 2.6;
+      tail = [6, 17, 1.5 + (f ? 0.12 : 0)];
+      eye = [16.5, 7]; nose = [21, 9];
+    } else { // run, jump, hurt
+      const k = pose === 'jump' ? (f ? 2 : 0) : pose === 'hurt' ? 1 : f;
+      body = [ellipse(12, 11.8, 6.5, 3.5), ellipse(16.5, 12, 2.6, 3), ellipse(19.8, 8.6, 3.5, 3.2), capsule(21, 10, 24.6, 10.6, 1.3)];
+      ears = [triangle(17.4, 6.3, 17.9, 1.6, 20, 5.2), triangle(20.2, 5.3, 21.8, 1.5, 22.6, 6.4)];
+      const feet = [
+        [[4.5, 17.3], [6, 18], [21, 16.5], [19.5, 17.6]],
+        [[8.5, 18.4], [10, 18.4], [16, 18.4], [18, 18.4]],
+        [[12, 17.6], [10.5, 18], [14, 17.3], [15.5, 17.8]],
+        [[7, 18.4], [8.5, 18.4], [18, 18.4], [16.5, 18.4]],
+      ][k];
+      near = legs([[8.5, 13.5, ...feet[0]], [16, 13.5, ...feet[2]]], 0.9);
+      far = legs([[9.5, 13.5, ...feet[1]], [16.5, 13.5, ...feet[3]]], 0.8);
+      white = [ellipse(13, 14.6, 5, 1.1), ellipse(17.6, 13, 1.8, 2), ellipse(22.6, 11.1, 2.2, 0.9)];
+      socks = (x, y) => y >= 16.5;
+      tipsAbove = 3.4;
+      tail = [6, 10.5, 0.5 + tailA * 0.5];
+      eye = [20.5, 7.5]; nose = [25, 10];
+    }
+    // the tail: bushy, from the rump back and up, its tip white
+    const [tx, ty, ta] = tail, dx = -Math.sin(ta), dy = -Math.cos(ta), L = 5.5;
+    g.layer([capsule(tx, ty, tx + dx * L * 0.5, ty + dy * L * 0.5, 1.6), capsule(tx + dx * L * 0.5, ty + dy * L * 0.5, tx + dx * L, ty + dy * L, 2.1)], FOX, OUT);
+    g.paint([ellipse(tx + dx * (L + 0.8), ty + dy * (L + 0.8), 1.8, 1.8)], BELLY, g.px.map((c) => +(c === FOX)));
+    const farMask = g.layer(far, FOX, OUT);
+    const bodyMask = g.layer([...body, ...ears, ...near], FOX, OUT);
+    g.paint(white, BELLY, bodyMask);
+    g.paint([...near, ...far].map((l) => (x, y) => socks(x, y) && l(x, y)), BROWN, union(farMask, bodyMask));
+    if (tipsAbove > 0) g.paint(ears.map((e) => (x, y) => y < tipsAbove && e(x, y)), BROWN, bodyMask);
+    eyes(g, pose, eye, blink);
+    g.dot(nose[0], nose[1], OUT);
+    return { mask: union(farMask, bodyMask), head: [eye[0] - 1, eye[1] - 6] };
+  },
 };
 
 // the birds that circle a knocked-out head: two frames
@@ -387,18 +442,18 @@ export const crow = (f) => crows[f];
 // the lowest row of a crow's mask, in either frame
 export const CROW_BOTTOM = Math.max(...crows.map((c) => Math.max(...[...c.mask.keys()].filter((i) => c.mask[i]).map((i) => Math.floor(i / c.w)))));
 
-// the fox that chases the runner (running right, behind it), two frames
-const foxes = [0, 1].map((f) => {
+// the fox that chases the runner (running right, behind it), two frames; a grey wolf when the runner is the fox
+const chasers = [FOX, WOLF].map((fur) => [0, 1].map((f) => {
   const g = new Grid(34, 20);
   const mask = g.layer([ellipse(16, 11, 9, 4.5), ellipse(25, 8.5, 4, 3.6), capsule(26, 9, 31.5, 10.5, 1.6), capsule(23.5, 6, 24, 1.5, 1.2), capsule(26.5, 6, 27.5, 1.5, 1.2),
     capsule(8, 10, 1.5, f ? 7 : 12, 2.4),
-    ...(f ? [capsule(11, 13, 7, 18, 1.2), capsule(21, 13, 25, 18, 1.2)] : [capsule(11, 13, 13, 18, 1.2), capsule(21, 13, 19, 18, 1.2)])], FOX, OUT);
+    ...(f ? [capsule(11, 13, 7, 18, 1.2), capsule(21, 13, 25, 18, 1.2)] : [capsule(11, 13, 13, 18, 1.2), capsule(21, 13, 19, 18, 1.2)])], fur, OUT);
   g.layer([ellipse(1.8, f ? 6.6 : 12.4, 1.8, 1.8)], BELLY);
   g.layer([ellipse(17, 14, 5, 1.6), ellipse(29, 11.2, 2.5, 1)], BELLY);
   g.dot(26, 7, OUT); g.dot(32, 10, OUT);
   return sprite(g, mask);
-});
-export const fox = (f) => foxes[f];
+}));
+export const chaser = (wolf, f) => chasers[wolf ? 1 : 0][f];
 
 // ------------------------------------------------------------------------------------------------------------- food
 function bone() {
@@ -421,7 +476,14 @@ const carrot = fromRows([
   '..o..',
   '..o..',
 ], { g: LEAF, o: ORANGE });
-export const FOOD = { carrot, bone: bone(), fish: fish() };
+// grapes, for the fox (the sour ones of the fable, within reach now)
+function grapes() {
+  const g = new Grid(10, 11);
+  g.layer([capsule(5, 0.5, 5.5, 2.5, 0.6)], LEAF);
+  for (const [x, y] of [[2.5, 4], [5, 3.8], [7.5, 4], [3.8, 6.3], [6.2, 6.3], [5, 8.6]]) { g.layer([ellipse(x, y, 1.5, 1.5)], GRAPE, OUT); g.dot(x - 1, y - 1, LIGHT); }
+  return sprite(g, new Uint8Array(g.w * g.h));
+}
+export const FOOD = { carrot, bone: bone(), fish: fish(), grapes: grapes() };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
 export const cloud = fromRows([
@@ -455,7 +517,7 @@ const GLYPHS = {
   A: '25755', B: '65656', C: '34443', D: '65556', E: '74647', F: '74644', G: '34553', H: '55755', I: '72227', J: '11152', K: '55655', L: '44447', M: '57755',
   N: '65555', O: '25552', P: '65644', Q: '25563', R: '65655', S: '34216', T: '72222', U: '55557', V: '55552', W: '55775', X: '55255', Y: '55222', Z: '71247',
   0: '75557', 1: '26227', 2: '61247', 3: '61216', 4: '55711', 5: '74616', 6: '34757', 7: '71222', 8: '75757', 9: '75716',
-  ' ': '00000', '.': '00002', ':': '02020', '!': '22202', '-': '00700', '/': '11244', '+': '02720', '<': '12421', '>': '42124',
+  ' ': '00000', '.': '00002', ':': '02020', '!': '22202', '-': '00700', '/': '11244', '+': '02720', '<': '12421', '>': '42124', '?': '61202',
 };
 export const textWidth = (s) => s.length * 4 - 1;
 // text at (x, y), its top left; align 'center' or 'right' moves x
