@@ -7,16 +7,16 @@ export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: t
 // palette indices
 const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF = 8, FAINT = 9, LIGHT = 10, FOX = 11, BELLY = 12,
   TAN = 14, BROWN = 15, GINGER = 16, STRIPE = 17, CACTUS = 18, CACTUS_DARK = 19, CACTUS_LIGHT = 20, YELLOW = 21, BARK = 22,
-  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31;
+  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31, SKUNK = 32;
 export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT, WHITE: BELLY };
 
 export const PALETTES = {
   day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ee8a2a', 8: '#62b04f', 9: '#dedbd0',
     10: '#f7f6f0', 11: '#d9682b', 12: '#fdfbf6', 13: '#9a9a94', 14: '#dfa45e', 15: '#8a5a3b', 16: '#f2a65a', 17: '#c46f34', 18: '#6eae4c',
-    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66' },
+    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866' },
   night: { bg: '#1d2033', 1: '#141625', 2: '#f4f1ea', 3: '#d3c3b3', 4: '#e88aa3', 5: '#c3c6d8', 6: '#e8607e', 7: '#ee8a2a', 8: '#4f9a48', 9: '#2e3350',
     10: '#1d2033', 11: '#d9682b', 12: '#f4f1ea', 13: '#6a7090', 14: '#cf975a', 15: '#7a5038', 16: '#e69a52', 17: '#b06232', 18: '#4f9446',
-    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78' },
+    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78', 32: '#6c6c7a' },
 };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -91,21 +91,22 @@ function fromRows(rows, keys) {
 // ear or the tail in radians, swung by a spring in the game: 0 hangs down, more swings it back and up.
 export const FOOT = 19;
 // In the order they are unlocked: each is chased by the next (the last by a bear), and reaching night with one unlocks
-// the next. Each is a bit harder than the one before, and its score counts more (mult). The dials, as factors:
-// speed (start and top speed), jump (its speed off the ground), gravity, drain (energy), meals (how often food comes),
-// bump (what a bump costs), early (crows and branches come that many points sooner), packs (obstacles in groups).
-const tune = (mult, speed, jump, gravity, drain, meals, bump, early, packs) => ({ mult, speed, jump, gravity, drain, meals, bump, early, packs });
+// the next. The rabbit is the easy start; each after it is clearly harder than the one before, the boar the hardest, and
+// its score counts more (mult). The dials, as factors: speed (start and top speed), jump (its speed off the ground),
+// gravity, drain (energy), meals (how often food comes), bump (what a bump costs), early (crows and branches come that
+// many points sooner), packs (obstacles in groups), tight (the gaps between obstacles).
+const tune = (mult, speed, jump, gravity, drain, meals, bump, early, packs, tight) => ({ mult, speed, jump, gravity, drain, meals, bump, early, packs, tight });
 export const ANIMALS = {
-  rabbit: { name: 'RABBIT', food: 'carrot', ...tune(1.0, 1.0, 1.08, 1, 1, 1, 1, 0, 1) },
-  cat: { name: 'CAT', food: 'fish', ...tune(1.1, 1.05, 1, 1, 1, 1, 1, 0, 1) },
-  dog: { name: 'DOG', food: 'bone', ...tune(1.2, 1.1, 1, 1, 1.05, 1, 1, 0, 1.1) },
-  fox: { name: 'FOX', food: 'grapes', ...tune(1.3, 1.14, 1, 1, 1.05, 0.85, 1, 0, 1.2) },
-  hedgehog: { name: 'HEDGEHOG', food: 'apple', ...tune(1.4, 1.16, 0.9, 1, 1.1, 0.85, 1, 50, 1.25) }, // short jumps
-  squirrel: { name: 'SQUIRREL', food: 'acorn', ...tune(1.5, 1.2, 1, 0.8, 1.35, 0.85, 1, 100, 1.3) }, // floaty, hungry
-  otter: { name: 'OTTER', food: 'shell', ...tune(1.6, 1.22, 0.95, 1.05, 1.2, 0.8, 1.1, 300, 1.35) }, // crows from the start
-  fawn: { name: 'FAWN', food: 'clover', ...tune(1.75, 1.3, 1.05, 1.1, 1.2, 0.8, 1.15, 300, 1.4) }, // tall, fast
-  wolf: { name: 'WOLF', food: 'sausage', ...tune(1.9, 1.36, 1, 1.1, 1.25, 0.75, 1.2, 300, 1.6) },
-  boar: { name: 'BOAR', food: 'mushroom', ...tune(2.0, 1.4, 0.92, 1.15, 1.3, 0.7, 1.4, 300, 1.7) }, // heavy, low jumps
+  rabbit: { name: 'RABBIT', food: 'carrot', ...tune(1.0, 1.0, 1.08, 1, 1, 1, 1, 0, 1, 1) },
+  cat: { name: 'CAT', food: 'fish', ...tune(1.15, 1.07, 1, 1, 1.1, 0.95, 1.1, 50, 1.2, 0.97) },
+  dog: { name: 'DOG', food: 'bone', ...tune(1.3, 1.14, 1, 1.05, 1.2, 0.9, 1.15, 100, 1.4, 0.94) },
+  fox: { name: 'FOX', food: 'grapes', ...tune(1.45, 1.21, 1, 1.05, 1.3, 0.85, 1.25, 150, 1.6, 0.91) },
+  hedgehog: { name: 'HEDGEHOG', food: 'apple', ...tune(1.6, 1.27, 0.92, 1.05, 1.4, 0.8, 1.3, 200, 1.8, 0.88) }, // short jumps
+  squirrel: { name: 'SQUIRREL', food: 'acorn', ...tune(1.8, 1.32, 1, 0.85, 1.6, 0.75, 1.35, 250, 2, 0.86) }, // floaty, hungry
+  otter: { name: 'OTTER', food: 'shell', ...tune(2.0, 1.36, 0.97, 1.1, 1.6, 0.7, 1.4, 300, 2.2, 0.84) }, // crows from the start
+  skunk: { name: 'SKUNK', food: 'beetle', ...tune(2.25, 1.4, 1.05, 1.1, 1.7, 0.68, 1.45, 300, 2.3, 0.82) },
+  wolf: { name: 'WOLF', food: 'sausage', ...tune(2.5, 1.45, 1, 1.15, 1.8, 0.65, 1.5, 300, 2.5, 0.8) },
+  boar: { name: 'BOAR', food: 'mushroom', ...tune(3.0, 1.5, 0.95, 1.2, 2, 0.6, 1.6, 300, 2.8, 0.76) }, // heavy, low jumps: the hardest
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
@@ -382,6 +383,7 @@ function render(g, pose, blink, p) {
   for (const [shapes, color] of p.paint || []) g.paint(shapes, color, bodyMask);
   p.after?.(bodyMask);
   for (const [shapes, color] of p.over || []) g.layer(shapes, color, OUT);
+  p.last?.();
   for (const [x, y, c] of p.dots || []) g.dot(x, y, c);
   eyes(g, pose, p.eye, blink);
   if (p.nose) g.dot(p.nose[0], p.nose[1], OUT);
@@ -442,19 +444,23 @@ Object.assign(DRAW, {
       paint: [[[snout, ellipse(22, 10.5, 2.5, 1.4), ellipse(12, 15.8, 4.5, 1.2)], EAR]], eye: [21, 7.4], nose: [24.6, 8.9] });
   },
 
-  // the fawn: tall, long thin legs, white spots, big ears, a white scut
-  fawn(g, pose, f, soft, blink) {
-    const spots = [[8, 8], [10.5, 7.4], [13, 8.2], [9.3, 10], [12, 10.2], [6.8, 9.6]].map(([x, y]) => [x, y, BELLY]);
+  // the skunk: round and fluffy, black with a white stripe from its head down its back, a big bushy tail (on the spring)
+  skunk(g, pose, f, soft, blink) {
+    const bushy = (x, y, a) => { const [mx, my] = swing(x, y, a, 5), [tx, ty] = swing(mx, my, a - 1, 4); return [capsule(x, y, mx, my, 2.3), capsule(mx, my, tx, ty, 2.7)]; };
     if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', head = ellipse(19.8, ko ? 15.6 : 13.2, 2.5, 2.2), sy = ko ? 16.3 : 13.9;
-      return render(g, pose, blink, { fur: TAN, body: [ellipse(12, 16, 7, ko ? 2.8 : 3), capsule(16.5, 15.5, 18.6, ko ? 15.6 : 13.6, 1.4), head, capsule(20.8, sy, 23.5, sy + 0.5, 1), ellipse(17.6, ko ? 14.3 : 11.9, 1.8, 0.8)],
-        near: ko ? legsUp([8, 11, 14, 16], 0.75, 9.5) : [ellipse(f ? 14 : 15, 18.7, 3, 0.9), ellipse(f ? 8 : 9, 18.7, 3, 0.9)],
-        dots: spots.map(([x, y, c]) => [x, y + 6.5, c]), eye: [20.3, ko ? 15 : 12.6], nose: [24, sy + 0.2] });
+      const ko = pose === 'ko', head = ellipse(19.5, 16, 3, 2.6), snout = ellipse(22.2, 16.9, 1.6, 1.2);
+      return render(g, pose, blink, { fur: SKUNK, body: [ellipse(11.5, 16, 8, ko ? 3.2 : 3), head, snout, ellipse(18, 13.6, 0.9, 0.9)],
+        near: ko ? legsUp([8, 14], 0.9) : paws(f, 20.5, 6.5), tail: [capsule(4.5, 15, 0.8, 13, 2), ellipse(1.5, 12.5, 1.6, 1.6)],
+        paint: [[[capsule(19.5, 13.6, 6, ko ? 13.6 : 13.3, 0.9)], BELLY]], eye: [20.2, 15.4], nose: [23.6, 16.6] });
     }
-    const k = frameOf(pose, f), [near, far] = gallop(k, [8, 11.8], [15, 11.8], 0.75), [tx, ty] = swing(5.5, 8.5, 0.6 + soft * 0.4, 2.2);
-    return render(g, pose, blink, { fur: TAN, body: [ellipse(11.5, 9.8, 6.3, 3.2), capsule(15.5, 9, 18.3, 5.6, 1.6), ellipse(19.6, 4.4, 2.7, 2.4), capsule(20.5, 5.3, 23.6, 6, 1.1), ellipse(17, 2.8, 2, 0.95)],
-      near, far, tail: [capsule(5.5, 8.5, tx, ty, 0.9)], tailColor: BELLY,
-      paint: [[[ellipse(12, 12.4, 4.5, 0.9)], EAR]], dots: spots, eye: [20, 3.8], nose: [24, 5.6] });
+    const [near, far] = gallop(frameOf(pose, f), [8, 15.5], [14.5, 15.5], 0.9), head = ellipse(18.8, 12.6, 3.3, 3), snout = ellipse(21.8, 13.8, 1.8, 1.2);
+    const a = 0.3 + soft * 0.4, tail = bushy(5, 10, a), fur = () => g.px.map((c) => +(c === SKUNK));
+    return render(g, pose, blink, { fur: SKUNK, body: [ellipse(10.5, 11.2, 6.5, 7.2)], near, far, tail,
+      paint: [[[capsule(16, 6.5, 6.5, 5.6, 0.9)], BELLY]], // the stripe down its back
+      after: () => g.paint([ellipse(...swing(...swing(5, 10, a, 5), a - 1, 3.4), 1.3, 1.3)], BELLY, fur()), // the tail's white tip
+      over: [[[head, snout, ellipse(17.2, 9.8, 1, 1)], SKUNK]],
+      last: () => g.paint([capsule(20.6, 11.2, 17.6, 9.8, 0.7)], BELLY, fur()), // and up its forehead
+      eye: [19.5, 12], nose: [23.4, 13.6] });
   },
 
   // the wolf: the fox's build, in grey (dark grey socks and ear tips)
@@ -607,7 +613,7 @@ export const FACE = {
   hedgehog: fromRows(['o.o.o.o', 'obbbbbo', 'obkekbo', 'obeeebo', '.oeneo.', '..ooo..'], { o: OUT, b: BROWN, e: EAR, k: OUT, n: OUT }),
   squirrel: fromRows(['o.....o', 'oro.oro', 'orkrkro', 'orrwrro', '.owwwo.', '..ooo..'], { o: OUT, r: STRIPE, w: BELLY, k: OUT }),
   otter: fromRows(['.ooooo.', 'obbbbbo', 'obkbkbo', 'obenebo', '.oeeeo.', '..ooo..'], { o: OUT, b: BROWN, e: EAR, k: OUT, n: OUT }),
-  fawn: fromRows(['oo...oo', 'oto.oto', 'otktkto', '.ottto.', '..oeo..', '...o...'], { o: OUT, t: TAN, k: OUT, e: EAR }),
+  skunk: fromRows(['oo...oo', 'osowoso', 'oswwwso', 'osswsso', '.ospso.', '..ooo..'], { o: OUT, s: SKUNK, w: BELLY, p: PINK }),
   wolf: fromRows(['oo...oo', 'ogooogo', 'ogkgkgo', 'owgngwo', '.owwwo.', '..ooo..'], { o: OUT, g: WOLF, w: BELLY, k: OUT, n: OUT }),
   boar: fromRows(['oo...oo', 'obooobo', 'obkbkbo', 'obsssbo', 'wosnsow', '..ooo..'], { o: OUT, b: BOAR, s: SNOUT, n: OUT, k: OUT, w: BELLY }),
 };
@@ -640,7 +646,7 @@ function grapes() {
   for (const [x, y] of [[2.5, 4], [5, 3.8], [7.5, 4], [3.8, 6.3], [6.2, 6.3], [5, 8.6]]) { g.layer([ellipse(x, y, 1.5, 1.5)], GRAPE, OUT); g.dot(x - 1, y - 1, LIGHT); }
   return sprite(g, new Uint8Array(g.w * g.h));
 }
-// the later animals' food: an apple, an acorn, a shell, clover, a sausage, a mushroom
+// the later animals' food: an apple, an acorn, a shell, a beetle, a sausage, a mushroom
 const food = (w, h, draw) => { const g = new Grid(w, h); draw(g); return sprite(g, new Uint8Array(w * h)); };
 const apple = food(8, 9, (g) => {
   g.layer([capsule(4, 0.6, 4.2, 2.2, 0.5)], BARK); g.layer([ellipse(5.8, 1.3, 1.3, 0.7)], LEAF);
@@ -653,10 +659,9 @@ const shell = food(10, 8, (g) => {
   const m = g.layer([ellipse(5, 4.4, 4.2, 3.4), ellipse(5, 7, 1.6, 0.9)], EAR, OUT);
   g.paint([capsule(5, 7, 2, 2, 0.4), capsule(5, 7, 5, 1.5, 0.4), capsule(5, 7, 8, 2, 0.4)], TAN, m);
 });
-const clover = food(9, 10, (g) => {
-  g.layer([capsule(4.5, 6, 5.5, 9.4, 0.5)], LEAF_DARK);
-  for (const [x, y] of [[2.8, 3], [6.2, 3], [4.5, 5.4]]) g.layer([ellipse(x, y, 1.7, 1.7)], LEAF, OUT);
-  g.dot(4, 4, LEAF_DARK);
+const beetle = food(9, 7, (g) => {
+  for (const [x1, y1, x2, y2] of [[2, 4, 0.5, 6], [4.5, 4.5, 4.5, 6.5], [7, 4, 8.5, 6], [3, 2, 1.5, 0.5], [6, 2, 7.5, 0.5]]) g.layer([capsule(x1, y1, x2, y2, 0.4)], OUT);
+  g.layer([ellipse(4.5, 3.5, 3, 2.3)], LEAF_DARK, OUT); g.dot(4, 2, LIGHT); g.dot(4, 3, OUT); g.dot(4, 4, OUT);
 });
 const sausage = food(12, 7, (g) => {
   g.layer([capsule(2.5, 4, 9.5, 3, 1.8)], FOX, OUT); g.dot(4, 2, LIGHT); g.dot(5, 2, LIGHT); g.dot(0, 5, OUT); g.dot(11, 2, OUT);
@@ -666,7 +671,7 @@ const mushroom = food(9, 9, (g) => {
   const m = g.layer([(x, y) => y < 4.5 && ellipse(4.5, 4.4, 4, 3.6)(x, y)], BERRY, OUT);
   g.paint([ellipse(3, 2.5, 0.7, 0.7), ellipse(6, 2, 0.7, 0.7), ellipse(5, 3.6, 0.5, 0.5)], BELLY, m);
 });
-export const FOOD = { carrot, bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, clover, sausage, mushroom };
+export const FOOD = { carrot, bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
 export const cloud = fromRows([

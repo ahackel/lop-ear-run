@@ -1,19 +1,19 @@
 # Lop Ear Run
 
-A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). The next animal chases it, and reaching night unlocks that one: ten in all, each a bit harder than the one before (faster, lower jumps, hungrier, crows sooner) and worth more points (×1 to ×2). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). The next animal chases it, and reaching night unlocks that one: ten in all, the rabbit the easy start, each after it clearly harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs) and worth more points (×1 to ×3). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 | Animal | Food | Power |
 |---|---|---|
 | rabbit (×1) | carrot | super hop: higher, and once more in the air |
-| cat (×1.1) | fish | nine lives: bounces off what it hits |
-| dog (×1.2) | bone | zoomies: faster, bowls everything over |
-| fox (×1.3) | grapes | sly fox: food comes to it, the chaser loses its trail |
-| hedgehog (×1.4) | apple | spike ball: rolls through everything |
-| squirrel (×1.5) | acorn | glide: falls slowly, jumps again in the air |
-| otter (×1.6) | shell | belly slide: under what hangs low, through the rest |
-| fawn (×1.75) | clover | leap: huge, long jumps |
-| wolf (×1.9) | sausage | howl: what is just ahead is blown away |
-| boar (×2) | mushroom | tusk charge: faster, smashes everything (worth double); a bear chases it |
+| cat (×1.15) | fish | nine lives: bounces off what it hits |
+| dog (×1.3) | bone | zoomies: faster, bowls everything over |
+| fox (×1.45) | grapes | sly fox: food comes to it, the chaser loses its trail |
+| hedgehog (×1.6) | apple | spike ball: rolls through everything |
+| squirrel (×1.8) | acorn | glide: falls slowly, jumps again in the air |
+| otter (×2) | shell | belly slide: under what hangs low, through the rest |
+| skunk (×2.25) | beetle | stink: obstacles fade (it runs through them), crows and the chaser flee |
+| wolf (×2.5) | sausage | howl: what is just ahead is blown away |
+| boar (×3) | mushroom | tusk charge: faster, smashes everything (worth double); a bear chases it |
 
 **Play: https://andreashackel.de/lop-ear-run/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 

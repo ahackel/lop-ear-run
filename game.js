@@ -35,7 +35,7 @@ const POWERS = {
   hedgehog: 'SPIKE BALL!', // rolls up and plows through everything
   squirrel: 'GLIDE!', // falls slowly, and jumps again in the air
   otter: 'BELLY SLIDE!', // slides under what hangs low and through the rest
-  fawn: 'LEAP!', // huge, long jumps
+  skunk: 'STINK!', // obstacles fade (it runs right through them), crows and the chaser flee
   wolf: 'HOWL!', // what is just ahead is blown away
   boar: 'TUSK CHARGE!', // faster, and smashes everything (worth double)
 };
@@ -196,7 +196,7 @@ function startPower() {
   updateMood({ within: 0 });
   floats.push({ text: POWERS[kind], x: W / 2 - textWidth(POWERS[kind]) / 2, y: 28, life: 1.6 });
   sparkle(16, 140);
-  if (kind === 'fox' && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: 'LOST YOU!', x: 4, y: GROUND - 32, life: 1.2 }); }
+  if ((kind === 'fox' || kind === 'skunk') && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: kind === 'fox' ? 'LOST YOU!' : 'PHEW!', x: 4, y: GROUND - 32, life: 1.2 }); }
 }
 // golden sparks around the animal
 function sparkle(n, v = 40) {
@@ -223,7 +223,7 @@ function press() {
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
   held = true;
   if (alt === 0 && !ducking) {
-    vAlt = JUMP * T().jump * (superHop() ? 1.25 : power && kind === 'fawn' ? 1.3 : 1);
+    vAlt = JUMP * T().jump * (superHop() ? 1.25 : 1);
     softVel -= 9; // the ear flicks down as it takes off
     call('sting', 'jump');
   } else if (alt > 0 && ((superHop() && airJumps < 1) || (power && kind === 'squirrel'))) { // once more in the air (gliding: again and again)
@@ -235,6 +235,7 @@ function press() {
   }
 }
 const superHop = () => power > 0 && kind === 'rabbit';
+const stinks = () => power > 0 && kind === 'skunk';
 function release() {
   held = false;
   if (vAlt > JUMP_CUT) vAlt = JUMP_CUT;
@@ -355,8 +356,9 @@ const ICONS = {
   full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
   leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
   home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
-  duck: ['...x...', '...x...', '.x.x.x.', '..xxx..', '...x...', '.......', 'xxxxxxx'],
-  jump: ['...x...', '..xxx..', '.x.x.x.', '...x...', '...x...', '.......', 'xxxxxxx'],
+  // the tap areas on a phone: bigger (11×11)
+  duck: ['.....x.....', '.....x.....', '.....x.....', '.....x.....', '.x...x...x.', '..x..x..x..', '...x.x.x...', '....xxx....', '.....x.....', '...........', 'xxxxxxxxxxx'],
+  jump: ['.....x.....', '....xxx....', '...x.x.x...', '..x..x..x..', '.x...x...x.', '.....x.....', '.....x.....', '.....x.....', '.....x.....', '...........', 'xxxxxxxxxxx'],
 };
 const ACTS = {
   sound: toggleMute,
@@ -377,20 +379,23 @@ function drawButtons(pal) {
     const icon = b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id;
     drawButton(b.x, b.y, icon, b.id === pressedBtn || (b.id === 'scores' && board), pal);
   }
-  // on a phone: where to tap, in the bottom corners (the whole half works): duck on the left, jump on the right
+  // on a phone: where to tap, half seen, at the middle of each side (the whole half works): duck left, jump right
   if (TOUCH && !board && (state === 'title' || state === 'run' || state === 'paused')) {
-    drawButton(4, H - BTN, 'duck', ducking, pal);
-    drawButton(W - 4 - BTN, H - BTN, 'jump', [...fingers.values()].includes('jump'), pal);
+    const PAD = 15, y = Math.round((H - PAD) / 2);
+    ctx.globalAlpha = 0.5;
+    drawButton(4, y, 'duck', ducking, pal, PAD);
+    drawButton(W - 4 - PAD, y, 'jump', [...fingers.values()].includes('jump'), pal, PAD);
+    ctx.globalAlpha = 1;
   }
 }
 // a button: a frame with rounded corners, an icon in it (inverted while pressed)
-function drawButton(x, y, icon, on, pal) {
+function drawButton(x, y, icon, on, pal, size = BTN) {
   const ink = pal[COLOR.INK];
   ctx.fillStyle = ink;
-  ctx.fillRect(x + 1, y, BTN - 2, 1); ctx.fillRect(x + 1, y + BTN - 1, BTN - 2, 1);
-  ctx.fillRect(x, y + 1, 1, BTN - 2); ctx.fillRect(x + BTN - 1, y + 1, 1, BTN - 2);
+  ctx.fillRect(x + 1, y, size - 2, 1); ctx.fillRect(x + 1, y + size - 1, size - 2, 1);
+  ctx.fillRect(x, y + 1, 1, size - 2); ctx.fillRect(x + size - 1, y + 1, 1, size - 2);
   ctx.fillStyle = on ? ink : pal.bg;
-  ctx.fillRect(x + 1, y + 1, BTN - 2, BTN - 2);
+  ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
   ctx.fillStyle = on ? pal.bg : ink;
   ICONS[icon].forEach((r, dy) => [...r].forEach((c, dx) => { if (c === 'x') ctx.fillRect(x + 2 + dx, y + 2 + dy, 1, 1); }));
 }
@@ -525,7 +530,7 @@ function spawn() {
     }
   }
   obstacles.push(o);
-  const gap = speed * (0.75 + rnd() * 0.9) + 24 + (o.duck ? 20 : 0);
+  const gap = (speed * (0.75 + rnd() * 0.9) + 24) * T().tight + (o.duck ? 20 : 0); // (time to stand up after ducking)
   spawnIn = o.sprite.w + (o.extra || 0) + gap;
   // golden food, now and then: high over a ground obstacle (jump it at the right moment)
   if (o.kind === 'ground' && !gold && !power && s >= nextGold) {
@@ -543,7 +548,7 @@ function spawn() {
 function autopilot() {
   const ahead = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
   ducking = false;
-  if (power && [...SMASHES, 'cat', 'wolf'].includes(kind)) return; // straight through (the otter slides by itself)
+  if (power && [...SMASHES, 'cat', 'wolf', 'skunk'].includes(kind)) return; // straight through (the otter slides by itself)
   const gap = ahead ? ahead.x - (RUN_X + 22) : Infinity;
   if (ahead?.duck) { ducking = alt === 0 && gap < 30; return; }
   if (alt === 0 && gap < speed * 0.1 && gap > -8) return press();
@@ -608,7 +613,7 @@ function update(dt) {
 
   // jumping: a held jump floats, a ducked one falls fast
   if (alt > 0 || vAlt > 0) {
-    vAlt -= GRAVITY * T().gravity * (ducking ? 3 : 1) * (power && kind === 'fawn' ? 0.75 : 1) * dt;
+    vAlt -= GRAVITY * T().gravity * (ducking ? 3 : 1) * dt;
     if (power && kind === 'squirrel') vAlt = Math.max(vAlt, -55); // gliding down
     alt += vAlt * dt;
     if (alt > 56) { alt = 56; vAlt = Math.min(vAlt, 0); } // (a super hop stays on the screen)
@@ -654,12 +659,16 @@ function update(dt) {
     if (rnd() < dt * 30) sparkle(1);
     if (kind === 'otter') ducking = power > 0; // belly slide
     if (kind === 'wolf') for (const o of obstacles) if (!o.smashed && o.x > RUN_X + 12 && o.x < RUN_X + 80) smash(o, true); // howl
+    if (kind === 'skunk') { // stink: a green cloud behind it, crows flap off
+      if (rnd() < dt * 40) parts.push({ x: RUN_X + 2, y: animalY() + 6 + rnd() * 8, vx: -30 - rnd() * 40, vy: -10 - rnd() * 20, life: 0.6, color: COLOR.LEAF });
+      for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
+    }
     if (!power) { call('sting', 'powerdown'); updateMood({ within: 0 }); }
   }
 
   // what the animal runs into, what it eats
   const sp = animalSprite(), ay = animalY();
-  if (!safe) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
+  if (!safe && !stinks()) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
   const meal = FOOD[ANIMALS[kind].food];
   if (power && kind === 'fox') for (const f of food) { // sly: the food comes to the fox
     const tx = RUN_X + 10 - f.x, ty = ay + 8 - f.y, d = Math.hypot(tx, ty);
@@ -807,7 +816,9 @@ function draw() {
     ctx.fillStyle = pal[COLOR.WHITE];
     ctx.fillRect(Math.round(gold.x + meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
   }
+  ctx.globalAlpha = stinks() ? 0.35 : 1; // (faded while the skunk stinks: it runs through them)
   for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, pal);
+  ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
     animal(c, 'run', Math.floor(chase.t * 12) % 4, 0.45).draw(ctx, chase.x + 4, GROUND - FOOT, pal);
