@@ -12,6 +12,7 @@ if (!existsSync(path.join(from, 'src/index.js'))) throw new Error(`no engine at 
 rmSync(to, { recursive: true, force: true });
 cpSync(path.join(from, 'src'), path.join(to, 'src'), { recursive: true });
 cpSync(path.join(from, 'library'), path.join(to, 'library'), { recursive: true, filter: (f) => !f.endsWith('.DS_Store') });
+cpSync(path.join(from, 'LICENSE'), path.join(to, 'LICENSE'));
 const git = (...args) => execFileSync('git', ['-C', from, ...args], { encoding: 'utf8' }).trim();
 const commit = git('rev-parse', '--short', 'HEAD') + (git('status', '--porcelain', '--', 'src', 'library') ? ' (with uncommitted changes)' : '');
 writeFileSync(path.join(to, 'VERSION'), `stardrift-engine ${commit}\n`);

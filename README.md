@@ -40,3 +40,7 @@ npm run icons      # draws icons/ from the game's own pixel art
 | `song.json` | the music |
 | `engine/` | a copy of the Stardrift engine (`engine/VERSION` says which commit); `npm run engine` refreshes it |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable app: offline files, name, icons, landscape |
+
+## License
+
+MIT (see `LICENSE`), the engine copy in `engine/` too. Its sample library is CC0 (public domain) recordings by Versilian Studios.

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "A little endless runner with adaptive music (Stardrift)",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "node tools/serve.mjs",
