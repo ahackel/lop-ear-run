@@ -1,7 +1,7 @@
 {
-  "name": "Lop Ear Run",
-  "short_name": "Lop Ear Run",
-  "description": "A little endless runner: a lop-eared rabbit, a puppy or a kitten hops over cacti, ducks under branches and eats to keep going.",
+  "name": "Lop Hop",
+  "short_name": "Lop Hop",
+  "description": "A little endless runner: a lop-eared rabbit and fourteen other animals hop over cacti, duck under branches and eat to keep going.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

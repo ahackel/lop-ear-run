@@ -2,7 +2,7 @@
 // Online, every request goes to the network (revalidated, so all files are of the same version) and the answer is kept;
 // offline, the kept files answer. (Answering from the cache first mixed an old game.js with a new index.html after an
 // update.)
-const CACHE = 'lop-ear-run-2';
+const CACHE = 'lop-hop-1';
 const GAME = ['./', 'index.html', 'game.js', 'art.js', 'song.json', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.png'];
 

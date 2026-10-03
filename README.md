@@ -1,4 +1,4 @@
-# Lop Ear Run
+# Lop Hop
 
 A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). The next animal chases it, and reaching night unlocks that one: fifteen in all, the rabbit the easy start, each after it clearly harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs) and worth more points (×1 to ×4). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
@@ -20,7 +20,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | sabre-tooth (×3.79) | ham | ice age: obstacles freeze and shatter |
 | dino (×4) | fern | chrome mode: the world turns Google-grey, it runs through everything for double points (the rabbit chases it) |
 
-**Play: https://andreashackel.de/lop-ear-run/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
+**Play: https://andreashackel.de/lop-hop/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 
 | | Keyboard | Touch |
 |---|---|---|

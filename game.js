@@ -1,4 +1,4 @@
-// Lop Ear Run: a rabbit (then a cat, a dog, a fox) runs, jumps cacti and ducks under branches and crows. A small game
+// Lop Hop: a rabbit (then a cat, a dog, a fox) runs, jumps cacti and ducks under branches and crows. A small game
 // that drives the Stardrift engine the way a game would: one mood for each state of play, stingers for its events.
 //
 //   relaxed    the title, knocked out         jump       the animal jumps
@@ -874,7 +874,7 @@ function draw() {
   if (best()) text(ctx, `HI ${pad(best())}`, W - 30, 5, pal[COLOR.DIM], 'right');
 
   if (state === 'title') {
-    text(ctx, 'LOP EAR RUN', W / 2, 14, pal[COLOR.INK], 'center');
+    text(ctx, 'LOP HOP', W / 2, 14, pal[COLOR.INK], 'center');
     const pick = playable().length > 1;
     if (TOUCH) {
       text(ctx, pick ? 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN' : 'TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');

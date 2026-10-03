@@ -24,4 +24,4 @@ http.createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
   }
-}).listen(port, () => console.log(`Lop Ear Run dev server → http://localhost:${port}`));
+}).listen(port, () => console.log(`Lop Hop dev server → http://localhost:${port}`));

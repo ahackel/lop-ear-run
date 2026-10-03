@@ -1,4 +1,4 @@
-// Pixel art for Lop Ear Run. Sprites are small grids of palette indices, filled from shapes (ellipses, capsules,
+// Pixel art for Lop Hop. Sprites are small grids of palette indices, filled from shapes (ellipses, capsules,
 // triangles) and outlined, so ears and tails can swing to any angle. Each sprite comes with a collision mask (ears and
 // tails are soft: they never count).
 
