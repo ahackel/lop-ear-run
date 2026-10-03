@@ -168,7 +168,7 @@ function bump(o) {
     call('sting', 'jump');
     return;
   }
-  energy = Math.max(0, energy - BUMP * T().bump);
+  if (!power) energy = Math.max(0, energy - BUMP * T().bump); // (a super power keeps the energy)
   safe = SAFE_SECS; hurtT = 0.35; slow = 1;
   if (alt === 0) vAlt = 150; // knocked up a little
   softVel -= 14;
@@ -677,7 +677,7 @@ function update(dt) {
   });
 
   // running tires: without food the energy runs out
-  energy -= DRAIN * T().drain * dt;
+  if (!power) energy -= DRAIN * T().drain * dt; // (a super power keeps the energy)
   if (energy <= 0) return knockOut('TOO TIRED!');
 
   // the events: night falls now and then, the next animal gives chase now and then (never both at once)
