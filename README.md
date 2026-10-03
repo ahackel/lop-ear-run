@@ -33,7 +33,9 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 
 | Game | Music |
 |---|---|
-| title, knocked out | `setMood('relaxed')` |
+| title | `setMood('menu')` |
+| high scores | `setMood('highscore')` |
+| knocked out | `setMood('relaxed')` |
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
 | the next animal gives chase (from 500, every 1000) | `danger` |
 | night falls (every 900) | `wonder` |

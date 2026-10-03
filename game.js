@@ -1,7 +1,9 @@
 // Lop Hop: a rabbit (then a cat, a dog, a fox) runs, jumps cacti and ducks under branches and crows. A small game
 // that drives the Stardrift engine the way a game would: one mood for each state of play, stingers for its events.
 //
-//   relaxed    the title, knocked out         jump       the animal jumps
+//   highscore  the high scores                jump       the animal jumps
+//   menu       the title
+//   relaxed    knocked out
 //   exploring  the first stretch              reward     food
 //   tension    once crows fly in (300)        bump       it runs into something
 //   action     once the run is fast (700)     discovery  the chaser is left behind, the next animal unlocked
@@ -84,6 +86,8 @@ async function startAudio() {
 
 // which mood the game is in: the music follows it
 function wantedMood() {
+  if (board) return 'highscore';
+  if (state === 'title') return 'menu';
   if (state !== 'run') return 'relaxed';
   if (power) return 'power';
   if (chase) return 'danger';
@@ -462,6 +466,7 @@ const rowAt = (i) => [COLS[Math.floor(i / 5)], 14 + (i % 5) * ROW];
 
 function showScores(entry = null) {
   board = { entry, typing: !!entry };
+  updateMood();
   if (entry) {
     nameEl.value = entry.name === '???' ? '' : entry.name;
     nameEl.hidden = false;
@@ -472,6 +477,7 @@ function showScores(entry = null) {
 function closeScores() {
   if (board?.typing) doneTyping();
   board = null;
+  updateMood();
 }
 function doneTyping() {
   board.typing = false;
