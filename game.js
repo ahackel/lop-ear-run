@@ -38,7 +38,7 @@ const POWERS = {
   skunk: 'STINK!', // obstacles fade (it runs right through them), crows and the chaser flee
   wolf: 'HOWL!', // what is just ahead is blown away
   boar: 'TUSK CHARGE!', // faster, and smashes everything (worth double)
-  bear: 'HONEY RUSH!', // double points, and food fills it twice as much
+  bear: 'BERRY RUSH!', // double points, and food fills it twice as much
   cheetah: 'SPRINT!', // very fast, and untouchable
   rhino: 'QUAKE!', // stomps: everything on the screen flies off
   sabre: 'ICE AGE!', // obstacles freeze, and shatter when it runs into them

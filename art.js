@@ -11,7 +11,7 @@ const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF 
 export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT, WHITE: BELLY, ICE: FISH };
 
 export const PALETTES = {
-  day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ee8a2a', 8: '#62b04f', 9: '#dedbd0',
+  day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ec6f2b', 8: '#62b04f', 9: '#dedbd0',
     10: '#f7f6f0', 11: '#d9682b', 12: '#fdfbf6', 13: '#9a9a94', 14: '#dfa45e', 15: '#8a5a3b', 16: '#f2a65a', 17: '#c46f34', 18: '#6eae4c',
     19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866', 33: '#e2b25a', 34: '#9a968f', 35: '#77736d', 36: '#8f9090', 37: '#cfcfcc' },
   night: { bg: '#1d2033', 1: '#141625', 2: '#f4f1ea', 3: '#d3c3b3', 4: '#e88aa3', 5: '#c3c6d8', 6: '#e8607e', 7: '#ee8a2a', 8: '#4f9a48', 9: '#2e3350',
@@ -108,7 +108,7 @@ export const ANIMALS = {
   skunk: { name: 'SKUNK', food: 'beetle', ...tune(2.5, 1.25, 1.05, 1.1, 1.5, 0.8, 1.3, 200, 1.9, 0.88) },
   wolf: { name: 'WOLF', food: 'sausage', ...tune(2.71, 1.29, 1, 1.15, 1.57, 0.77, 1.34, 200, 2.0, 0.86) },
   boar: { name: 'BOAR', food: 'mushroom', ...tune(2.93, 1.32, 0.95, 1.2, 1.64, 0.74, 1.39, 250, 2.2, 0.85) }, // heavy, low jumps
-  bear: { name: 'BEAR', food: 'honey', ...tune(3.14, 1.36, 0.95, 1.2, 1.71, 0.71, 1.43, 250, 2.3, 0.83) },
+  bear: { name: 'BEAR', food: 'berries', ...tune(3.14, 1.36, 0.95, 1.2, 1.71, 0.71, 1.43, 250, 2.3, 0.83) },
   cheetah: { name: 'CHEETAH', food: 'drumstick', ...tune(3.36, 1.39, 1.08, 1.1, 1.79, 0.69, 1.47, 300, 2.4, 0.81) },
   rhino: { name: 'RHINO', food: 'leaf', ...tune(3.57, 1.43, 0.95, 1.15, 1.86, 0.66, 1.51, 300, 2.5, 0.79) },
   sabre: { name: 'SABRE-TOOTH', food: 'ham', ...tune(3.79, 1.46, 1, 1.2, 1.93, 0.63, 1.56, 300, 2.7, 0.78) },
@@ -765,12 +765,13 @@ const apple = food(8, 9, (g) => {
   g.layer([capsule(4, 0.6, 4.2, 2.2, 0.5)], BARK); g.layer([ellipse(5.8, 1.3, 1.3, 0.7)], LEAF);
   g.layer([ellipse(4, 5.4, 3, 3)], BERRY, OUT); g.dot(3, 4, LIGHT);
 });
+// (no food is yellow or golden: that is the golden food's, for a super power)
 const acorn = food(8, 9, (g) => {
-  g.layer([ellipse(4, 5.8, 2.4, 2.6)], WOOD, OUT); g.layer([ellipse(4, 3.3, 3.2, 1.7)], BARK, OUT); g.dot(4, 0, BARK); g.dot(3, 5, LIGHT);
+  g.layer([ellipse(4, 5.8, 2.4, 2.6)], STRIPE, OUT); g.layer([ellipse(4, 3.3, 3.2, 1.7)], BARK, OUT); g.dot(4, 0, BARK); g.dot(3, 5, LIGHT);
 });
 const shell = food(10, 8, (g) => {
-  const m = g.layer([ellipse(5, 4.4, 4.2, 3.4), ellipse(5, 7, 1.6, 0.9)], EAR, OUT);
-  g.paint([capsule(5, 7, 2, 2, 0.4), capsule(5, 7, 5, 1.5, 0.4), capsule(5, 7, 8, 2, 0.4)], TAN, m);
+  const m = g.layer([ellipse(5, 4.4, 4.2, 3.4), ellipse(5, 7, 1.6, 0.9)], BELLY, OUT);
+  g.paint([capsule(5, 7, 2, 2, 0.4), capsule(5, 7, 5, 1.5, 0.4), capsule(5, 7, 8, 2, 0.4)], PINK, m);
 });
 const beetle = food(9, 7, (g) => {
   for (const [x1, y1, x2, y2] of [[2, 4, 0.5, 6], [4.5, 4.5, 4.5, 6.5], [7, 4, 8.5, 6], [3, 2, 1.5, 0.5], [6, 2, 7.5, 0.5]]) g.layer([capsule(x1, y1, x2, y2, 0.4)], OUT);
@@ -784,8 +785,9 @@ const mushroom = food(9, 9, (g) => {
   const m = g.layer([(x, y) => y < 4.5 && ellipse(4.5, 4.4, 4, 3.6)(x, y)], BERRY, OUT);
   g.paint([ellipse(3, 2.5, 0.7, 0.7), ellipse(6, 2, 0.7, 0.7), ellipse(5, 3.6, 0.5, 0.5)], BELLY, m);
 });
-const honey = food(9, 9, (g) => {
-  g.layer([ellipse(4.5, 5.5, 3.6, 3.2)], WOOD, OUT); g.layer([ellipse(4.5, 2.2, 2.6, 1)], YELLOW, OUT); g.dot(3, 5, LIGHT);
+const berries = food(10, 8, (g) => {
+  g.layer([ellipse(6.8, 1.3, 1.5, 0.8)], LEAF);
+  for (const [x, y] of [[3, 3.5], [6, 3.6], [4.5, 5.8], [7.6, 6]]) { g.layer([ellipse(x, y, 1.6, 1.6)], FISH, OUT); g.dot(x - 1, y - 1, LIGHT); }
 });
 const leaf = food(10, 7, (g) => {
   const m = g.layer([ellipse(5.5, 3.5, 4.2, 2.4)], LEAF, OUT); g.paint([capsule(1.5, 3.5, 9, 3.5, 0.45)], LEAF_DARK, m); g.layer([capsule(0, 4.5, 1.5, 3.5, 0.4)], LEAF_DARK);
@@ -802,7 +804,7 @@ const fern = food(9, 10, (g) => {
   g.layer([capsule(4.5, 1, 4.5, 9.5, 0.45)], LEAF_DARK);
   for (let y = 2; y < 9; y += 2) { const w = 1 + (y > 3 && y < 8 ? 2 : 1); g.layer([capsule(4.5, y, 4.5 - w, y - 1, 0.6), capsule(4.5, y, 4.5 + w, y - 1, 0.6)], LEAF); }
 });
-export const FOOD = { carrot, bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, honey, drumstick, leaf, ham, fern };
+export const FOOD = { carrot, bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, ham, fern };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
 export const cloud = fromRows([

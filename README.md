@@ -14,7 +14,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | skunk (×2.5) | beetle | stink: obstacles fade (it runs through them), crows and the chaser flee |
 | wolf (×2.71) | sausage | howl: what is just ahead is blown away |
 | boar (×2.93) | mushroom | tusk charge: faster, smashes everything (worth double) |
-| bear (×3.14) | honey | honey rush: double points, food fills it twice as much |
+| bear (×3.14) | blueberries | berry rush: double points, food fills it twice as much |
 | cheetah (×3.36) | drumstick | sprint: very fast, and untouchable |
 | rhino (×3.57) | leaf | quake: stomps, everything on the screen flies off |
 | sabre-tooth (×3.79) | ham | ice age: obstacles freeze and shatter |
