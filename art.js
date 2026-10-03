@@ -7,16 +7,16 @@ export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: t
 // palette indices
 const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF = 8, FAINT = 9, LIGHT = 10, FOX = 11, BELLY = 12,
   TAN = 14, BROWN = 15, GINGER = 16, STRIPE = 17, CACTUS = 18, CACTUS_DARK = 19, CACTUS_LIGHT = 20, YELLOW = 21, BARK = 22,
-  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31, SKUNK = 32, CHEETAH = 33, RHINO = 34, RHINO_DARK = 35;
+  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31, SKUNK = 32, CHEETAH = 33, RHINO = 34, RHINO_DARK = 35, DINO = 36, DINO_LIGHT = 37;
 export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT, WHITE: BELLY, ICE: FISH };
 
 export const PALETTES = {
   day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ee8a2a', 8: '#62b04f', 9: '#dedbd0',
     10: '#f7f6f0', 11: '#d9682b', 12: '#fdfbf6', 13: '#9a9a94', 14: '#dfa45e', 15: '#8a5a3b', 16: '#f2a65a', 17: '#c46f34', 18: '#6eae4c',
-    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866', 33: '#e2b25a', 34: '#9a968f', 35: '#77736d' },
+    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866', 33: '#e2b25a', 34: '#9a968f', 35: '#77736d', 36: '#8f9090', 37: '#cfcfcc' },
   night: { bg: '#1d2033', 1: '#141625', 2: '#f4f1ea', 3: '#d3c3b3', 4: '#e88aa3', 5: '#c3c6d8', 6: '#e8607e', 7: '#ee8a2a', 8: '#4f9a48', 9: '#2e3350',
     10: '#1d2033', 11: '#d9682b', 12: '#f4f1ea', 13: '#6a7090', 14: '#cf975a', 15: '#7a5038', 16: '#e69a52', 17: '#b06232', 18: '#4f9446',
-    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78', 32: '#6c6c7a', 33: '#d4a650', 34: '#8e8a84', 35: '#6c6862' },
+    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78', 32: '#6c6c7a', 33: '#d4a650', 34: '#8e8a84', 35: '#6c6862', 36: '#9a9cac', 37: '#c9cad6' },
 };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -512,11 +512,11 @@ Object.assign(DRAW, {
         near: ko ? legsUp([8, 14], 0.8) : paws(f, 20.5, 6.5), tail: [capsule(4, 16, 0, 17, 0.8)],
         paint: [[[muzzle, ellipse(12, 18.4, 5, 0.8)], BELLY]], dots: [...spots(6.5), [21, hy + 0.6, OUT], [21, hy + 1.4, OUT]], eye: [20.4, hy - 0.8], nose: [23.4, hy + 0.6] });
     }
-    const [near, far] = gallop(frameOf(pose, f), [8, 12.5], [15, 12.5], 0.85), muzzle = ellipse(22, 8.6, 1.5, 1.1);
-    const a = 1.1 + soft * 0.4, [mx, my] = swing(4.5, 9.5, a, 4), [tx, ty] = swing(mx, my, a + 0.5, 3.5);
-    return render(g, pose, blink, { fur: CHEETAH, body: [ellipse(11.5, 10.5, 7, 3), ellipse(15.5, 11, 2.8, 3), ellipse(19.8, 7.4, 2.8, 2.6), muzzle, ellipse(18.5, 5, 1, 1)],
-      near, far, tail: [capsule(4.5, 9.5, mx, my, 0.8), capsule(mx, my, tx, ty, 0.8)], last: () => { g.dot(mx, my, OUT); g.dot(tx, ty, BELLY); },
-      paint: [[[muzzle, ellipse(13, 13, 4.5, 0.9)], BELLY]], dots: [...spots(0), [21, 7.8, OUT], [21, 8.6, OUT], [21.6, 9.4, OUT]], eye: [20.4, 6.6], nose: [23.4, 8.2] });
+    const [near, far] = gallop(frameOf(pose, f), [8, 12.8], [15, 12.8], 0.85), muzzle = ellipse(22.1, 9, 1.4, 1.1);
+    const a = 1.1 + soft * 0.4, [mx, my] = swing(4.5, 10, a, 4), [tx, ty] = swing(mx, my, a + 0.5, 3.5);
+    return render(g, pose, blink, { fur: CHEETAH, body: [ellipse(11.5, 10.8, 6.5, 3), ellipse(15.5, 11.2, 2.6, 2.8), ellipse(19.6, 7.6, 3.3, 3.1), muzzle, ellipse(17.6, 4.8, 1.1, 1.1), ellipse(20.6, 4.4, 1.1, 1.1)],
+      near, far, tail: [capsule(4.5, 10, mx, my, 0.8), capsule(mx, my, tx, ty, 0.8)], last: () => { g.dot(mx, my, OUT); g.dot(tx, ty, BELLY); },
+      paint: [[[muzzle, ellipse(13, 13.3, 4.5, 0.9)], BELLY]], dots: [...spots(0.3).slice(0, 6), [20.6, 8.6, OUT], [21, 9.3, OUT], [19.6, 9, PINK]], eye: [20.5, 6.6], nose: [23.2, 8.6] });
   },
 
   // the rhino: big and grey, a great horn on its nose and a small one behind it, skin folds, thick short legs
@@ -537,30 +537,30 @@ Object.assign(DRAW, {
 
   // the sabre-tooth cat: a tiger's stripes, a big head, the mouth open, two long white fangs reaching below its chin
   sabre(g, pose, f, soft, blink) {
-    const stripes = (dy) => [7, 10, 13].map((x) => capsule(x, 7.4 + dy, x - 0.6, 10 + dy, 0.6));
+    const stripes = (dy) => [7, 10, 13].map((x) => capsule(x, 8 + dy, x - 0.6, 10.2 + dy, 0.6));
     if (pose === 'duck' || pose === 'ko') {
       const ko = pose === 'ko', hy = ko ? 15.6 : 15.2, muzzle = ellipse(22.6, hy + 0.6, 2, 1.2);
-      return render(g, pose, blink, { fur: TAN, body: [ellipse(11.5, 16.2, 8.5, 3), ellipse(19.5, hy, 3.8, 3.3), muzzle, ellipse(17.4, hy - 2.8, 1, 1)],
+      return render(g, pose, blink, { fur: TAN, body: [ellipse(11.5, 16.4, 8, 2.6), ellipse(19.5, hy, 3.6, 3.2), muzzle, ellipse(17.4, hy - 2.8, 1, 1)],
         near: ko ? legsUp([8, 14], 1.2) : paws(f, 20.5, 6.5), tail: [capsule(3.4, 15.5, 1.5, 15, 1)],
         paint: [[[muzzle], BELLY], [stripes(6), BROWN]],
         over: [[[capsule(22, hy + 1.6, 22.2, hy + 3.8, 0.6)], BELLY]], eye: [20.4, hy - 1.2], nose: [24.2, hy] });
     }
-    const [near, far] = gallop(frameOf(pose, f), [7.5, 14.5], [15.5, 14.5], 1.3), muzzle = ellipse(22.8, 9.4, 2, 1.3), [tx, ty] = swing(3.8, 9.5, 1 + soft * 0.3, 2);
-    return render(g, pose, blink, { fur: TAN, body: [ellipse(11, 11.5, 7.5, 4.5), ellipse(14.5, 10.5, 3.8, 4.2), ellipse(19.4, 8.6, 4, 3.6), muzzle, ellipse(21.4, 12.4, 1.6, 0.9), ellipse(17, 5.2, 1.2, 1.1)],
+    const [near, far] = gallop(frameOf(pose, f), [7.5, 13.6], [15.5, 13.6], 1.1), muzzle = ellipse(22.8, 9.4, 2, 1.3), [tx, ty] = swing(3.8, 9.5, 1 + soft * 0.3, 2);
+    return render(g, pose, blink, { fur: TAN, body: [ellipse(11, 11.2, 7, 3.4), ellipse(15, 10.8, 3, 3.2), ellipse(19.4, 8.6, 3.8, 3.5), muzzle, ellipse(21.4, 12.4, 1.6, 0.9), ellipse(17, 5.2, 1.2, 1.1)],
       near, far, tail: [capsule(3.8, 9.5, tx, ty, 1)],
       paint: [[[muzzle, ellipse(21.4, 12.4, 1.4, 0.7)], BELLY], [stripes(0), BROWN]],
       over: [[[capsule(22.2, 10.4, 22.5, 14.4, 0.6)], BELLY]], dots: [[23, 11, OUT], [24, 11, OUT]], eye: [20.4, 7.6], nose: [24.6, 8.8] });
   },
 
-  // the dino: drawn pixel by pixel, flat and blocky like the runner of Google's game (dark by day, light at night)
+  // the dino: the blocky runner of Google's game, drawn like the others (filled, outlined, a lighter belly); its shape
+  // pixel by pixel, its legs stepping two by two
   dino(g, pose, f, soft, blink) {
     const run = [
-      '...............xxxxxxx..',
-      '..............xx.xxxxxx.',
-      '..............xxxxxxxxx.',
-      '..............xxxxxxxxx.',
-      '..............xxxxx.....',
-      '..............xxxxxxx...',
+      '...............xxxxxx...',
+      '..............xxxxxxxx..',
+      '..............xxxxxxxx..',
+      '..............xxxx......',
+      '..............xxxxxx....',
       '.............xxxx.......',
       '....x.......xxxxx.......',
       '....x......xxxxxxxx.....',
@@ -572,28 +572,27 @@ Object.assign(DRAW, {
       '.......xxxxxxxx.........',
       '........xxxxxx..........',
     ];
-    const step = [
-      ['.........xx.xx..........', '.........x...x..........', '.........x...xx.........', '.........xx.............'],
-      ['.........xx.xx..........', '.........xx..x..........', '.............x..........', '.............xx.........'],
+    const steps = [
+      ['.........x..xx.........', '.........x...x.........', '.........xx..x.........', '.............xx........'],
+      ['.........x..xx.........', '.........x...x.........', '.........x..............', '.........xx.............'],
+      ['.........x...x.........', '.........x...x.........', '.........x...x.........', '.........xx..xx........'],
     ];
     const duck = [
-      '.................xxxxxxx..',
-      '....x......xxxxxxxx.xxxxx.',
-      '....xxx..xxxxxxxxxxxxxxxx.',
-      '....xxxxxxxxxxxxxxxxxxxxx.',
-      '.....xxxxxxxxxxxxxxxx.....',
-      '......xxxxxxxxxxxxxxxxx...',
-      '.......xxxx..xx...........',
+      '.................xxxxxx..',
+      '....x......xxxxxxxxxxxxx.',
+      '....xxx..xxxxxxxxxxxxxxx.',
+      '....xxxxxxxxxxxxxxxxx....',
+      '.....xxxxxxxxxxxxxxxxx...',
+      '......xxxx..xx...........',
     ];
-    const low = pose === 'duck' || pose === 'ko';
-    const rows = low ? [...duck, ...(f && pose === 'duck' ? ['........x....xx...........', '........xx....x...........'] : ['........xx...x............', '.............xx...........'])]
-      : [...run, ...(pose === 'idle' ? ['.........xx.xx..........', '.........x...x..........', '.........x...x..........', '.........xx..xx.........'] : step[frameOf(pose, f) % 2])];
-    const top = FOOT + 1 - rows.length, mask = new Uint8Array(g.w * g.h);
-    rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === 'x') { g.px[(top + y) * g.w + x] = INK; mask[(top + y) * g.w + x] = 1; } }));
-    const [ex, ey] = low ? [20, top + 1] : [16, top + 1]; // the eye: a hole, an X when hurt or out
-    if (pose === 'hurt' || pose === 'ko') for (const [dx, dy] of [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]]) g.dot(ex + dx, ey + dy, LIGHT);
-    else if (!blink) g.dot(ex, ey, LIGHT);
-    return { mask, head: [ex + 1, ey - 4] };
+    const low = pose === 'duck' || pose === 'ko', k = pose === 'idle' || pose === 'hurt' ? 2 : frameOf(pose, f) % 2;
+    const rows = low ? [...duck, ...(f && pose === 'duck' ? ['.......x....xx..........', '.......xx....x..........'] : ['.......xx...x...........', '............xx..........'])] : [...run, ...steps[k]];
+    const top = FOOT + 1 - rows.length, shape = (x, y) => rows[y - top]?.[x] === 'x';
+    const mask = g.layer([shape], DINO, OUT);
+    g.paint([(x, y) => y >= top + (low ? 3 : 9) && x >= (low ? 7 : 9) && x <= (low ? 19 : 14)], DINO_LIGHT, mask); // the belly
+    const eye = low ? [19, top + 1] : [17, top + 1];
+    eyes(g, pose, eye, blink);
+    return { mask, head: [eye[0] - 1, eye[1] - 5] };
   },
 });
 
@@ -724,7 +723,7 @@ export const FACE = {
   cheetah: fromRows(['oo...oo', 'oyyyyyo', 'oykykyo', 'okynyko', '.owwwo.', '..ooo..'], { o: OUT, y: CHEETAH, w: BELLY, k: OUT, n: OUT }),
   rhino: fromRows(['...e...', '..oeo..', 'orrerro', 'orkrkro', 'orrrrro', '.ooooo.'], { o: OUT, r: RHINO, e: EAR, k: OUT }),
   sabre: fromRows(['oo...oo', 'ottttto', 'otktkto', 'ottntto', '.wowow.', '..ooo..'], { o: OUT, t: TAN, w: BELLY, k: OUT, n: OUT }),
-  dino: fromRows(['..xxxxx', '.xx.xxx', '.xxxxxx', '.xxx...', 'xxxxx..', 'x.x....'], { x: INK }),
+  dino: fromRows(['..ooooo', '.oddddo', '.okdddo', '.oddooo', 'oddddo.', 'oooooo.'], { o: OUT, d: DINO, k: OUT }),
 };
 
 // ------------------------------------------------------------------------------------------------------------- food
