@@ -572,10 +572,12 @@ Object.assign(DRAW, {
       '.......xxxxxxxx.........',
       '........xxxxxx..........',
     ];
-    const steps = [
-      ['.........x..xx.........', '.........x...x.........', '.........xx..x.........', '.............xx........'],
-      ['.........x..xx.........', '.........x...x.........', '.........x..............', '.........xx.............'],
-      ['.........x...x.........', '.........x...x.........', '.........x...x.........', '.........xx..xx........'],
+    const steps = [ // a stride: legs apart, the back leg passing (knee up), legs crossed, the front leg passing; and standing
+      ['.........xx..xx.........', '........xx....xx........', '.......xx......xx.......', '.......xxx......xxx.....'],
+      ['.........xx..xx.........', '........xx...xx.........', '.............xx.........', '.............xxx........'],
+      ['.........xx..xx.........', '..........xxxx..........', '.........xx..xx.........', '........xxx..xxx........'],
+      ['.........xx..xx.........', '.........xx...xx........', '.........xx.............', '.........xxx............'],
+      ['.........xx..xx.........', '.........xx..xx.........', '.........xx..xx.........', '.........xxx.xxx........'],
     ];
     const duck = [
       '.................xxxxxx..',
@@ -585,12 +587,14 @@ Object.assign(DRAW, {
       '.....xxxxxxxxxxxxxxxxx...',
       '......xxxx..xx...........',
     ];
-    const low = pose === 'duck' || pose === 'ko', k = pose === 'idle' || pose === 'hurt' ? 2 : frameOf(pose, f) % 2;
+    const low = pose === 'duck' || pose === 'ko', k = pose === 'idle' || pose === 'hurt' ? 4 : pose === 'jump' ? (f ? 2 : 0) : frameOf(pose, f);
     const rows = low ? [...duck, ...(f && pose === 'duck' ? ['.......x....xx..........', '.......xx....x..........'] : ['.......xx...x...........', '............xx..........'])] : [...run, ...steps[k]];
     const top = FOOT + 1 - rows.length, shape = (x, y) => rows[y - top]?.[x] === 'x';
     const mask = g.layer([shape], DINO, OUT);
-    g.paint([(x, y) => y >= top + (low ? 3 : 9) && x >= (low ? 7 : 9) && x <= (low ? 19 : 14)], DINO_LIGHT, mask); // the belly
+    g.paint([(x, y) => y >= top + (low ? 3 : 9) && y <= top + (low ? 4 : 14) && x >= (low ? 7 : 9) && x <= (low ? 19 : 14)], DINO_LIGHT, mask); // the belly (not the legs)
     const eye = low ? [19, top + 1] : [17, top + 1];
+    const teeth = low ? [[21, top + 2], [23, top + 2], [21, top + 4]] : [[19, top + 2], [21, top + 2], [18, top + 4]];
+    for (const [x, y] of teeth) g.dot(x, y, BELLY);
     eyes(g, pose, eye, blink);
     return { mask, head: [eye[0] - 1, eye[1] - 5] };
   },
