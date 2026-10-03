@@ -1,0 +1,13 @@
+{
+  "name": "lop-ear-run",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A little endless runner with adaptive music (Stardrift)",
+  "type": "module",
+  "scripts": {
+    "dev": "node tools/serve.mjs",
+    "test": "node tools/test.mjs",
+    "engine": "node tools/engine.mjs",
+    "icons": "node tools/icons.mjs"
+  }
+}

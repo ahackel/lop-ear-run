@@ -78,8 +78,7 @@ let kind = 'rabbit';
 try { if (ANIMALS[localStorage.getItem('lop.animal')]) kind = localStorage.getItem('lop.animal'); } catch { /* no storage */ }
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
 let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow;
-let hi = 0;
-try { hi = +localStorage.getItem('lop.hi') || 0; } catch { /* no storage */ }
+let fresh = null; // a knock-out's new entry in the high scores, to name
 const score = () => Math.floor(dist * SCORE_PER_PX) + bonus;
 const rnd = Math.random;
 const AUTO = new URLSearchParams(location.search).has('auto'); // ?auto: the animal runs by itself (to hear the moods)
@@ -129,13 +128,14 @@ function knockOut(why) {
   if (chase) chase.leaving = true;
   call('sting', 'alert');
   updateMood({ within: 0 });
-  if (score() > hi) { hi = score(); try { localStorage.setItem('lop.hi', String(hi)); } catch { /* no storage */ } }
+  if (!AUTO) fresh = record(kind, score());
   showAnimals();
 }
 
 // ------------------------------------------------------------------------------------------------------------- input
 function press() {
   startAudio();
+  if (scoresOpen()) return;
   if (state === 'title') return start();
   if (state === 'ko') { if (koT > 0.8) start(); return; }
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
@@ -153,7 +153,13 @@ function release() {
 
 const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'], DUCK_KEYS = ['ArrowDown', 'KeyS'];
 addEventListener('keydown', (e) => {
+  if (e.target.closest?.('input')) return; // typing a name
   if (e.target.closest?.('button') && (e.code === 'Space' || e.code === 'Enter')) return; // the buttons take their own keys
+  if (scoresOpen()) { // the high scores: Space or Enter runs (again), Esc closes
+    if (e.code === 'Escape') closeScores();
+    else if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); closeScores(); press(); }
+    return;
+  }
   if (JUMP_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) press(); }
   else if (DUCK_KEYS.includes(e.code)) { e.preventDefault(); startAudio(); ducking = true; }
   else if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseNext(-1); }
@@ -165,66 +171,102 @@ addEventListener('keyup', (e) => {
   if (JUMP_KEYS.includes(e.code)) release();
   else if (DUCK_KEYS.includes(e.code)) ducking = false;
 });
-// touch: the left half ducks while held, the right half jumps; a mouse click jumps. On the title, a tap on an animal
-// picks it (a second tap runs).
+// touch: a finger on the left half ducks while it is held, one on the right half jumps (both at once too); a mouse
+// click jumps. On the title, a tap on an animal picks it (a second tap runs).
+const TOUCH = matchMedia('(pointer: coarse)').matches;
+const fingers = new Map(); // pointer id → 'duck' | 'jump'
 view.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (scoresOpen()) return;
   view.setPointerCapture(e.pointerId);
   const x = (e.offsetX / view.clientWidth) * W;
   if (state === 'title') {
     const k = KINDS.find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
     if (k && k !== kind) { startAudio(); choose(k); return; }
   }
-  if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); ducking = true; } else press();
+  if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); ducking = true; fingers.set(e.pointerId, 'duck'); }
+  else { fingers.set(e.pointerId, 'jump'); press(); }
 });
-const lift = () => { ducking = false; release(); };
+const lift = (e) => {
+  const what = fingers.get(e.pointerId);
+  fingers.delete(e.pointerId);
+  if (what === 'duck' && ![...fingers.values()].includes('duck')) ducking = false;
+  if (what === 'jump') release();
+};
 view.addEventListener('pointerup', lift);
 view.addEventListener('pointercancel', lift);
-
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden || state !== 'run') return;
-  state = 'paused';
-  if (audio === 'on') music.pause(0.2);
+// phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
+addEventListener('pointerup', () => {
+  startAudio();
+  if (music.ctx?.state === 'suspended' && state !== 'paused') music.ctx.resume().catch(() => {});
 });
 
-const muteBtn = document.getElementById('mute');
+// a phone turned upright pauses the run (the page asks to turn it back)
+const upright = matchMedia('(pointer: coarse) and (orientation: portrait)');
+upright.addEventListener('change', () => { if (upright.matches) pause(); });
+
+function pause() {
+  if (state !== 'run') return;
+  state = 'paused';
+  fingers.clear(); ducking = false; held = false;
+  if (audio === 'on') music.pause(0.2);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+// the buttons: on the page, and on the game (the hud) where the page's are out of sight
+const button = (id, fn) => { const b = document.getElementById(id); b.addEventListener('click', () => { startAudio(); fn(); b.blur(); }); return b; };
+const muteBtns = [button('mute', toggleMute), button('hud-sound', toggleMute)];
 function toggleMute() {
   muted = !muted;
   try { localStorage.setItem('lop.muted', muted ? '1' : '0'); } catch { /* no storage */ }
   if (audio === 'on') music.setVolume(muted ? 0 : 1, 0.1);
-  muteBtn.textContent = muted ? 'Sound off' : 'Sound on';
-  muteBtn.setAttribute('aria-pressed', String(muted));
+  showMute();
 }
-muteBtn.addEventListener('click', () => { startAudio(); toggleMute(); muteBtn.blur(); });
-muteBtn.textContent = muted ? 'Sound off' : 'Sound on';
-muteBtn.setAttribute('aria-pressed', String(muted));
+function showMute() {
+  for (const b of muteBtns) { b.textContent = muted ? 'Sound off' : 'Sound on'; b.setAttribute('aria-pressed', String(muted)); }
+}
+showMute();
+button('hud-animals', () => { if (state === 'ko') { reset(); state = 'title'; showAnimals(); } });
 
-// full screen: only the game (Esc, F or the button leaves). Where the browser has none (iPhone), or its request fails or
-// never answers (some embedded browsers), the game fills the window instead.
+// full screen: only the game (Esc, F or the button leaves), sideways on a phone. Where the browser has none (iPhone), or
+// its request fails or never answers (some embedded browsers), the game fills the window instead. Phones, tablets and
+// the installed app show only the game anyway (the page's CSS).
 const stage = document.getElementById('stage');
+const APP = matchMedia('(pointer: coarse), (display-mode: standalone), (display-mode: fullscreen)');
 function toggleFull() {
   if (document.fullscreenElement || stage.classList.contains('full')) {
     stage.classList.remove('full');
     if (document.fullscreenElement) document.exitFullscreen();
     return;
   }
-  if (!document.fullscreenEnabled) return stage.classList.add('full');
-  stage.requestFullscreen().catch(() => {});
-  setTimeout(() => { if (!document.fullscreenElement) stage.classList.add('full'); }, 500);
+  if (!document.fullscreenEnabled) { if (!APP.matches) stage.classList.add('full'); return; }
+  stage.requestFullscreen().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  setTimeout(() => { if (!document.fullscreenElement && !APP.matches) stage.classList.add('full'); }, 500);
 }
-document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) stage.classList.remove('full'); });
-for (const id of ['full', 'exit-full']) {
-  const b = document.getElementById(id);
-  b.addEventListener('click', () => { startAudio(); toggleFull(); b.blur(); });
+const fullBtn = button('hud-full', toggleFull);
+button('full', toggleFull);
+function showFull() {
+  const full = !!document.fullscreenElement || stage.classList.contains('full');
+  fullBtn.textContent = full ? 'Leave full screen' : 'Full screen';
+  // installed, the app is full screen already; on a phone without the API (iPhone) the game fills the screen anyway
+  fullBtn.hidden = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (APP.matches && !document.fullscreenEnabled);
 }
+document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) stage.classList.remove('full'); showFull(); });
+new MutationObserver(showFull).observe(stage, { attributes: true, attributeFilter: ['class'] });
+showFull();
 
 const animalsEl = document.getElementById('animals');
 for (const b of animalsEl.querySelectorAll('button')) b.addEventListener('click', () => { startAudio(); choose(b.dataset.animal); b.blur(); });
+const hudAnimals = document.getElementById('hud-animals');
+const scoreBtns = [button('scores-open', () => showScores()), button('hud-scores', () => showScores())];
 function showAnimals() {
   for (const b of animalsEl.querySelectorAll('button')) {
     b.setAttribute('aria-pressed', String(b.dataset.animal === kind));
     b.disabled = state === 'run' || state === 'paused';
   }
+  hudAnimals.hidden = state !== 'ko'; // back to the title, to pick another
+  for (const b of scoreBtns) b.hidden = b.id === 'hud-scores' && (state === 'run' || state === 'paused');
+  for (const b of scoreBtns) b.disabled = state === 'run' || state === 'paused';
 }
 showAnimals();
 
@@ -238,6 +280,79 @@ function showMood() {
   status.textContent = audio === 'on' ? `section: ${section}` : 'press a key or tap the game to start the music';
 }
 function showCalls() { callsEl.textContent = calls.join('\n'); }
+
+// ------------------------------------------------------------------------------------------------------ high scores
+// ten for each animal, kept in this browser (localStorage lop.scores: { rabbit: [{ name, score, date }], … }). A
+// knock-out that makes the table goes in at once, under the last name typed; the table then opens to name it.
+const TOP = 10;
+let tables = {}, lastName = '';
+try { tables = JSON.parse(localStorage.getItem('lop.scores')) || {}; lastName = localStorage.getItem('lop.name') || ''; } catch { /* no storage */ }
+const table = (k) => (tables[k] ||= []);
+const best = (k) => table(k)[0]?.score || 0;
+const saveTables = () => { try { localStorage.setItem('lop.scores', JSON.stringify(tables)); } catch { /* no storage */ } };
+
+// → the new entry, if the score makes the table (below those it ties with)
+function record(k, s) {
+  const t = table(k);
+  if (s <= 0 || (t.length >= TOP && s <= t[TOP - 1].score)) return null;
+  const entry = { name: lastName || '???', score: s, date: new Date().toISOString().slice(0, 10) };
+  const at = t.findIndex((e) => s > e.score);
+  t.splice(at < 0 ? t.length : at, 0, entry);
+  t.length = Math.min(t.length, TOP);
+  saveTables();
+  return entry;
+}
+
+const scoresEl = document.getElementById('scores'), listEl = document.getElementById('score-list'), nameForm = document.getElementById('name-form');
+const nameEl = document.getElementById('name'), tabsEl = document.getElementById('score-tabs');
+let shown = kind, naming = null; // the table on show; the entry being named
+const scoresOpen = () => !scoresEl.hidden;
+function showScores(k = kind, entry = null) {
+  shown = k; naming = entry;
+  scoresEl.hidden = false;
+  nameForm.hidden = !entry;
+  if (entry) { nameEl.value = lastName; if (!TOUCH) nameEl.focus(); } // a phone opens its keyboard on a tap in the field
+  else document.getElementById('scores-run').focus({ preventScroll: true });
+  document.getElementById('scores-run').textContent = state === 'ko' ? 'Run again' : 'Run';
+  renderScores();
+}
+function closeScores() {
+  if (naming) nameForm.requestSubmit();
+  scoresEl.hidden = true;
+  naming = null;
+  document.activeElement?.blur();
+}
+function renderScores() {
+  for (const b of tabsEl.children) b.setAttribute('aria-pressed', String(b.dataset.animal === shown));
+  const t = table(shown);
+  listEl.replaceChildren(...Array.from({ length: TOP }, (_, i) => {
+    const li = document.createElement('li'), e = t[i];
+    li.innerHTML = '<span class="rank"></span><span class="who"></span><span class="pts"></span>';
+    li.children[0].textContent = `${i + 1}.`;
+    li.children[1].textContent = e ? e.name : '–';
+    li.children[2].textContent = e ? e.score : '';
+    if (e) li.title = e.date;
+    li.classList.toggle('new', !!e && e === naming);
+    return li;
+  }));
+}
+for (const b of tabsEl.children) b.addEventListener('click', () => { shown = b.dataset.animal; renderScores(); });
+nameEl.addEventListener('input', () => {
+  if (!naming) return;
+  naming.name = nameEl.value.trim() || '???';
+  saveTables();
+  renderScores();
+});
+nameForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  lastName = nameEl.value.trim();
+  try { localStorage.setItem('lop.name', lastName); } catch { /* no storage */ }
+  nameForm.hidden = true;
+  nameEl.blur();
+  renderScores(); // still marked: the one just named
+});
+button('scores-close', closeScores);
+button('scores-run', () => { closeScores(); press(); });
 
 // ------------------------------------------------------------------------------------------------------------ world
 // low obstacles to jump (cacti, rocks, logs, low crows), high ones to duck under (branches, crows at head height),
@@ -313,6 +428,7 @@ function update(dt) {
   softVel += ((target - soft) * 170 - softVel * 11) * dt;
   soft += softVel * dt;
   if (state === 'ko') koT += dt;
+  if (state === 'ko' && fresh && koT > 1.2) { showScores(kind, fresh); fresh = null; } // a new high score: its name
   if (AUTO && state === 'ko' && koT > 3) start();
   if (state !== 'run' && state !== 'ko') return;
 
@@ -440,7 +556,10 @@ function dizzyBirds(pal, behind) {
 
 function draw() {
   const pal = night ? PALETTES.night : PALETTES.day;
-  if (stageBg !== pal.bg) stage.style.setProperty('--game-bg', stageBg = pal.bg); // around the game in full screen
+  if (stageBg !== pal.bg) { // around the game in full screen, and the phone's bars
+    document.documentElement.style.setProperty('--game-bg', stageBg = pal.bg);
+    document.querySelector('meta[name=theme-color]').content = pal.bg;
+  }
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0, 0, W, H);
 
@@ -497,16 +616,19 @@ function draw() {
   if (state !== 'title') energyBar(pal);
   const pad = (n) => String(n).padStart(5, '0');
   if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - 6, 5, pal[COLOR.INK], 'right');
-  if (hi) text(ctx, `HI ${pad(hi)}`, W - 30, 5, pal[COLOR.DIM], 'right');
+  if (best(kind)) text(ctx, `HI ${pad(best(kind))}`, W - 30, 5, pal[COLOR.DIM], 'right');
 
   if (state === 'title') {
     text(ctx, 'LOP EAR RUN', W / 2, 14, pal[COLOR.INK], 'center');
-    text(ctx, '< > PICK - SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+    if (TOUCH) {
+      text(ctx, 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+      text(ctx, 'HOLD LEFT: DUCK      TAP RIGHT: JUMP', W / 2, GROUND + 6, pal[COLOR.DIM], 'center');
+    } else text(ctx, '< > PICK - SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
-    if (koT > 0.8) text(ctx, 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');
+    if (koT > 0.8) text(ctx, TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', W / 2, 36, pal[COLOR.INK], 'center');
   } else if (state === 'paused') {
-    text(ctx, 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');
+    text(ctx, TOUCH ? 'PAUSED - TAP TO GO ON' : 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');
   }
 
   // up to the screen, in whole pixels
@@ -533,3 +655,6 @@ function frame(now) {
 }
 updateMood();
 requestAnimationFrame(frame);
+
+// offline, and installable: a service worker keeps the game's files (not on localhost, where files change all the time)
+if ('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)) navigator.serviceWorker.register('sw.js');

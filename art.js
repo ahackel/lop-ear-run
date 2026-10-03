@@ -55,11 +55,11 @@ class Grid {
 }
 const union = (...masks) => masks.reduce((a, m) => a.map((v, i) => v | m[i]));
 
-// a sprite: { w, h, mask, draw(ctx, x, y, palette) }; drawn into a canvas per palette, on first use
+// a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette) }; drawn into a canvas per palette, on first use
 function sprite(g, mask, extra) {
   const canvases = {};
   return {
-    w: g.w, h: g.h, mask, ...extra,
+    w: g.w, h: g.h, px: g.px, mask, ...extra,
     draw(ctx, x, y, pal) {
       let c = canvases[pal.bg];
       if (!c) {
