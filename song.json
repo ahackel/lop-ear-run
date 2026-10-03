@@ -15,159 +15,1390 @@
   "transitBars": 2,
   "humanize": 0.06,
   "leadIn": 2,
-  "breath": { "every": 64, "bars": [4, 4], "keep": ["pad", "bell"] },
+  "breath": {
+    "every": 64,
+    "bars": [
+      4,
+      4
+    ],
+    "keep": [
+      "pad",
+      "bell"
+    ]
+  },
   "startSection": "intro",
-  "master": { "gain": 1.1 },
+  "master": {
+    "gain": 1.1
+  },
   "fx": {
-    "echo": { "beats": 0.75, "feedback": 0.2, "damp": 0.55, "level": 0.15 },
-    "reverb": { "size": 0.8, "damp": 0.45, "level": 0.3 },
-    "echoToReverb": 0.3
+    "echo": {
+      "beats": 0.75,
+      "feedback": 0.25,
+      "damp": 0.45,
+      "level": 0.25
+    },
+    "reverb": {
+      "size": 0.6,
+      "damp": 0.5,
+      "level": 0.2
+    },
+    "echoToReverb": 0.2
   },
-
   "moods": {
-    "menu": { "sections": { "nest": 1 } },
-    "highscore": { "sections": { "hall": 1 } },
-    "relaxed": { "sections": { "burrow": 1 } },
-    "wonder": { "sections": { "moonrise": 1 } },
-    "exploring": { "sections": { "meadow": 1 } },
-    "tension": { "sections": { "thicket": 1 } },
-    "danger": { "sections": { "fox": 1 } },
-    "action": { "sections": { "dash": 1 } },
-    "power": { "sections": { "star": 1 } }
+    "menu": {
+      "sections": {
+        "nest": 1
+      }
+    },
+    "highscore": {
+      "sections": {
+        "hall": 1
+      }
+    },
+    "relaxed": {
+      "sections": {
+        "burrow": 1
+      }
+    },
+    "wonder": {
+      "sections": {
+        "moonrise": 1
+      }
+    },
+    "exploring": {
+      "sections": {
+        "meadow": 1
+      }
+    },
+    "tension": {
+      "sections": {
+        "thicket": 1
+      }
+    },
+    "danger": {
+      "sections": {
+        "fox": 1
+      }
+    },
+    "action": {
+      "sections": {
+        "dash": 1
+      }
+    },
+    "power": {
+      "sections": {
+        "star": 1
+      }
+    }
   },
-
   "stingers": [
-    { "id": "go", "at": "step", "beats": 2, "duck": 0.3, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "0 . 4 . 7 . 14 -" },
-      { "track": "drums", "pattern": "k . . . k . s! ." } ] },
-    { "id": "jump", "at": "step", "beats": 1, "duck": 0.15, "parts": [
-      { "track": "sfx", "pattern": "2 3 4 -" } ] },
-    { "id": "reward", "at": "step", "beats": 1, "duck": 0.2, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "7 11 14 -" } ] },
-    { "id": "bump", "at": "step", "beats": 1, "duck": 0.3, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "4 . 0 -" },
-      { "track": "drums", "pattern": "t . t ." } ] },
-    { "id": "smash", "at": "step", "beats": 1, "duck": 0.2, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "9 14 - ." },
-      { "track": "drums", "pattern": "k! . s! ." } ] },
-    { "id": "chased", "at": "step", "beats": 2, "duck": 0.4, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "4 . 3 . 4 . 3 ." },
-      { "track": "bass", "pattern": "0 . 0 . 0 . 0 ." },
-      { "track": "drums", "pattern": "t . t . t! . . ." } ] },
-    { "id": "escape", "at": "step", "beats": 2, "duck": 0.4, "parts": [
-      { "track": "lead", "mode": "key", "pattern": "4 5 7 . 9 - - -" },
-      { "track": "drums", "pattern": "s . s . s! . . ." } ] },
-    { "id": "dusk", "at": "beat", "beats": 4, "duck": 0.3, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "11 . 9 . 7 . 4 . 2 -*7" },
-      { "track": "bell", "mode": "key", "pattern": ". . . . . . . . 9 -*7" } ] },
-    { "id": "dawn", "at": "beat", "beats": 4, "duck": 0.3, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "0 . 2 . 4 . 7 . 9 -*7" },
-      { "track": "drums", "pattern": "c .*15" } ] },
-    { "id": "record", "at": "step", "beats": 2, "duck": 0.5, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "7 . 7 . 9 . 11 -" },
-      { "track": "lead", "mode": "key", "pattern": ". . . . . . 14 -" },
-      { "track": "drums", "pattern": "k . s . k s s! ." } ] },
-    { "id": "discovery", "at": "beat", "beats": 4, "chords": "IV:2 V(7):2", "duck": 0.5, "parts": [
-      { "track": "lead", "pattern": "0 1 2 3 1 2 3 4 2 3 4 5 6 -*3" },
-      { "track": "bell", "pattern": ". . . . . . . . . . . . 6 -*3" },
-      { "track": "drums", "pattern": "k . s . k . s . k s k s s! s! s! s!" } ] },
-    { "id": "alert", "at": "step", "beats": 4, "chords": "IV:2 iv:2", "duck": 0.8, "parts": [
-      { "track": "lead", "mode": "key", "pattern": "5 . 4 . 3 . 2 . 1 -*7" },
-      { "track": "bass", "pattern": "0 -*7 0 -*7" },
-      { "track": "drums", "pattern": "t . t . m . m . c! .*7" } ] },
-    { "id": "fanfare", "at": "beat", "beats": 4, "chords": "IV:2 V:1 I:1", "duck": 0.8, "parts": [
-      { "track": "lead", "mode": "key", "pattern": "0 . 4 . 7 . 9 . 11 . 9 . 14 -*3" },
-      { "track": "sfx", "mode": "key", "pattern": ". . . . . . . . . . . . 21 -*3" },
-      { "track": "drums", "pattern": "k . . . s . . . k . s . c! .*3" } ] },
-    { "id": "power", "at": "step", "beats": 2, "duck": 0.6, "parts": [
-      { "track": "lead", "mode": "key", "pattern": "0 2 4 7 9 11 14 -" },
-      { "track": "sfx", "mode": "key", "pattern": "7 9 11 14 16 18 21 -" },
-      { "track": "drums", "pattern": "s s s s s! s! s! s!" } ] },
-    { "id": "powerdown", "at": "step", "beats": 2, "duck": 0.4, "parts": [
-      { "track": "sfx", "mode": "key", "pattern": "14 . 11 . 7 . 4 -" } ] }
+    {
+      "id": "go",
+      "at": "step",
+      "beats": 2,
+      "duck": 0.3,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "0 . 4 . 7 . 14 -"
+        },
+        {
+          "track": "drums",
+          "pattern": "k . . . k . s! ."
+        }
+      ]
+    },
+    {
+      "id": "jump",
+      "at": "step",
+      "beats": 1,
+      "duck": 0.15,
+      "parts": [
+        {
+          "track": "sfx",
+          "pattern": "2 3 4 -"
+        }
+      ]
+    },
+    {
+      "id": "reward",
+      "at": "step",
+      "beats": 1,
+      "duck": 0.2,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "7 11 14 -"
+        }
+      ]
+    },
+    {
+      "id": "bump",
+      "at": "step",
+      "beats": 1,
+      "duck": 0.3,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "4 . 0 -"
+        },
+        {
+          "track": "drums",
+          "pattern": "t . t ."
+        }
+      ]
+    },
+    {
+      "id": "smash",
+      "at": "step",
+      "beats": 1,
+      "duck": 0.2,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "9 14 - ."
+        },
+        {
+          "track": "drums",
+          "pattern": "k! . s! ."
+        }
+      ]
+    },
+    {
+      "id": "chased",
+      "at": "step",
+      "beats": 2,
+      "duck": 0.4,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "4 . 3 . 4 . 3 ."
+        },
+        {
+          "track": "bass",
+          "pattern": "0 . 0 . 0 . 0 ."
+        },
+        {
+          "track": "drums",
+          "pattern": "t . t . t! . . ."
+        }
+      ]
+    },
+    {
+      "id": "escape",
+      "at": "step",
+      "beats": 2,
+      "duck": 0.4,
+      "parts": [
+        {
+          "track": "lead",
+          "mode": "key",
+          "pattern": "4 5 7 . 9 - - -"
+        },
+        {
+          "track": "drums",
+          "pattern": "s . s . s! . . ."
+        }
+      ]
+    },
+    {
+      "id": "dusk",
+      "at": "beat",
+      "beats": 4,
+      "duck": 0.3,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "11 . 9 . 7 . 4 . 2 -*7"
+        },
+        {
+          "track": "bell",
+          "mode": "key",
+          "pattern": ". . . . . . . . 9 -*7"
+        }
+      ]
+    },
+    {
+      "id": "dawn",
+      "at": "beat",
+      "beats": 4,
+      "duck": 0.3,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "0 . 2 . 4 . 7 . 9 -*7"
+        },
+        {
+          "track": "drums",
+          "pattern": "c .*15"
+        }
+      ]
+    },
+    {
+      "id": "record",
+      "at": "step",
+      "beats": 2,
+      "duck": 0.5,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "7 . 7 . 9 . 11 -"
+        },
+        {
+          "track": "lead",
+          "mode": "key",
+          "pattern": ". . . . . . 14 -"
+        },
+        {
+          "track": "drums",
+          "pattern": "k . s . k s s! ."
+        }
+      ]
+    },
+    {
+      "id": "discovery",
+      "at": "beat",
+      "beats": 4,
+      "chords": "IV:2 V(7):2",
+      "duck": 0.5,
+      "parts": [
+        {
+          "track": "lead",
+          "pattern": "0 1 2 3 1 2 3 4 2 3 4 5 6 -*3"
+        },
+        {
+          "track": "bell",
+          "pattern": ". . . . . . . . . . . . 6 -*3"
+        },
+        {
+          "track": "drums",
+          "pattern": "k . s . k . s . k s k s s! s! s! s!"
+        }
+      ]
+    },
+    {
+      "id": "alert",
+      "at": "step",
+      "beats": 4,
+      "chords": "IV:2 iv:2",
+      "duck": 0.8,
+      "parts": [
+        {
+          "track": "lead",
+          "mode": "key",
+          "pattern": "5 . 4 . 3 . 2 . 1 -*7"
+        },
+        {
+          "track": "bass",
+          "pattern": "0 -*7 0 -*7"
+        },
+        {
+          "track": "drums",
+          "pattern": "t . t . m . m . c! .*7"
+        }
+      ]
+    },
+    {
+      "id": "fanfare",
+      "at": "beat",
+      "beats": 4,
+      "chords": "IV:2 V:1 I:1",
+      "duck": 0.8,
+      "parts": [
+        {
+          "track": "lead",
+          "mode": "key",
+          "pattern": "0 . 4 . 7 . 9 . 11 . 9 . 14 -*3"
+        },
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": ". . . . . . . . . . . . 21 -*3"
+        },
+        {
+          "track": "drums",
+          "pattern": "k . . . s . . . k . s . c! .*3"
+        }
+      ]
+    },
+    {
+      "id": "power",
+      "at": "step",
+      "beats": 2,
+      "duck": 0.6,
+      "parts": [
+        {
+          "track": "lead",
+          "mode": "key",
+          "pattern": "0 2 4 7 9 11 14 -"
+        },
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "7 9 11 14 16 18 21 -"
+        },
+        {
+          "track": "drums",
+          "pattern": "s s s s s! s! s! s!"
+        }
+      ]
+    },
+    {
+      "id": "powerdown",
+      "at": "step",
+      "beats": 2,
+      "duck": 0.4,
+      "parts": [
+        {
+          "track": "sfx",
+          "mode": "key",
+          "pattern": "14 . 11 . 7 . 4 -"
+        }
+      ]
+    }
   ],
-
   "instruments": {
-    "flute": { "type": "sample", "sample": "flute", "env": { "a": 0.01, "d": 0.3, "s": 0.9, "r": 0.12 }, "cutoff": 12000 },
-    "pizz": { "poly": 6, "type": "sample", "sample": "violins_pizz", "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.3 }, "cutoff": 12000 },
-    "basses": { "poly": 2, "type": "sample", "sample": "bass_pizz", "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.3 }, "cutoff": 8000 },
-    "glock": { "poly": 4, "type": "sample", "sample": "glockenspiel", "env": { "a": 0.001, "d": 1, "s": 1, "r": 1.2 }, "cutoff": 14000 },
-    "violins": { "poly": 10, "type": "sample", "sample": "violins", "env": { "a": 0.25, "d": 1, "s": 0.9, "r": 0.8 }, "cutoff": 10000 },
-    "xylo": { "poly": 4, "type": "sample", "sample": "xylophone", "env": { "a": 0.001, "d": 1, "s": 1, "r": 0.6 }, "cutoff": 14000 },
-    "perc": { "type": "drums", "preset": "orchestra", "cutoff": 14000, "kit": { "k": { "sample": "bass_drum", "level": 1.5 }, "s": { "sample": "snare" }, "h": { "sample": "shaker" }, "o": { "sample": "triangle", "level": 0.5 }, "t": { "sample": "timpani" }, "m": { "sample": "claves" } } }
+    "blip": {
+      "type": "pulse",
+      "duty": 0.25,
+      "env": {
+        "a": 0.001,
+        "d": 0.12,
+        "s": 0.3,
+        "r": 0.08
+      },
+      "cutoff": 6000,
+      "name": "Blip"
+    },
+    "noise": {
+      "type": "drums",
+      "preset": "clean",
+      "cutoff": 8000,
+      "kit": {
+        "k": {
+          "noise": {
+            "amp": 0.03,
+            "decay": 0.008,
+            "filter": "lp",
+            "freq": 2500
+          }
+        },
+        "s": {
+          "tones": [
+            {
+              "amp": 0.6,
+              "f0": 220,
+              "f1": 180,
+              "sweep": 0.012,
+              "decay": 0.07
+            },
+            {
+              "amp": 0.25,
+              "f0": 340,
+              "f1": 330,
+              "sweep": 0.01,
+              "decay": 0.04
+            }
+          ],
+          "noise": {
+            "amp": 0.38,
+            "decay": 0.06,
+            "filter": "bp",
+            "freq": 1900,
+            "q": 0.7
+          },
+          "click": 0.1,
+          "drive": 1.3,
+          "len": 0.5
+        },
+        "h": {
+          "sample": "hat_closed",
+          "level": 0.7
+        },
+        "o": {
+          "sample": "hat_open",
+          "level": 0.45
+        },
+        "c": {
+          "sample": "cymbal",
+          "level": 0.45
+        }
+      },
+      "name": "Noise"
+    },
+    "marimba": {
+      "type": "wave",
+      "wave": "hollow",
+      "smooth": true,
+      "env": {
+        "a": 0.001,
+        "d": 0.35,
+        "s": 0,
+        "r": 0.3
+      },
+      "cutoff": 4000,
+      "poly": 3,
+      "name": "Marimba"
+    },
+    "strings_ensemble": {
+      "type": "wave",
+      "wave": "saw",
+      "smooth": true,
+      "unison": 3,
+      "detune": 10,
+      "env": {
+        "a": 0.35,
+        "d": 1,
+        "s": 0.85,
+        "r": 0.9
+      },
+      "vibrato": {
+        "depth": 0.06,
+        "rate": 5,
+        "delay": 0.3
+      },
+      "cutoff": 3300,
+      "breath": 0.1,
+      "body": "strings",
+      "ensemble": 0.8,
+      "swell": 0.8,
+      "poly": 10,
+      "name": "String ensemble"
+    },
+    "strings_ensemble_001": {
+      "type": "wave",
+      "wave": "saw",
+      "smooth": true,
+      "unison": 3,
+      "detune": 10,
+      "env": {
+        "a": 0.35,
+        "d": 1,
+        "s": 0.85,
+        "r": 0.9
+      },
+      "vibrato": {
+        "depth": 0.06,
+        "rate": 5,
+        "delay": 0.3
+      },
+      "cutoff": 3300,
+      "breath": 0.1,
+      "body": "strings",
+      "ensemble": 0.8,
+      "swell": 0.8,
+      "poly": 10,
+      "name": "String ensemble 001"
+    },
+    "marimba_001": {
+      "type": "wave",
+      "wave": "hollow",
+      "smooth": true,
+      "env": {
+        "a": 0.001,
+        "d": 0.34,
+        "s": 0.18,
+        "r": 0.81
+      },
+      "cutoff": 2080,
+      "poly": 3,
+      "name": "Marimba 001",
+      "gain": 1.46,
+      "resonance": 0.43,
+      "filterEnv": {
+        "amount": 1.425,
+        "decay": 0.17
+      }
+    },
+    "bass_guitar": {
+      "type": "string",
+      "string": {
+        "decay": 2.5,
+        "bright": 0.685,
+        "mute": 0
+      },
+      "env": {
+        "a": 0.0023,
+        "d": 1,
+        "s": 1,
+        "r": 0.08
+      },
+      "cutoff": 412,
+      "name": "Bass guitar",
+      "resonance": 0.5,
+      "gain": 1.07
+    }
   },
-
   "tracks": [
-    { "id": "pad", "name": "Violins", "instrument": "violins", "octave": 4, "volume": 0.17, "pan": -0.1, "echo": 0.1, "reverb": 0.5, "follow": true, "stickiness": 3, "color": "#a79bff", "clips": ["pad_hold", "pad_moon"] },
-    { "id": "bass", "name": "Basses", "instrument": "basses", "octave": 2, "volume": 0.1, "pan": 0, "echo": 0, "reverb": 0.2, "follow": true, "stickiness": 2.5, "color": "#5b8cff", "clips": ["b_hold", "b_sway", "b_bounce", "b_hop", "b_eighths", "b_gallop", "b_star"] },
-    { "id": "stabs", "name": "Pizzicato", "instrument": "pizz", "octave": 4, "volume": 0.025, "pan": -0.3, "echo": 0.05, "reverb": 0.35, "stickiness": 2, "color": "#6ff0a8", "clips": ["s_off", "s_skip", "s_tense", "s_star"] },
-    { "id": "lead", "name": "Flute", "instrument": "flute", "octave": 5, "volume": 0.22, "pan": 0.15, "echo": 0.12, "reverb": 0.35, "stickiness": 1.5, "color": "#ff8a5c", "clips": ["theme", "theme_run", "hops", "creep", "fox_run", "star_lead"] },
-    { "id": "bell", "name": "Glockenspiel", "instrument": "glock", "octave": 5, "volume": 0.04, "pan": 0.4, "echo": 0.25, "reverb": 0.45, "color": "#c3ef6b", "clips": ["twinkle", "bell_theme", "carrots", "sparkle"] },
-    { "id": "drums", "name": "Percussion", "instrument": "perc", "volume": 0.55, "pan": 0, "echo": 0, "reverb": 0.25, "stickiness": 2, "color": "#ff6b9a", "clips": ["d_hop", "d_run", "d_bramble", "d_fox", "d_star", "fill_roll", "fill_toms", "fill_splash"] },
-    { "id": "sfx", "name": "Xylophone", "instrument": "xylo", "octave": 5, "volume": 0.13, "pan": 0, "echo": 0.05, "reverb": 0.25, "color": "#ffd166", "clips": [] }
+    {
+      "id": "pad",
+      "name": "Pad",
+      "instrument": "strings_ensemble_001",
+      "octave": 4,
+      "volume": 0.05,
+      "pan": -0.1,
+      "echo": 0.1,
+      "reverb": 0.5,
+      "follow": true,
+      "stickiness": 3,
+      "color": "#a79bff",
+      "clips": [
+        "pad_hold",
+        "pad_moon"
+      ]
+    },
+    {
+      "id": "bass",
+      "name": "Bass",
+      "instrument": "bass_guitar",
+      "octave": 2,
+      "volume": 0.24,
+      "pan": 0,
+      "echo": 0,
+      "reverb": 0.05,
+      "follow": true,
+      "stickiness": 2.5,
+      "color": "#5b8cff",
+      "clips": [
+        "b_hold",
+        "b_sway",
+        "b_bounce",
+        "b_hop",
+        "b_eighths",
+        "b_gallop",
+        "b_star"
+      ]
+    },
+    {
+      "id": "stabs",
+      "name": "Stabs",
+      "instrument": "strings_ensemble",
+      "octave": 4,
+      "volume": 0.11,
+      "pan": -0.3,
+      "echo": 0.15,
+      "reverb": 0.2,
+      "stickiness": 2,
+      "color": "#6ff0a8",
+      "clips": [
+        "s_off",
+        "s_skip",
+        "s_tense",
+        "s_star"
+      ]
+    },
+    {
+      "id": "lead",
+      "name": "Lead",
+      "instrument": "marimba",
+      "octave": 5,
+      "volume": 0.17,
+      "pan": 0.15,
+      "echo": 0.12,
+      "reverb": 0.28,
+      "stickiness": 1.5,
+      "color": "#ff8a5c",
+      "clips": [
+        "theme",
+        "theme_run",
+        "hops",
+        "creep",
+        "fox_run",
+        "star_lead"
+      ],
+      "double": 0.2
+    },
+    {
+      "id": "bell",
+      "name": "Marimba 001",
+      "instrument": "marimba_001",
+      "octave": 5,
+      "volume": 0.29,
+      "pan": 0.4,
+      "echo": 0.45,
+      "reverb": 0.645,
+      "color": "#c3ef6b",
+      "clips": [
+        "twinkle",
+        "bell_theme",
+        "carrots",
+        "sparkle"
+      ]
+    },
+    {
+      "id": "drums",
+      "name": "Drums",
+      "instrument": "noise",
+      "volume": 0.4,
+      "pan": 0,
+      "echo": 0.03,
+      "reverb": 0.1,
+      "stickiness": 2,
+      "color": "#ff6b9a",
+      "clips": [
+        "d_hop",
+        "d_run",
+        "d_bramble",
+        "d_fox",
+        "d_star",
+        "fill_roll",
+        "fill_toms",
+        "fill_splash"
+      ]
+    },
+    {
+      "id": "sfx",
+      "name": "Effects",
+      "instrument": "blip",
+      "octave": 5,
+      "volume": 0.13,
+      "pan": 0,
+      "echo": 0.08,
+      "reverb": 0.1,
+      "color": "#ffd166",
+      "clips": []
+    }
   ],
-
   "sections": [
-    { "id": "intro", "bars": [2], "tracks": { "stabs": 0, "lead": 0, "drums": 0 }, "next": { "burrow": 1, "meadow": 0.5, "nest": 1, "hall": 1 } },
-    { "id": "hall", "bars": [8], "tracks": { "pad": 0.5, "stabs": 0.75, "bell": 0.5, "drums": 0.75 }, "next": { "hall": 1, "nest": 0.5, "burrow": 0.5 } },
-    { "id": "nest", "bars": [8], "tracks": { "stabs": 0, "lead": 0, "drums": 0, "bell": 0.5, "bass": 0.75 }, "next": { "nest": 1, "burrow": 0.5, "meadow": 0.5, "hall": 0.5 } },
-    { "id": "burrow", "bars": [8], "tracks": { "stabs": 0, "lead": 0.25, "drums": 0 }, "next": { "burrow": 0.5, "meadow": 1, "moonrise": 0.5, "nest": 0.25, "hall": 0.5 } },
-    { "id": "moonrise", "bars": [8], "tracks": { "stabs": 0, "drums": 0, "lead": 0.5 }, "next": { "moonrise": 0.5, "burrow": 1, "meadow": 1, "nest": 0.25, "hall": 0.25 } },
-    { "id": "meadow", "bars": [8, 16], "tracks": { "pad": 0.5 }, "next": { "meadow": 0.5, "thicket": 0.5, "dash": 0.5, "burrow": 0.25, "moonrise": 0.25, "nest": 0.25, "hall": 0.25 } },
-    { "id": "thicket", "bars": [8], "tracks": { "bell": 0.5 }, "next": { "thicket": 0.5, "dash": 1, "fox": 0.75, "meadow": 0.5, "nest": 0.25, "hall": 0.25 } },
-    { "id": "dash", "bars": [8, 16], "tracks": { "pad": 0 }, "next": { "dash": 0.5, "fox": 0.75, "thicket": 0.5, "meadow": 0.5, "nest": 0.25, "hall": 0.25 } },
-    { "id": "fox", "bars": [8], "tracks": { "pad": 0, "bell": 0.25 }, "next": { "fox": 0.5, "dash": 1, "thicket": 0.5, "nest": 0.25, "hall": 0.25 } },
-    { "id": "star", "bars": [4], "tracks": { "pad": 0 }, "next": { "star": 1 } }
+    {
+      "id": "intro",
+      "bars": [
+        2
+      ],
+      "tracks": {
+        "stabs": 0,
+        "lead": 0,
+        "drums": 0
+      },
+      "next": {
+        "burrow": 1,
+        "meadow": 0.5,
+        "nest": 1,
+        "hall": 1
+      }
+    },
+    {
+      "id": "hall",
+      "bars": [
+        8
+      ],
+      "tracks": {
+        "pad": 0.5,
+        "stabs": 0.75,
+        "bell": 0.5,
+        "drums": 0.75
+      },
+      "next": {
+        "hall": 1,
+        "nest": 0.5,
+        "burrow": 0.5
+      }
+    },
+    {
+      "id": "nest",
+      "bars": [
+        8
+      ],
+      "tracks": {
+        "stabs": 0,
+        "lead": 0,
+        "drums": 0,
+        "bell": 0.5,
+        "bass": 0.75
+      },
+      "next": {
+        "nest": 1,
+        "burrow": 0.5,
+        "meadow": 0.5,
+        "hall": 0.5
+      }
+    },
+    {
+      "id": "burrow",
+      "bars": [
+        8
+      ],
+      "tracks": {
+        "stabs": 0,
+        "lead": 0.25,
+        "drums": 0
+      },
+      "next": {
+        "burrow": 0.5,
+        "meadow": 1,
+        "moonrise": 0.5,
+        "nest": 0.25,
+        "hall": 0.5
+      }
+    },
+    {
+      "id": "moonrise",
+      "bars": [
+        8
+      ],
+      "tracks": {
+        "stabs": 0,
+        "drums": 0,
+        "lead": 0.5
+      },
+      "next": {
+        "moonrise": 0.5,
+        "burrow": 1,
+        "meadow": 1,
+        "nest": 0.25,
+        "hall": 0.25
+      }
+    },
+    {
+      "id": "meadow",
+      "bars": [
+        8,
+        16
+      ],
+      "tracks": {
+        "pad": 0.5
+      },
+      "next": {
+        "meadow": 0.5,
+        "thicket": 0.5,
+        "dash": 0.5,
+        "burrow": 0.25,
+        "moonrise": 0.25,
+        "nest": 0.25,
+        "hall": 0.25
+      }
+    },
+    {
+      "id": "thicket",
+      "bars": [
+        8
+      ],
+      "tracks": {
+        "bell": 0.5
+      },
+      "next": {
+        "thicket": 0.5,
+        "dash": 1,
+        "fox": 0.75,
+        "meadow": 0.5,
+        "nest": 0.25,
+        "hall": 0.25
+      }
+    },
+    {
+      "id": "dash",
+      "bars": [
+        8,
+        16
+      ],
+      "tracks": {
+        "pad": 0
+      },
+      "next": {
+        "dash": 0.5,
+        "fox": 0.75,
+        "thicket": 0.5,
+        "meadow": 0.5,
+        "nest": 0.25,
+        "hall": 0.25
+      }
+    },
+    {
+      "id": "fox",
+      "bars": [
+        8
+      ],
+      "tracks": {
+        "pad": 0,
+        "bell": 0.25
+      },
+      "next": {
+        "fox": 0.5,
+        "dash": 1,
+        "thicket": 0.5,
+        "nest": 0.25,
+        "hall": 0.25
+      }
+    },
+    {
+      "id": "star",
+      "bars": [
+        4
+      ],
+      "tracks": {
+        "pad": 0
+      },
+      "next": {
+        "star": 1
+      }
+    }
   ],
-
   "progressions": [
-    { "id": "stroll", "sections": { "hall": 0, "meadow": 0.25, "thicket": 0, "dash": 0, "fox": 0, "moonrise": 0, "star": 0 }, "chords": "I:8 IV:8" },
-    { "id": "hop", "sections": { "hall": 1, "intro": 0, "burrow": 0.25, "thicket": 0, "fox": 0, "moonrise": 0, "star": 0 }, "chords": "I:4 V:4 vi:4 IV:4" },
-    { "id": "skip", "sections": { "hall": 1, "nest": 0, "intro": 0, "burrow": 0, "thicket": 0, "fox": 0, "moonrise": 0, "star": 0 }, "chords": "I:4 IV:4 I:4 V(7):4" },
-    { "id": "dash", "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "meadow": 0, "thicket": 0, "fox": 0, "moonrise": 0, "star": 0 }, "scale": "mixolydian", "chords": "I:4 VII:4 IV:4 I:4" },
-    { "id": "bramble", "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "meadow": 0, "dash": 0, "moonrise": 0, "fox": 0.25, "star": 0 }, "scale": "dorian", "chords": "i:4 IV:4 i:4 VII:4" },
-    { "id": "fox", "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "meadow": 0, "dash": 0, "moonrise": 0, "thicket": 0.25, "star": 0 }, "scale": "harmonicMinor", "chords": "i:4 VI:4 iv:4 V(7):4" },
-    { "id": "moon", "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 0 }, "scale": "lydian", "chords": "I(add9):8 II:8" },
-    { "id": "star", "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 1 }, "scale": "lydian", "chords": "I:2 II:2 I:2 II:2 I:2 II:2 IV:2 V:2" }
+    {
+      "id": "stroll",
+      "sections": {
+        "hall": 0,
+        "meadow": 0.25,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "moonrise": 0,
+        "star": 0
+      },
+      "chords": "I:8 IV:8"
+    },
+    {
+      "id": "hop",
+      "sections": {
+        "hall": 1,
+        "intro": 0,
+        "burrow": 0.25,
+        "thicket": 0,
+        "fox": 0,
+        "moonrise": 0,
+        "star": 0
+      },
+      "chords": "I:4 V:4 vi:4 IV:4"
+    },
+    {
+      "id": "skip",
+      "sections": {
+        "hall": 1,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "thicket": 0,
+        "fox": 0,
+        "moonrise": 0,
+        "star": 0
+      },
+      "chords": "I:4 IV:4 I:4 V(7):4"
+    },
+    {
+      "id": "dash",
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "fox": 0,
+        "moonrise": 0,
+        "star": 0
+      },
+      "scale": "mixolydian",
+      "chords": "I:4 VII:4 IV:4 I:4"
+    },
+    {
+      "id": "bramble",
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "meadow": 0,
+        "dash": 0,
+        "moonrise": 0,
+        "fox": 0.25,
+        "star": 0
+      },
+      "scale": "dorian",
+      "chords": "i:4 IV:4 i:4 VII:4"
+    },
+    {
+      "id": "fox",
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "meadow": 0,
+        "dash": 0,
+        "moonrise": 0,
+        "thicket": 0.25,
+        "star": 0
+      },
+      "scale": "harmonicMinor",
+      "chords": "i:4 VI:4 iv:4 V(7):4"
+    },
+    {
+      "id": "moon",
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "scale": "lydian",
+      "chords": "I(add9):8 II:8"
+    },
+    {
+      "id": "star",
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 1
+      },
+      "scale": "lydian",
+      "chords": "I:2 II:2 I:2 II:2 I:2 II:2 IV:2 V:2"
+    }
   ],
-
   "blocks": [
-    { "id": "pad_hold", "beats": 16, "sections": { "hall": 1, "moonrise": 0.25, "star": 0 }, "pattern": "* -*63" },
-    { "id": "pad_moon", "beats": 16, "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 0 }, "mode": "scale", "pattern": "0+4+9 -*63" },
-
-    { "id": "b_sway", "beats": 8, "sections": { "hall": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 0 }, "pattern": "0 - - - - - - . 2 - - - - - - . | 0 - - - - - - - - - - - . . . ." },
-    { "id": "b_hold", "beats": 4, "sections": { "hall": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 0 }, "pattern": "0 -*15" },
-    { "id": "b_bounce", "beats": 4, "sections": { "hall": 1, "nest": 0, "intro": 0, "thicket": 0, "dash": 0.5, "fox": 0, "star": 0 }, "pattern": "0 . 2 . 3 . 2 . 0 . 2 . 3 . 2 ." },
-    { "id": "b_hop", "beats": 4, "sections": { "hall": 0.5, "nest": 0, "intro": 0, "burrow": 0, "moonrise": 0, "thicket": 0, "fox": 0, "star": 0 }, "pattern": "0 . 0 2 . 0 3 . 0 . 0 2 . 3 2 ." },
-    { "id": "b_eighths", "beats": 4, "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "star": 0 }, "pattern": "0 . 0 . 0 . 0 . 0 . 0 . 2, . 2, ." },
-    { "id": "b_gallop", "beats": 4, "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0.25, "star": 0 }, "pattern": "0 0 . 0 0 . 0 0 . 0 0 . 2, . 2, ." },
-    { "id": "b_star", "beats": 4, "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 1 }, "pattern": "0 . 3 . 0 . 3 . 0 . 3 . 2 . 1 ." },
-
-    { "id": "s_off", "beats": 4, "sections": { "hall": 1, "thicket": 0, "fox": 0, "star": 0 }, "pattern": ". . * . . . * . . . * . . . * ." },
-    { "id": "s_skip", "beats": 4, "sections": { "hall": 1, "meadow": 0, "thicket": 0, "fox": 0, "star": 0 }, "pattern": ". . * * . . * . . . * * . . * ." },
-    { "id": "s_tense", "beats": 4, "sections": { "hall": 0, "meadow": 0, "dash": 0, "star": 0 }, "pattern": "* . . * . . * . . . * . * . . ." },
-    { "id": "s_star", "beats": 4, "sections": { "hall": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 1 }, "pattern": "* * . * * . * . * * . * * . * ." },
-
-    { "id": "theme", "beats": 16, "mode": "key", "fit": true, "sections": { "hall": 1, "burrow": 0, "moonrise": 0, "thicket": 0, "fox": 0, "dash": 0.5, "star": 0 }, "forms": ["whole", "head", "sequence", "slow", "shift", "answer"], "pattern": "4 . 4 5 4 . 2 . 0 . 2 . 4 - - . | 5 . 5 6 5 . 4 . 2 . 4 . 5 - - . | 7 . 6 . 5 . 4 . 5 . 4 . 2 . 0 . | 1 . 2 . 4 . 2 . 0 - - - . . . ." },
-    { "id": "theme_run", "beats": 16, "sections": { "hall": 0, "burrow": 0.5, "meadow": 0, "thicket": 0.25, "fox": 0, "star": 0 }, "from": "theme", "forms": ["whole", "sequence", "shift", "slow"] },
-    { "id": "hops", "beats": 4, "sections": { "hall": 0.5, "burrow": 0, "moonrise": 0, "thicket": 0, "fox": 0, "meadow": 0.5, "star": 0 }, "pattern": "0 . 2 . 3 . 2 . 4 . 3 . 2 . 1 ." },
-    { "id": "creep", "beats": 4, "sections": { "hall": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "dash": 0, "fox": 0.5, "star": 0 }, "mode": "scale", "pattern": "0 . 1 . 0 . 1 . 2 . 1 . 0 . . ." },
-    { "id": "fox_run", "beats": 4, "sections": { "hall": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "dash": 0, "thicket": 0, "star": 0 }, "mode": "scale", "pattern": "4 3# 4 3# 4 . 2 . 4 3# 4 3# 6 . 4 ." },
-    { "id": "star_lead", "beats": 4, "sections": { "hall": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 1 }, "pattern": "3 . 3 . 3 . 1 3 . 3 . 1 3 . 3 ." },
-
-    { "id": "twinkle", "beats": 8, "sections": { "hall": 1, "dash": 0, "fox": 0, "star": 0 }, "pattern": "4? .*7 3? .*3 5? .*3 | .*16" },
-    { "id": "bell_theme", "beats": 16, "sections": { "hall": 0, "meadow": 0.25, "thicket": 0, "dash": 0, "fox": 0, "star": 0 }, "from": "theme", "forms": ["slow", "answer", "head"] },
-    { "id": "carrots", "beats": 8, "sections": { "hall": 0.5, "nest": 0, "burrow": 0, "moonrise": 0, "thicket": 0, "star": 0 }, "pattern": "3 5 - - .*12 | .*8 4 6 - - .*4" },
-    { "id": "sparkle", "beats": 4, "sections": { "hall": 0, "nest": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 1 }, "mode": "key", "pattern": "7 9 11 14 . . . . 7 9 11 14 . . . ." },
-
-    { "id": "d_hop", "beats": 4, "sections": { "hall": 1, "thicket": 0, "dash": 0, "fox": 0, "star": 0 }, "pattern": "k . h . s . h k . k h . s . h ." },
-    { "id": "d_run", "beats": 4, "sections": { "hall": 0, "meadow": 0, "thicket": 0, "fox": 0.25, "star": 0 }, "pattern": "k h s h k h s h k k s h k h s o" },
-    { "id": "d_bramble", "beats": 4, "sections": { "hall": 0, "meadow": 0, "dash": 0, "fox": 0, "star": 0 }, "pattern": "k . . . t . . . k . k . t . t ." },
-    { "id": "d_fox", "beats": 4, "sections": { "hall": 0, "meadow": 0, "thicket": 0.25, "dash": 0.25, "star": 0 }, "pattern": "k . k . s . k . k k . k s . s s" },
-    { "id": "d_star", "beats": 4, "sections": { "hall": 0, "intro": 0, "burrow": 0, "moonrise": 0, "meadow": 0, "thicket": 0, "dash": 0, "fox": 0, "star": 1 }, "pattern": "k h s h k k s h k h s h k k s s" },
-
-    { "id": "fill_roll", "beats": 2, "fill": true, "pattern": "s s s s s! s s! s!" },
-    { "id": "fill_toms", "beats": 4, "fill": true, "sections": { "hall": 0, "meadow": 0 }, "pattern": "t . t . t t t t s . s . s! s! s! s!" },
-    { "id": "fill_splash", "beats": 4, "fill": true, "sections": { "hall": 0, "fox": 0 }, "pattern": "c .*15" }
+    {
+      "id": "pad_hold",
+      "beats": 16,
+      "sections": {
+        "hall": 1,
+        "moonrise": 0.25,
+        "star": 0
+      },
+      "pattern": "* -*63"
+    },
+    {
+      "id": "pad_moon",
+      "beats": 16,
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "mode": "scale",
+      "pattern": "0+4+9 -*63"
+    },
+    {
+      "id": "b_sway",
+      "beats": 8,
+      "sections": {
+        "hall": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "0 - - - - - - . 2 - - - - - - . | 0 - - - - - - - - - - - . . . ."
+    },
+    {
+      "id": "b_hold",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "0 -*15"
+    },
+    {
+      "id": "b_bounce",
+      "beats": 4,
+      "sections": {
+        "hall": 1,
+        "nest": 0,
+        "intro": 0,
+        "thicket": 0,
+        "dash": 0.5,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "0 . 2 . 3 . 2 . 0 . 2 . 3 . 2 ."
+    },
+    {
+      "id": "b_hop",
+      "beats": 4,
+      "sections": {
+        "hall": 0.5,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "thicket": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "0 . 0 2 . 0 3 . 0 . 0 2 . 3 2 ."
+    },
+    {
+      "id": "b_eighths",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "star": 0
+      },
+      "pattern": "0 . 0 . 0 . 0 . 0 . 0 . 2, . 2, ."
+    },
+    {
+      "id": "b_gallop",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0.25,
+        "star": 0
+      },
+      "pattern": "0 0 . 0 0 . 0 0 . 0 0 . 2, . 2, ."
+    },
+    {
+      "id": "b_star",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 1
+      },
+      "pattern": "0 . 3 . 0 . 3 . 0 . 3 . 2 . 1 ."
+    },
+    {
+      "id": "s_off",
+      "beats": 4,
+      "sections": {
+        "hall": 1,
+        "thicket": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": ". . * . . . * . . . * . . . * ."
+    },
+    {
+      "id": "s_skip",
+      "beats": 4,
+      "sections": {
+        "hall": 1,
+        "meadow": 0,
+        "thicket": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": ". . * * . . * . . . * * . . * ."
+    },
+    {
+      "id": "s_tense",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "meadow": 0,
+        "dash": 0,
+        "star": 0
+      },
+      "pattern": "* . . * . . * . . . * . * . . ."
+    },
+    {
+      "id": "s_star",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 1
+      },
+      "pattern": "* * . * * . * . * * . * * . * ."
+    },
+    {
+      "id": "theme",
+      "beats": 16,
+      "mode": "key",
+      "fit": true,
+      "sections": {
+        "hall": 1,
+        "burrow": 0,
+        "moonrise": 0,
+        "thicket": 0,
+        "fox": 0,
+        "dash": 0.5,
+        "star": 0
+      },
+      "forms": [
+        "whole",
+        "head",
+        "sequence",
+        "slow",
+        "shift",
+        "answer"
+      ],
+      "pattern": "4 . 4 5 4 . 2 . 0 . 2 . 4 - - . | 5 . 5 6 5 . 4 . 2 . 4 . 5 - - . | 7 . 6 . 5 . 4 . 5 . 4 . 2 . 0 . | 1 . 2 . 4 . 2 . 0 - - - . . . ."
+    },
+    {
+      "id": "theme_run",
+      "beats": 16,
+      "sections": {
+        "hall": 0,
+        "burrow": 0.5,
+        "meadow": 0,
+        "thicket": 0.25,
+        "fox": 0,
+        "star": 0
+      },
+      "from": "theme",
+      "forms": [
+        "whole",
+        "sequence",
+        "shift",
+        "slow"
+      ]
+    },
+    {
+      "id": "hops",
+      "beats": 4,
+      "sections": {
+        "hall": 0.5,
+        "burrow": 0,
+        "moonrise": 0,
+        "thicket": 0,
+        "fox": 0,
+        "meadow": 0.5,
+        "star": 0
+      },
+      "pattern": "0 . 2 . 3 . 2 . 4 . 3 . 2 . 1 ."
+    },
+    {
+      "id": "creep",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "dash": 0,
+        "fox": 0.5,
+        "star": 0
+      },
+      "mode": "scale",
+      "pattern": "0 . 1 . 0 . 1 . 2 . 1 . 0 . . ."
+    },
+    {
+      "id": "fox_run",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "dash": 0,
+        "thicket": 0,
+        "star": 0
+      },
+      "mode": "scale",
+      "pattern": "4 3# 4 3# 4 . 2 . 4 3# 4 3# 6 . 4 ."
+    },
+    {
+      "id": "star_lead",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 1
+      },
+      "pattern": "3 . 3 . 3 . 1 3 . 3 . 1 3 . 3 ."
+    },
+    {
+      "id": "twinkle",
+      "beats": 8,
+      "sections": {
+        "hall": 1,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "4? .*7 3? .*3 5? .*3 | .*16"
+    },
+    {
+      "id": "bell_theme",
+      "beats": 16,
+      "sections": {
+        "hall": 0,
+        "meadow": 0.25,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "from": "theme",
+      "forms": [
+        "slow",
+        "answer",
+        "head"
+      ]
+    },
+    {
+      "id": "carrots",
+      "beats": 8,
+      "sections": {
+        "hall": 0.5,
+        "nest": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "thicket": 0,
+        "star": 0
+      },
+      "pattern": "3 5 - - .*12 | .*8 4 6 - - .*4"
+    },
+    {
+      "id": "sparkle",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "nest": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 1
+      },
+      "mode": "key",
+      "pattern": "7 9 11 14 . . . . 7 9 11 14 . . . ."
+    },
+    {
+      "id": "d_hop",
+      "beats": 4,
+      "sections": {
+        "hall": 1,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "k . h . s . h k . k h . s . h ."
+    },
+    {
+      "id": "d_run",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "fox": 0.25,
+        "star": 0
+      },
+      "pattern": "k h s h k h s h k k s h k h s o"
+    },
+    {
+      "id": "d_bramble",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "meadow": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 0
+      },
+      "pattern": "k . . . t . . . k . k . t . t ."
+    },
+    {
+      "id": "d_fox",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "meadow": 0,
+        "thicket": 0.25,
+        "dash": 0.25,
+        "star": 0
+      },
+      "pattern": "k . k . s . k . k k . k s . s s"
+    },
+    {
+      "id": "d_star",
+      "beats": 4,
+      "sections": {
+        "hall": 0,
+        "intro": 0,
+        "burrow": 0,
+        "moonrise": 0,
+        "meadow": 0,
+        "thicket": 0,
+        "dash": 0,
+        "fox": 0,
+        "star": 1
+      },
+      "pattern": "k h s h k k s h k h s h k k s s"
+    },
+    {
+      "id": "fill_roll",
+      "beats": 2,
+      "fill": true,
+      "pattern": "s s s s s! s s! s!"
+    },
+    {
+      "id": "fill_toms",
+      "beats": 4,
+      "fill": true,
+      "sections": {
+        "hall": 0,
+        "meadow": 0
+      },
+      "pattern": "t . t . t t t t s . s . s! s! s! s!"
+    },
+    {
+      "id": "fill_splash",
+      "beats": 4,
+      "fill": true,
+      "sections": {
+        "hall": 0,
+        "fox": 0
+      },
+      "pattern": "c .*15"
+    }
   ]
 }
