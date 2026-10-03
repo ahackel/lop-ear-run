@@ -64,6 +64,11 @@ for (const k of Object.keys(ANIMALS)) {
   ok(Math.min(...stand) >= GROUND - DUCK_UNDER + 4 && Math.max(...duck) <= GROUND - DUCK_UNDER - 1,
     `the ${k} runs into what hangs low (${Math.min(...stand)} rows tall) and ducks under it (${Math.max(...duck)} rows)`);
 }
+// every animal jumps the tallest cactus (20 high), even the heavy ones (the game's JUMP 330 and GRAVITY 1500)
+const heights = Object.entries(ANIMALS).map(([k, t]) => [k, Math.round((330 * t.jump) ** 2 / (2 * 1500 * t.gravity))]);
+ok(heights.every(([, h]) => h >= 24), `every animal jumps high enough (${heights.map(([k, h]) => `${k} ${h}`).join(', ')})`);
+const mults = Object.values(ANIMALS).map((t) => t.mult);
+ok(mults.every((m, i) => !i || m > mults[i - 1]), `each animal counts more than the one before (${mults.join(', ')})`);
 ok(branchBottom <= DUCK_UNDER && branchBottom >= DUCK_UNDER - 2, `branches end just above a ducking animal (row ${branchBottom})`);
 ok(CROW_BOTTOM > 0, 'crows have a lowest row');
 

@@ -1,6 +1,19 @@
 # Lop Ear Run
 
-A little endless runner: a lop-eared rabbit, a beagle puppy or a kitten hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own (the rabbit jumps higher and once more in the air, the dog's zoomies bowl everything over, the cat's nine lives bounce it off what it hits, and so on). Ten high scores per animal, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). The next animal chases it, and reaching night unlocks that one: ten in all, each a bit harder than the one before (faster, lower jumps, hungrier, crows sooner) and worth more points (×1 to ×2). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+
+| Animal | Food | Power |
+|---|---|---|
+| rabbit (×1) | carrot | super hop: higher, and once more in the air |
+| cat (×1.1) | fish | nine lives: bounces off what it hits |
+| dog (×1.2) | bone | zoomies: faster, bowls everything over |
+| fox (×1.3) | grapes | sly fox: food comes to it, the chaser loses its trail |
+| hedgehog (×1.4) | apple | spike ball: rolls through everything |
+| squirrel (×1.5) | acorn | glide: falls slowly, jumps again in the air |
+| otter (×1.6) | shell | belly slide: under what hangs low, through the rest |
+| fawn (×1.75) | clover | leap: huge, long jumps |
+| wolf (×1.9) | sausage | howl: what is just ahead is blown away |
+| boar (×2) | mushroom | tusk charge: faster, smashes everything (worth double); a bear chases it |
 
 **Play: https://andreashackel.de/lop-ear-run/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 
@@ -17,7 +30,7 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 |---|---|
 | title, knocked out | `setMood('relaxed')` |
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
-| a fox gives chase (from 500, every 1000) | `danger` |
+| the next animal gives chase (from 500, every 1000) | `danger` |
 | night falls (every 900) | `wonder` |
 | a super power (golden food, 8 s) | `power`, with `sting('power')` and `sting('powerdown')` |
 | jump, food, a bump, the fox left behind, knocked out | `sting('jump')`, `reward`, `bump`, `discovery`, `alert` |
