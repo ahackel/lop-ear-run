@@ -513,7 +513,8 @@ Object.assign(DRAW, {
         paint: [[[muzzle, ellipse(12, 18.4, 5, 0.8)], BELLY]], dots: [...spots(6.5), [21, hy + 0.6, OUT], [21, hy + 1.4, OUT]], eye: [20.4, hy - 0.8], nose: [23.4, hy + 0.6] });
     }
     const [near, far] = gallop(frameOf(pose, f), [8, 12.8], [15, 12.8], 0.85), muzzle = ellipse(22.1, 9, 1.4, 1.1);
-    const a = 1.1 + soft * 0.4, [mx, my] = swing(4.5, 10, a, 4), [tx, ty] = swing(mx, my, a + 0.5, 3.5);
+    const sway = pose === 'run' ? [0.35, 0, -0.35, 0][f] : 0; // the tail swings with the stride, its tip whipping the other way
+    const a = 1.1 + soft * 0.4 + sway, [mx, my] = swing(4.5, 10, a, 4), [tx, ty] = swing(mx, my, a + 0.5 - sway * 1.8, 3.5);
     return render(g, pose, blink, { fur: CHEETAH, body: [ellipse(11.5, 10.8, 6.5, 3), ellipse(15.5, 11.2, 2.6, 2.8), ellipse(19.6, 7.6, 3.3, 3.1), muzzle, ellipse(17.6, 4.8, 1.1, 1.1), ellipse(20.6, 4.4, 1.1, 1.1)],
       near, far, tail: [capsule(4.5, 10, mx, my, 0.8), capsule(mx, my, tx, ty, 0.8)], last: () => { g.dot(mx, my, OUT); g.dot(tx, ty, BELLY); },
       paint: [[[muzzle, ellipse(13, 13.3, 4.5, 0.9)], BELLY]], dots: [...spots(0.3).slice(0, 6), [20.6, 8.6, OUT], [21, 9.3, OUT], [19.6, 9, PINK]], eye: [20.5, 6.6], nose: [23.2, 8.6] });
