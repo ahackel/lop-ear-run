@@ -743,15 +743,14 @@ function fish() {
   g.dot(8, 3, OUT); g.dot(6, 4, LIGHT); g.dot(4, 3, LIGHT);
   return sprite(g, new Uint8Array(g.w * g.h));
 }
-const carrot = fromRows([
-  '.g.g.',
-  '..g..',
-  '.ooo.',
-  '.ooo.',
-  '.oo..',
-  '..o..',
-  '..o..',
-], { g: LEAF, o: ORANGE });
+function carrot() {
+  const g = new Grid(9, 12);
+  g.layer([capsule(4.5, 3.5, 2.6, 0.8, 0.6), capsule(4.5, 3.5, 4.5, 0.4, 0.6), capsule(4.5, 3.5, 6.4, 0.9, 0.6)], LEAF);
+  const m = g.layer([ellipse(4.5, 4.8, 2.4, 1.5), triangle(2.1, 4.8, 6.9, 4.8, 4.6, 11.2)], ORANGE, OUT);
+  g.paint([capsule(3.5, 6.5, 4.4, 6.5, 0.4), capsule(4.6, 8.5, 5.2, 8.5, 0.4)], STRIPE, m); // its rings
+  g.dot(3, 5, LIGHT);
+  return sprite(g, new Uint8Array(g.w * g.h));
+}
 // grapes, for the fox (the sour ones of the fable, within reach now)
 function grapes() {
   const g = new Grid(10, 11);
@@ -804,7 +803,7 @@ const fern = food(9, 10, (g) => {
   g.layer([capsule(4.5, 1, 4.5, 9.5, 0.45)], LEAF_DARK);
   for (let y = 2; y < 9; y += 2) { const w = 1 + (y > 3 && y < 8 ? 2 : 1); g.layer([capsule(4.5, y, 4.5 - w, y - 1, 0.6), capsule(4.5, y, 4.5 + w, y - 1, 0.6)], LEAF); }
 });
-export const FOOD = { carrot, bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, ham, fern };
+export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, ham, fern };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
 export const cloud = fromRows([
