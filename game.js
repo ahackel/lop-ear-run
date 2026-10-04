@@ -911,6 +911,7 @@ function draw() {
 function scene(pal) {
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0, 0, W, H);
+  if (board) return; // (the high scores: on the plain sky, see hud)
   if (pal === PALETTES.night) { // the stars and the moon
     for (const s of stars) if (Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
     moon.draw(ctx, W - 60, 10, pal);
@@ -937,7 +938,6 @@ function scene(pal) {
     else { ctx.fillRect(x, GROUND - 1, 1, 1); ctx.fillRect(x + 2, GROUND - 2, 1, 2); ctx.fillRect(x + 4, GROUND - 1, 1, 1); }
   }
 
-  if (board) return; // (the high scores, in place of the run: see hud)
 
   // what lies on the ground moves with it, rounded with it to the same screen pixel (on its own, it could be one off)
   const onGround = (x) => snap(x + groundX) - scroll;
