@@ -60,7 +60,7 @@ function sprite(g, mask, extra) {
   const canvases = {};
   return {
     w: g.w, h: g.h, px: g.px, mask, ...extra,
-    draw(ctx, x, y, pal) {
+    draw(ctx, x, y, pal, scale = 1) { // (scale: whole pixels made bigger, for the giant dino)
       let c = canvases[pal.bg];
       if (!c) {
         c = canvases[pal.bg] = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(g.w, g.h) : Object.assign(document.createElement('canvas'), { width: g.w, height: g.h }); // (Safari before 16.4: none)
@@ -73,7 +73,8 @@ function sprite(g, mask, extra) {
         }
         cx.putImageData(img, 0, 0);
       }
-      ctx.drawImage(c, Math.round(x), Math.round(y));
+      if (scale === 1) ctx.drawImage(c, Math.round(x), Math.round(y));
+      else ctx.drawImage(c, Math.round(x), Math.round(y), Math.round(g.w * scale), Math.round(g.h * scale));
     },
   };
 }
@@ -834,8 +835,7 @@ export function golden(pal) {
   })), bg: `${pal.bg} gold` });
 }
 
-// the ice age (the sabre-tooth's power): obstacles turned to ice; chrome mode (the dino's): the world in the greys of
-// Google's game
+// the ice age (the sabre-tooth's power): obstacles turned to ice
 // (bg: the background a whole world palette needs, or none: a palette for sprites only, its key made from the original's)
 const recolor = (map, bg) => { const made = {}; return (pal) => (made[pal.bg] ||= { ...Object.fromEntries(Object.entries(pal).map(([k, hex]) => {
   if (k === 'bg') return [k, hex];
@@ -843,7 +843,6 @@ const recolor = (map, bg) => { const made = {}; return (pal) => (made[pal.bg] ||
   return [k, map(+k, 0.3 * r + 0.59 * g + 0.11 * b)];
 })), bg: bg || `${pal.bg} ${Object.keys(made).length}${map.name}` }); };
 export const icy = recolor(function ice(k, l) { return k === OUT ? '#3a5f7a' : l > 0.75 ? '#e8f6ff' : l > 0.45 ? '#a9dcf2' : '#6fb4d6'; });
-export const chrome = recolor((k, l) => (k === OUT || k === INK ? '#535353' : l > 0.8 ? '#ffffff' : l > 0.5 ? '#bdbdbd' : '#535353'), '#f7f7f7');
 
 export const star = fromRows([
   '..y..',

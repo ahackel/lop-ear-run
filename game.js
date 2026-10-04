@@ -15,7 +15,7 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, chrome, text, textWidth, hits } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas');
@@ -53,7 +53,7 @@ const POWERS = {
   cheetah: 'SPRINT!', // very fast, and untouchable
   rhino: 'QUAKE!', // stomps: everything on the screen flies off
   sabre: 'ICE AGE!', // obstacles freeze, and shatter when it runs into them
-  dino: 'CHROME MODE!', // the world in the greys of Google's game: it runs through everything, for double points
+  dino: 'GIANT DINO!', // twice as big: it tramples everything in its way, for double points
 };
 const SMASHES = ['dog', 'hedgehog', 'otter', 'boar', 'sabre']; // what these run into while their power lasts tumbles away
 const passes = () => power > 0 && ['skunk', 'cheetah', 'dino'].includes(kind); // these run through everything
@@ -619,6 +619,12 @@ function animalSprite() {
   if (ducking) return animal(kind, 'duck', Math.floor(phase * 4) % 2, soft, blink, w);
   return animal(kind, 'run', stride(kind, phase).frame, soft, blink, w);
 }
+// the giant dino's size (it grows and shrinks in a quarter second) and where it is drawn: its feet stay on the ground,
+// it grows forward a little. → x, y, w, h, scale (1 for anyone else)
+function giantBox() {
+  const s = power && kind === 'dino' ? (POWER_SECS - power < 0.25 || power < 0.25 ? 1.5 : 2) : 1;
+  return [RUN_X - 4 * (s - 1), animalY() + FOOT * (1 - s), 26 * s, 20 * s, s];
+}
 const hopping = () => state === 'run' && alt === 0 && !ducking && hurtT <= 0;
 const animalY = () => GROUND - FOOT - alt - (hopping() ? stride(kind, phase).lift : 0);
 const headAt = () => { const sp = animalSprite(); return [RUN_X + sp.head[0], animalY() + sp.head[1]]; };
@@ -710,6 +716,10 @@ function update(dt) {
     power = Math.max(0, power - dt);
     if (rnd() < dt * 30) sparkle(1);
     if (kind === 'otter') ducking = power > 0; // belly slide
+    if (kind === 'dino') { // giant: what its big body touches tumbles away
+      const [x, y, w, h] = giantBox();
+      for (const o of obstacles) if (!o.smashed && o.x < x + w && o.x + o.sprite.w > x && o.y < y + h && o.y + o.sprite.h > y) smash(o);
+    }
     if (kind === 'wolf') for (const o of obstacles) if (!o.smashed && o.x > RUN_X + 12 && o.x < RUN_X + 80) smash(o, true); // howl
     if (kind === 'rhino' && (quake -= dt) <= 0) { // quake: a stomp every so often, everything on the screen flies off
       quake = 1.4; shake = 0.3;
@@ -862,10 +872,10 @@ function skies() {
 const second = document.createElement('canvas');
 second.width = W; second.height = H;
 const worldCtx = ctx, secondCtx = second.getContext('2d');
+worldCtx.imageSmoothingEnabled = secondCtx.imageSmoothingEnabled = false; // (the giant dino: big pixels, not blurred ones)
 
 function draw() {
-  let [a, b, f] = skies();
-  if (power && kind === 'dino' && state === 'run') [a, b, f] = [chrome(dark < 0.5 ? PALETTES.day : PALETTES.night), null, 0]; // (chrome mode: all grey)
+  const [a, b, f] = skies();
   const bg = f ? blend(a.bg, b.bg, f) : a.bg;
   if (stageBg !== bg) { // around the game in full screen, and the phone's bars
     document.documentElement.style.setProperty('--game-bg', stageBg = bg);
@@ -947,7 +957,8 @@ function scene(pal) {
       for (const [d, a] of [[12, 0.15], [6, 0.3]]) { ctx.globalAlpha = a; animalSprite().draw(ctx, RUN_X - d, animalY(), pal); }
       ctx.globalAlpha = 1;
     }
-    animalSprite().draw(ctx, RUN_X, animalY(), flashing ? golden(pal) : pal);
+    const [gx, gy, , , s] = giantBox();
+    animalSprite().draw(ctx, gx, gy, flashing ? golden(pal) : pal, s);
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
   }
