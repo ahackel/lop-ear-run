@@ -113,7 +113,7 @@ export const ANIMALS = {
   cheetah: { name: 'CHEETAH', food: 'drumstick', ...tune(3.36, 1.39, 1.08, 1.1, 1.79, 0.69, 1.47, 300, 2.4, 0.81) },
   rhino: { name: 'RHINO', food: 'leaf', ...tune(3.57, 1.43, 0.95, 1.15, 1.86, 0.66, 1.51, 300, 2.5, 0.79) },
   sabre: { name: 'SABRE-TOOTH', food: 'ham', ...tune(3.79, 1.46, 1, 1.2, 1.93, 0.63, 1.56, 300, 2.7, 0.78) },
-  dino: { name: 'DINO', food: 'steak', ...tune(4.0, 1.5, 1, 1.25, 2.0, 0.6, 1.6, 300, 2.8, 0.76) }, // the hardest
+  dino: { name: 'DINO', food: 'roast', ...tune(4.0, 1.5, 1, 1.25, 2.0, 0.6, 1.6, 300, 2.8, 0.76) }, // the hardest
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
@@ -800,12 +800,12 @@ const drumstick = food(11, 8, (g) => {
   g.layer([capsule(1.5, 6, 4, 4, 0.7), ellipse(1.2, 6.8, 1, 1)], BELLY, OUT);
   g.layer([ellipse(6.8, 3.5, 3.6, 2.8)], FOX, OUT); g.dot(6, 2, LIGHT);
 });
-// the dino's: a big roast on a bone, the bone's knobs out on both sides (the biggest food, for the biggest animal)
-const steak = food(19, 9, (g) => {
-  g.layer([capsule(3, 4.5, 16, 4.5, 0.8), ellipse(2.2, 3.3, 1.2, 1.2), ellipse(2.2, 5.7, 1.2, 1.2), ellipse(16.8, 3.3, 1.2, 1.2), ellipse(16.8, 5.7, 1.2, 1.2)], BELLY, OUT);
-  g.layer([ellipse(9.5, 4.5, 4, 3.6)], BROWN, OUT); g.layer([ellipse(9, 3.6, 2.3, 1.5)], TAN); g.dot(7, 2, LIGHT);
+// the dino's: a big roasted leg, its bone sticking out with a knobbed end (the biggest food, for the biggest animal)
+const roast = food(16, 12, (g) => {
+  g.layer([capsule(3.2, 9.2, 8, 5.5, 0.8), ellipse(2.4, 8.2, 1.2, 1.2), ellipse(4, 10.3, 1.2, 1.2)], BELLY, OUT);
+  g.layer([ellipse(10.5, 4.6, 4.6, 3.6)], BROWN, OUT); g.layer([ellipse(10.2, 3.5, 2.6, 1.5)], TAN); g.dot(9, 2, LIGHT);
 });
-export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, ham, steak };
+export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, ham, roast };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
 export const cloud = fromRows([

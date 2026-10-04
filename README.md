@@ -18,7 +18,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | cheetah (×3.36) | drumstick | sprint: very fast, and untouchable |
 | rhino (×3.57) | leaf | quake: stomps, everything on the screen flies off |
 | sabre-tooth (×3.79) | ham | ice age: obstacles freeze and shatter |
-| dino (×4) | steak on the bone | giant dino: twice as big, it tramples everything in its way, for double points (the rabbit chases it) |
+| dino (×4) | roast leg | giant dino: twice as big, it tramples everything in its way, for double points (the rabbit chases it) |
 
 **Play: https://andreashackel.de/lop-hop/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 
