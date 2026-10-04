@@ -662,7 +662,7 @@ function update(dt) {
   if (phase < was && hopping() && kind === 'rabbit') { // a hop lands: the ear flops, a puff of dust
     softVel += 4;
     for (let i = 0; i < 2; i++) parts.push({ x: RUN_X + 6 + i * 4, y: GROUND - 1, vx: -20 - rnd() * 20, vy: -10 - rnd() * 15, life: 0.25, color: COLOR.FAINT });
-  }
+  } else if (phase < was && hopping()) softVel -= 3; // a gallop pushes off: the tail (the dog's ear) bounces
   flash = Math.max(0, flash - dt);
   shake = Math.max(0, shake - dt);
   safe = Math.max(0, safe - dt);

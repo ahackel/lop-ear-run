@@ -143,6 +143,9 @@ function eyes(g, pose, [x, y], blink) {
   else if (pose === 'hurt') { g.dot(x - 1, y - 1, OUT); g.dot(x, y, OUT); g.dot(x - 1, y + 1, OUT); } // >
   else { g.dot(x, y + 1, OUT); if (!blink) g.dot(x, y, OUT); }
 }
+// a tail on the spring: soft is about 0.45 while running; less (taking off) and the tail lags, drooping; more (falling)
+// and it floats up. → how far to swing it, for a tail's angle (more: back and down)
+const lag = (soft) => clamp(0.45 - soft, -0.9, 0.6);
 // a lop ear hanging from (x, y) at angle a: length L, spoon-shaped (wider at the tip)
 const lopEar = (x, y, a, L, r, tip) => {
   const dx = -Math.sin(a), dy = Math.cos(a);
@@ -224,7 +227,7 @@ const DRAW = {
       ][k];
       near = legs([[7, 13.5, ...feet[0]], [15.5, 13.5, ...feet[2]]], 1.2);
       far = legs([[8, 13.5, ...feet[1]], [16, 13.5, ...feet[3]]], 1.1);
-      tail = [4, 9.5, k % 2 ? 0.95 : 0.55];
+      tail = [4, 9.5, (k % 2 ? 0.95 : 0.55) + 0.6 * lag(ear)]; // wagging, and on the spring
       earAt = [18, 3.5]; eye = [21, 5.5]; nose = [25, 8]; tongue = pose === 'run';
     }
     const [tx, ty, ta] = tail, tdx = -Math.sin(ta), tdy = -Math.cos(ta);
@@ -279,7 +282,7 @@ const DRAW = {
       far = legs([[7.5, 13.5, ...feet[1]], [15.5, 13.5, ...feet[3]]], 0.9);
       chest = ellipse(16, 13, 2.5, 2.2);
       stripes = [6.5, 9.5, 12.5].map((x) => capsule(x, 8, x - 0.5, 10.3, 0.6));
-      tailAt = [4, 10.5, 0.35 + tailA * 0.6];
+      tailAt = [4, 10.5, 0.6 + 0.8 * lag(tailA)];
       eye = [20.5, 7.5]; nose = [23, 9.5];
     }
     // the tail: up and back from the rump, its tip curling forward
@@ -332,7 +335,7 @@ const DRAW = {
       white = [ellipse(13, 14.6, 5, 1.1), ellipse(17.6, 13, 1.8, 2), ellipse(22.6, 11.1, 2.2, 0.9)];
       socks = (x, y) => y >= 16.5;
       tipsAbove = 3.4;
-      tail = [6, 10.5, 0.5 + tailA * 0.5];
+      tail = [6, 10.5, 0.75 + 0.7 * lag(tailA)];
       eye = [20.5, 7.5]; nose = [25, 10];
     }
     // the tail: bushy, from the rump back and up, its tip white
@@ -432,7 +435,7 @@ Object.assign(DRAW, {
     }
     const [near, far] = gallop(frameOf(pose, f), [8.5, 15.5], [15, 15], 0.85), head = ellipse(18.5, 9.6, 3.3, 3.1), snout = ellipse(21.3, 10.8, 1.7, 1.4);
     return render(g, pose, blink, { fur: STRIPE, body: [ellipse(11.5, 13, 6, 3.6), ellipse(9, 14.2, 3.8, 3.4), head, snout, triangle(16.6, 7.2, 17, 2.8, 18.6, 6.4)],
-      near, far, tail: bushy(6, 12, 0.2 + soft * 0.5, 2.2, 2.6),
+      near, far, tail: bushy(6, 12, 0.42 + 0.6 * lag(soft), 2.2, 2.6),
       paint: [[[ellipse(14, 15.2, 4, 1.3), ellipse(21, 11.6, 1.6, 0.8)], BELLY]], eye: [19.5, 8.8], nose: [23, 10.4] });
   },
 
@@ -445,15 +448,15 @@ Object.assign(DRAW, {
         paint: [[[snout, ellipse(21.5, 17, 2, 1), ellipse(11, 18.4, 5, 0.9)], EAR]], eye: [21, 15], nose: [24.4, 15.8] });
     }
     const [near, far] = gallop(frameOf(pose, f), [8, 16], [16, 14.5], 1), head = ellipse(20.3, 8.3, 3.4, 3.3), snout = ellipse(23, 9.5, 1.8, 1.5);
-    const [tx, ty] = swing(4.5, 14, 1.9 + soft * 0.2, 3), [ex, ey] = swing(tx, ty, 2.1 + soft * 0.2, 2.6);
+    const [tx, ty] = swing(5.5, 14, 1.9 + 0.3 * lag(soft), 2.8), [ex, ey] = swing(tx, ty, 2.05 + 0.5 * lag(soft), 2.2);
     return render(g, pose, blink, { fur: BROWN, body: [capsule(6, 14, 15.5, 11.8, 3.8), capsule(15.5, 11.8, 19, 9, 2.8), head, snout, ellipse(18.3, 5, 1.2, 1.1)],
-      near, far, tail: [capsule(4.5, 14, tx, ty, 1.8), capsule(tx, ty, ex, ey, 1.1)],
+      near, far, tail: [capsule(5.5, 14, tx, ty, 1.8), capsule(tx, ty, ex, ey, 0.9)],
       paint: [[[snout, ellipse(22, 10.5, 2.5, 1.4), ellipse(12, 15.8, 4.5, 1.2)], EAR]], eye: [21, 7.4], nose: [24.6, 8.9] });
   },
 
   // the skunk: round and fluffy, black with a white stripe from its head down its back, a big bushy tail (on the spring)
   skunk(g, pose, f, soft, blink) {
-    const bushy = (x, y, a) => { const [mx, my] = swing(x, y, a, 5), [tx, ty] = swing(mx, my, a - 1, 4); return [capsule(x, y, mx, my, 2.3), capsule(mx, my, tx, ty, 2.7)]; };
+    const bushy = (x, y, a) => { const [mx, my] = swing(x, y, a, 4.2), [tx, ty] = swing(mx, my, a - 1, 3.4); return [capsule(x, y, mx, my, 2.3), capsule(mx, my, tx, ty, 2.5)]; };
     if (pose === 'duck' || pose === 'ko') {
       const ko = pose === 'ko', head = ellipse(19.5, 16, 3, 2.6), snout = ellipse(22.2, 16.9, 1.6, 1.2);
       return render(g, pose, blink, { fur: SKUNK, body: [ellipse(11.5, 16, 8, ko ? 3.2 : 3), head, snout, ellipse(18, 13.6, 0.9, 0.9)],
@@ -461,10 +464,10 @@ Object.assign(DRAW, {
         paint: [[[capsule(19.5, 13.6, 6, ko ? 13.6 : 13.3, 0.9)], BELLY]], eye: [20.2, 15.4], nose: [23.6, 16.6] });
     }
     const [near, far] = gallop(frameOf(pose, f), [8, 15.5], [14.5, 15.5], 0.9), head = ellipse(18.8, 12.6, 3.3, 3), snout = ellipse(21.8, 13.8, 1.8, 1.2);
-    const a = 0.3 + soft * 0.4, tail = bushy(5, 10, a), fur = () => g.px.map((c) => +(c === SKUNK));
+    const a = 0.48 + 0.35 * lag(soft), tail = bushy(6, 10, a), fur = () => g.px.map((c) => +(c === SKUNK));
     return render(g, pose, blink, { fur: SKUNK, body: [ellipse(10.5, 11.2, 6.5, 7.2)], near, far, tail,
       paint: [[[capsule(16, 6.5, 6.5, 5.6, 0.9)], BELLY]], // the stripe down its back
-      after: () => g.paint([ellipse(...swing(...swing(5, 10, a, 5), a - 1, 3.4), 1.3, 1.3)], BELLY, fur()), // the tail's white tip
+      after: () => g.paint([ellipse(...swing(...swing(6, 10, a, 4.2), a - 1, 2.9), 1.3, 1.3)], BELLY, fur()), // the tail's white tip
       over: [[[head, snout, ellipse(17.2, 9.8, 1, 1)], SKUNK]],
       last: () => g.paint([capsule(20.6, 11.2, 17.6, 9.8, 0.7)], BELLY, fur()), // and up its forehead
       eye: [19.5, 12], nose: [23.4, 13.6] });
@@ -485,7 +488,7 @@ Object.assign(DRAW, {
         near: ko ? legsUp([8, 14], 1) : paws(f, 20, 6.5), paint: [[[snout], SNOUT]], dots: [[22.5, hy + 0.9, OUT], [21, hy + 2.5, BELLY]], eye: [19.2, hy - 1],
         after: (m) => spikes(g, m, (x, y) => x < 17 && (ko ? y > 16 : y < 14)) });
     }
-    const [near, far] = gallop(frameOf(pose, f), [8, 15.8], [15, 15.5], 1), [tx, ty] = swing(4.4, 10, 1.2 + soft * 0.3, 3);
+    const [near, far] = gallop(frameOf(pose, f), [8, 15.8], [15, 15.5], 1), [tx, ty] = swing(4.4, 10, 1.33 + 0.6 * lag(soft), 3.2);
     const head = ellipse(18.3, 11.2, 3.9, 3.8), snout = ellipse(22.3, 12.6, 1.9, 1.9);
     return render(g, pose, blink, { fur: BOAR, body: [ellipse(11.5, 11.8, 7.3, 4.8), head, snout, triangle(15.4, 8.2, 15.9, 3.4, 18.2, 7.5)],
       near, far, tail: [capsule(4.4, 10, tx, ty, 0.6)], paint: [[[snout], SNOUT]], dots: [[22.6, 12.4, OUT], [21, 14.6, BELLY], [21.8, 13.9, BELLY]], eye: [18.8, 9.9],
@@ -501,7 +504,7 @@ Object.assign(DRAW, {
     }
     const [near, far] = gallop(frameOf(pose, f), [7.5, 14.5], [15, 14.5], 1.5), snout = ellipse(22.4, 10.6, 1.9, 1.5);
     return render(g, pose, blink, { fur: BARK, body: [ellipse(11, 11.5, 7.5, 5), ellipse(12.5, 8.2, 4.5, 3.5), ellipse(19, 9.3, 3.7, 3.5), snout, ellipse(16.8, 5.8, 1.4, 1.4), ellipse(19.8, 5.6, 1.3, 1.3)],
-      near, far, tail: [ellipse(3.3, 9.6, 1.2, 1.2)], paint: [[[snout], WOOD]], eye: [20, 8.4], nose: [24.2, 10.2] });
+      near, far, tail: [ellipse(3.3, 9.6 + 1.2 * lag(soft), 1.2, 1.2)], paint: [[[snout], WOOD]], eye: [20, 8.4], nose: [24.2, 10.2] });
   },
 
   // the cheetah: slim and long-legged, golden with black spots, black tear lines from its eyes, a long ringed tail
@@ -515,9 +518,9 @@ Object.assign(DRAW, {
     }
     const [near, far] = gallop(frameOf(pose, f), [8, 12.8], [15, 12.8], 0.85), muzzle = ellipse(22.1, 9, 1.4, 1.1);
     const sway = pose === 'run' ? [0.35, 0, -0.35, 0][f] : 0; // the tail swings with the stride, its tip whipping the other way
-    const a = 1.1 + soft * 0.4 + sway, [mx, my] = swing(4.5, 10, a, 4), [tx, ty] = swing(mx, my, a + 0.5 - sway * 1.8, 3.5);
+    const a = 1.1 + 0.45 * lag(soft) + sway, [mx, my] = swing(5.5, 10, a, 4), [tx, ty] = swing(mx, my, a + 0.5 - sway * 1.8, 3.3);
     return render(g, pose, blink, { fur: CHEETAH, body: [ellipse(11.5, 10.8, 6.5, 3), ellipse(15.5, 11.2, 2.6, 2.8), ellipse(19.6, 7.6, 3.3, 3.1), muzzle, ellipse(17.6, 4.8, 1.1, 1.1), ellipse(20.6, 4.4, 1.1, 1.1)],
-      near, far, tail: [capsule(4.5, 10, mx, my, 0.8), capsule(mx, my, tx, ty, 0.8)], last: () => { g.dot(mx, my, OUT); g.dot(tx, ty, BELLY); },
+      near, far, tail: [capsule(5.5, 10, mx, my, 0.8), capsule(mx, my, tx, ty, 0.8)], last: () => { g.dot(mx, my, OUT); g.dot(tx, ty, BELLY); },
       paint: [[[muzzle, ellipse(13, 13.3, 4.5, 0.9)], BELLY]], dots: [...spots(0.3).slice(0, 6), [20.6, 8.6, OUT], [21, 9.3, OUT], [19.6, 9, PINK]], eye: [20.5, 6.6], nose: [23.2, 8.6] });
   },
 
@@ -530,7 +533,7 @@ Object.assign(DRAW, {
         paint: [[[capsule(10, 13.4, 10, 18.6, 0.5), capsule(15, 13.4, 15, 18.6, 0.5)], RHINO_DARK]],
         over: [[[triangle(21.5, 15, 23, 10.6, 24.2, 15.6), triangle(19.4, 14.4, 20, 12.4, 21, 14.4)], EAR]], eye: [19.4, 15], nose: [24.5, 17] });
     }
-    const [near, far] = gallop(frameOf(pose, f), [7.5, 15], [14.5, 15], 1.5), [tx, ty] = swing(3.6, 9.5, 1.3 + soft * 0.3, 2.6);
+    const [near, far] = gallop(frameOf(pose, f), [7.5, 15], [14.5, 15], 1.5), [tx, ty] = swing(3.6, 9.5, 1.45 + 0.6 * lag(soft), 2.5);
     return render(g, pose, blink, { fur: RHINO, body: [ellipse(11, 11.5, 7.5, 5), capsule(16.5, 10, 22, 12.4, 3), triangle(15.4, 7.6, 15.9, 3.6, 17.8, 7.2)],
       near, far, tail: [capsule(3.6, 9.5, tx, ty, 0.5)],
       paint: [[[capsule(9.5, 7, 9.5, 16, 0.5), capsule(14.5, 7.6, 14.5, 15, 0.5)], RHINO_DARK]],
@@ -547,7 +550,7 @@ Object.assign(DRAW, {
         paint: [[[muzzle], BELLY], [stripes(6), BROWN]],
         over: [[[capsule(22, hy + 1.6, 22.2, hy + 3.8, 0.6)], BELLY]], eye: [20.4, hy - 1.2], nose: [24.2, hy] });
     }
-    const [near, far] = gallop(frameOf(pose, f), [7.5, 13.6], [15.5, 13.6], 1.1), muzzle = ellipse(22.8, 9.4, 2, 1.3), [tx, ty] = swing(3.8, 9.5, 1 + soft * 0.3, 2);
+    const [near, far] = gallop(frameOf(pose, f), [7.5, 13.6], [15.5, 13.6], 1.1), muzzle = ellipse(22.8, 9.4, 2, 1.3), [tx, ty] = swing(3.8, 9.5, 1.15 + 0.6 * lag(soft), 2.1);
     return render(g, pose, blink, { fur: TAN, body: [ellipse(11, 11.2, 7, 3.4), ellipse(15, 10.8, 3, 3.2), ellipse(19.4, 8.6, 3.8, 3.5), muzzle, ellipse(21.4, 12.4, 1.6, 0.9), ellipse(17, 5.2, 1.2, 1.1)],
       near, far, tail: [capsule(3.8, 9.5, tx, ty, 1)],
       paint: [[[muzzle, ellipse(21.4, 12.4, 1.4, 0.7)], BELLY], [stripes(0), BROWN]],
