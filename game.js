@@ -401,6 +401,8 @@ const ICONS = {
   full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
   leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
   home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
+  prev: ['....xx.', '...xx..', '..xx...', '.xx....', '..xx...', '...xx..', '....xx.'],
+  next: ['.xx....', '..xx...', '...xx..', '....xx.', '...xx..', '..xx...', '.xx....'],
   // the tap areas on a phone: bigger (11×11)
   duck: ['.....x.....', '.....x.....', '.....x.....', '.....x.....', '.x...x...x.', '..x..x..x..', '...x.x.x...', '....xxx....', '.....x.....', '...........', 'xxxxxxxxxxx'],
   jump: ['.....x.....', '....xxx....', '...x.x.x...', '..x..x..x..', '.x...x...x.', '.....x.....', '.....x.....', '.....x.....', '.....x.....', '...........', 'xxxxxxxxxxx'],
@@ -410,12 +412,18 @@ const ACTS = {
   scores: () => { if (board) closeScores(); else { showScores(fresh); fresh = null; } },
   full: toggleFull,
   home: goHome,
+  prev: () => chooseNext(-1),
+  next: () => chooseNext(1),
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 function buttons() {
   if (state === 'run' || state === 'paused') return [{ id: 'sound', x: 60, y: 2 }, { id: 'home', x: 60 + BTN + 2, y: 2 }];
   const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
-  return ids.map((id, i) => ({ id, x: 4 + i * (BTN + 2), y: 2 }));
+  const row = ids.map((id, i) => ({ id, x: 4 + i * (BTN + 2), y: 2 }));
+  if (state !== 'title' || board || carousel === null) return row;
+  // more animals than fit on the title: arrows at the sides scroll them, each while there are more that way
+  const y = GROUND - 18, more = playable().length - 1;
+  return [...row, ...(titleX(0) < 0 ? [{ id: 'prev', x: 4, y }] : []), ...(titleX(more) > W - 26 ? [{ id: 'next', x: W - 4 - BTN, y }] : [])];
 }
 const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
 let pressedBtn = null;
@@ -955,8 +963,6 @@ function scene(pal) {
 
   if (state === 'title') {
     playable().forEach((k, i) => standing(k, i, k === kind, pal));
-    if (titleX(0) < 0) text(ctx, '<', 4, GROUND - 13, pal[COLOR.DIM]); // more this way
-    if (titleX(playable().length - 1) > W - 26) text(ctx, '>', W - 7, GROUND - 13, pal[COLOR.DIM]);
   }
   else {
     if (state === 'ko') dizzyBirds(pal, true);
