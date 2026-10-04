@@ -838,24 +838,26 @@ function dizzyBirds(pal, behind) {
   }
 }
 
-// dusk and dawn: day turns to a sunset, then to night; night to a morning, then to day. Each of the two passes on the way
+// dusk and dawn: day turns to a sunset, a purple dusk, then night; night to a morning, then day. Each pass on the way
 // is a crossfade: the world drawn in both palettes, the second over the first (a pixel's colours blend smoothly). Sunset
-// and morning are the day tinted, with a sky (its top colour, banded down to bg at the horizon).
+// and morning are the day tinted, dusk the night; each with a sky of its own (one colour: no gradient).
 const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
 const blend = (a, b, f) => `#${hex(a).map((v, i) => Math.round(v * (1 - f) + hex(b)[i] * f).toString(16).padStart(2, '0')).join('')}`;
 const tint = (pal, by, f, more) => ({ ...Object.fromEntries(Object.entries(pal).map(([k, c]) =>
   [k, blend(c, `#${hex(c).map((v, i) => Math.round((v * hex(by)[i]) / 255).toString(16).padStart(2, '0')).join('')}`, f)])), ...more });
 const SKIES = {
   day: PALETTES.day,
-  sunset: tint(PALETTES.day, '#ff8c5a', 0.6, { bg: '#f7a76c', sky: '#7a5fa6' }),
+  sunset: tint(PALETTES.day, '#ff8c5a', 0.6, { bg: '#f7a76c' }),
+  dusk: tint(PALETTES.night, '#ffb4d8', 0.3, { bg: '#56457a' }),
   night: PALETTES.night,
-  morning: tint(PALETTES.day, '#ffb4c4', 0.45, { bg: '#ffdcbc', sky: '#94b4e2' }),
+  morning: tint(PALETTES.day, '#ffb4c4', 0.45, { bg: '#ffdcbc' }),
 };
 const ease = (f) => f * f * (3 - 2 * f);
 // the two palettes to draw in and how much of the second, from how dark it is and which way it is going
 function skies() {
-  const [a, b, c] = night ? ['day', 'sunset', 'night'] : ['night', 'morning', 'day'], f = night ? dark : 1 - dark;
-  return f < 0.5 ? [SKIES[a], SKIES[b], ease(f * 2)] : f < 1 ? [SKIES[b], SKIES[c], ease(f * 2 - 1)] : [SKIES[c], null, 0];
+  const way = night ? ['day', 'sunset', 'dusk', 'night'] : ['night', 'morning', 'day'], f = (night ? dark : 1 - dark) * (way.length - 1);
+  const i = Math.min(Math.floor(f), way.length - 1);
+  return i < way.length - 1 ? [SKIES[way[i]], SKIES[way[i + 1]], ease(f - i)] : [SKIES[way[i]], null, 0];
 }
 const second = document.createElement('canvas');
 second.width = W; second.height = H;
@@ -878,7 +880,7 @@ function draw() {
   }
   // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
   const lum = (c) => { const [r, g, b] = hex(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
-  const top = f ? blend(a.sky || a.bg, b.sky || b.bg, f) : a.sky || a.bg, stands = (p) => Math.abs(lum(p[COLOR.INK]) - lum(top));
+  const stands = (p) => Math.abs(lum(p[COLOR.INK]) - lum(bg));
   hud(f && stands(b) > stands(a) ? b : a);
   present();
 }
@@ -887,9 +889,6 @@ function draw() {
 function scene(pal) {
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0, 0, W, H);
-  if (pal.sky) { // a sunset or a morning: the sky in bands
-    for (let i = 0; i < 8; i++) { ctx.fillStyle = blend(pal.sky, pal.bg, i / 7); ctx.fillRect(0, Math.round((i * GROUND) / 8), W, Math.ceil(GROUND / 8)); }
-  }
   if (pal === PALETTES.night) { // the stars and the moon
     for (const s of stars) if (Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
     moon.draw(ctx, W - 60, 10, pal);
