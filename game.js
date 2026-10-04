@@ -27,12 +27,12 @@ const START_SPEED = 110, MAX_SPEED = 270, ACCEL = 3; // art pixels per second (p
 const GRAVITY = 1500, JUMP = 330, JUMP_CUT = 140; // a held jump rises to about 36 px, a tap to about 12
 const RUN_X = 30, SCORE_PER_PX = 0.1;
 const BRANCHES_FROM = 150, CROWS_FROM = 300, FAST_FROM = 700; // the scores where branches, crows (tension) and speed (action) begin
-// A run is days and nights. Night falls after a day's run (DAY points); the next animal comes after a moment (HUNT_FROM s)
-// and chases the animal till dawn. It runs at CRUISE_X; a bump brings it closer, and it falls back in RECOVER seconds; a
+// A run is days and nights. Night falls after a day's run (DAY points), getting dark over TWILIGHT seconds (and light
+// again after dawn); the next animal comes when it is getting dark (HUNT_FROM s) and chases the animal till dawn. It runs at CRUISE_X; a bump brings it closer, and it falls back in RECOVER seconds; a
 // second bump before it is back lets it catch the animal (at CATCH_X). Getting away at dawn unlocks it (the
 // first time), and the next day is harder (up to the fifth): faster, closer, more crows and packs, hungrier, and the
 // chaser takes longer to fall back.
-const DAY = 1000, NIGHT_SECS = 18, HUNT_FROM = 2.5, CRUISE_X = -8, CATCH_X = 6, RECOVER = 5, HARDEST = 4;
+const DAY = 1000, NIGHT_SECS = 21, TWILIGHT = 10, HUNT_FROM = 6, CRUISE_X = -8, CATCH_X = 6, RECOVER = 5, HARDEST = 4;
 const DAY_SPEED = 30, DAY_TIGHT = 0.05, DAY_PACKS = 0.25, DAY_DRAIN = 0.15, DAY_CROWS = 0.03, DAY_RECOVER = 2, ESCAPE = 100;
 const hard = () => Math.min(day - 1, HARDEST); // how much harder than the first day
 const DRAIN = 2, BUMP = 30, MEAL = 12, SAFE_SECS = 1.5; // energy (of 100): lost per second, per bump; won per food; blinking after a bump
@@ -115,7 +115,7 @@ function updateMood(options) {
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
-let spawnIn, chase, night, nextNight, day, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
+let spawnIn, chase, night, dark, nextNight, day, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
 let fresh = null; // a knock-out's new entry in the high scores, to name
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
@@ -126,7 +126,7 @@ const AUTO = new URLSearchParams(location.search).has('auto'); // ?auto: the ani
 function reset() {
   speed = START_SPEED; dist = 0; bonus = 0; t = 0; alt = 0; vAlt = 0; held = false; ducking = false; soft = 0.2; softVel = 0; phase = 0;
   obstacles = []; food = []; parts = []; floats = [];
-  spawnIn = 120; chase = null; night = 0; nextNight = DAY; day = 1; flash = 0; hundreds = 0;
+  spawnIn = 120; chase = null; night = 0; dark = 0; nextNight = DAY; day = 1; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
   power = 0; gold = null; nextGold = GOLD_FIRST + rnd() * 150; airJumps = 0; quake = 0;
 }
@@ -749,6 +749,7 @@ function update(dt) {
 
   // the days: night falls after a day's run, the next animal chases the animal through it, and at dawn it is left behind
   const s = far();
+  dark = Math.max(0, Math.min(1, dark + (night ? dt : -dt) / TWILIGHT)); // (dusk and dawn take a while)
   if (night) {
     const was = night;
     night = Math.max(0, night - dt);
@@ -837,8 +838,17 @@ function dizzyBirds(pal, behind) {
   }
 }
 
+// between day and night: the two palettes blended, in SHADES steps (a sprite keeps its pixels for each step it is drawn in)
+const SHADES = 24, shades = [];
+const blend = (a, b, f) => `#${[1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - f) + parseInt(b.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('')}`;
+function shade(d) {
+  const i = Math.round(d * d * (3 - 2 * d) * SHADES); // (eased: slow at the ends)
+  return shades[i] ||= i === 0 ? PALETTES.day : i === SHADES ? PALETTES.night
+    : Object.fromEntries(Object.keys(PALETTES.day).map((k) => [k, blend(PALETTES.day[k], PALETTES.night[k], i / SHADES)]));
+}
+
 function draw() {
-  const pal = power && kind === 'dino' && state === 'run' ? chrome(night ? PALETTES.night : PALETTES.day) : night ? PALETTES.night : PALETTES.day; // (chrome mode: all grey)
+  const pal = power && kind === 'dino' && state === 'run' ? chrome(shade(dark)) : shade(dark); // (chrome mode: all grey)
   if (stageBg !== pal.bg) { // around the game in full screen, and the phone's bars
     document.documentElement.style.setProperty('--game-bg', stageBg = pal.bg);
     document.querySelector('meta[name=theme-color]').content = pal.bg;
@@ -846,9 +856,11 @@ function draw() {
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0, 0, W, H);
 
-  if (night) {
+  if (dark) { // the stars and the moon come out as it gets dark
+    ctx.globalAlpha = dark;
     for (const s of stars) if (Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
     moon.draw(ctx, W - 60, 10, pal);
+    ctx.globalAlpha = 1;
   }
   // far hills
   ctx.fillStyle = pal[COLOR.FAINT];
