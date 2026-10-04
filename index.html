@@ -47,7 +47,7 @@
   /* only the game, as large as it fits: in full screen, where the browser has none (the .full fallback), on phones and
      tablets, and installed as an app */
   #stage:fullscreen, #stage.full { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); }
-  #stage:fullscreen canvas, #stage.full canvas { width: min(100vw, calc(100dvh * 300 / 90)); border-radius: 0; outline: none; }
+  #stage:fullscreen canvas, #stage.full canvas { width: min(100vw, calc(100vh * 300 / 90)); width: min(100vw, calc(100dvh * 300 / 90)); border-radius: 0; outline: none; }
   body:has(#stage.full) { overflow: hidden; }
   @media (pointer: coarse), (display-mode: standalone), (display-mode: fullscreen) {
     html, body { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--game-bg, #f7f6f0); }
@@ -55,7 +55,8 @@
     header, .help, section { display: none; }
     #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0);
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-    #stage canvas { width: min(100%, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 300 / 90)); border-radius: 0; outline: none; }
+    #stage canvas { width: min(100%, calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 300 / 90)); /* (Safari before 15.4: no dvh) */
+      width: min(100%, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 300 / 90)); border-radius: 0; outline: none; }
   }
   /* phones play sideways */
   @media (pointer: coarse) and (orientation: portrait) {
@@ -100,7 +101,6 @@
   <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><rect x="16" y="6" width="24" height="44" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="28" cy="43" r="2" fill="currentColor"/></svg>
   <p>Turn your phone sideways to play</p>
 </div>
-<script type="importmap">{ "imports": { "stardrift-engine": "./engine/src/index.js" } }</script>
 <script type="module" src="game.js"></script>
 </body>
 </html>

@@ -63,7 +63,7 @@ function sprite(g, mask, extra) {
     draw(ctx, x, y, pal) {
       let c = canvases[pal.bg];
       if (!c) {
-        c = canvases[pal.bg] = new OffscreenCanvas(g.w, g.h);
+        c = canvases[pal.bg] = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(g.w, g.h) : Object.assign(document.createElement('canvas'), { width: g.w, height: g.h }); // (Safari before 16.4: none)
         const cx = c.getContext('2d'), img = cx.createImageData(g.w, g.h);
         for (let i = 0; i < g.px.length; i++) {
           const k = g.px[i];

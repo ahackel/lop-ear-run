@@ -13,7 +13,7 @@
 //   power      while a super power lasts      record     past the best score so far
 //                                             alert      knocked out (fanfare: into the high scores)
 //                                             power, powerdown   golden food gives one, and it wears off
-import { StardriftPlayer } from 'stardrift-engine';
+import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
   FOOD, FACE, cloud, moon, heart, star, golden, icy, chrome, text, textWidth, hits } from './art.js';
 

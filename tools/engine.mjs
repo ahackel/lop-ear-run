@@ -1,6 +1,6 @@
 // node tools/engine.mjs [path] — copies the Stardrift engine (src/ and its sample library) into engine/, from a checkout
-// of github.com/ahackel/stardrift-engine (../stardrift-engine by default). The game imports it from there (an import
-// map in index.html), so the site runs as plain files, on GitHub Pages too. engine/VERSION says which commit it is;
+// of github.com/ahackel/stardrift-engine (../stardrift-engine by default). The game imports it from there (by path:
+// ./engine/src/index.js), so the site runs as plain files, on GitHub Pages too. engine/VERSION says which commit it is;
 // engine/files.json lists its files, for the service worker to keep (offline play). The sample library comes whole: the
 // player loads only what the song plays, and the service worker keeps those recordings as they load.
 import { cpSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
