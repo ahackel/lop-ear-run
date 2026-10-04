@@ -117,8 +117,14 @@ export const ANIMALS = {
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
-// as it rises, gathered as it falls), the others gallop
+// as it rises, gathered as it falls), the cat bounds (a long leap stretched out, then on the ground: the front feet
+// land, the hind feet gather under it, it pushes off), the others gallop
+export const CADENCE = { cat: 0.7 }; // strides as fast as the others' (1), or slower: the cat's bounds are long
 export function stride(kind, phase) {
+  if (kind === 'cat') {
+    if (phase < 0.4) return { frame: phase < 0.13 ? 3 : phase < 0.28 ? 2 : 1, lift: 0 };
+    return { frame: 0, lift: Math.round(Math.sin((Math.PI * (phase - 0.4)) / 0.6) * 4) };
+  }
   if (kind === 'rabbit') {
     if (phase < 0.3) return { frame: 0, lift: 0 };
     const q = (phase - 0.3) / 0.7;
@@ -269,9 +275,9 @@ const DRAW = {
       eye = [15.5, 7]; nose = [18.5, 8.5];
     } else { // run, jump, hurt
       const k = pose === 'jump' ? (f ? 2 : 0) : pose === 'hurt' ? 1 : f;
-      // the gallop flexes its back: long and low as the legs reach out (0), arched up as they gather under it (2); the
-      // head rises as it gathers and dips as the front feet land, the ears lie back when it stretches
-      const bend = pose === 'hurt' ? 0 : [-1, 0, 1, 0][k], hy = pose === 'run' ? [0, 0, -1, 1][k] : 0, lie = bend < 0 ? 0.8 : 0;
+      // the bound flexes its back: long and low as it leaps stretched out (0), arched up as the legs gather under it (2);
+      // the head stays level, the ears lie back when it stretches
+      const bend = pose === 'hurt' ? 0 : [-1, 0, 1, 0][k], hy = 0, lie = bend < 0 ? 0.8 : 0;
       muzzle = ellipse(22.3, 10 + hy, 2, 1.6);
       const back = bend < 0 ? [ellipse(10.3, 12.4, 7.8, 3.4)] : bend > 0 ? [ellipse(11, 12.2, 6.4, 3.6), ellipse(10.8, 10.8, 4.6, 2.8)] : [ellipse(10.5, 12, 7, 3.8)];
       body = [...back, ellipse(19.5, 8.5 + hy, 4, 3.7), muzzle];

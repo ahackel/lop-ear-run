@@ -15,7 +15,7 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits } from './art.js';
+  CADENCE, FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas');
@@ -658,7 +658,7 @@ function update(dt) {
   dist += state === 'run' ? dx : 0;
   if (doubles() && state === 'run') bonus += dx * SCORE_PER_PX * T().mult; // double points
   const was = phase;
-  phase = (phase + dt * (1.6 + speed / 90)) % 1;
+  phase = (phase + dt * (1.6 + speed / 90) * (CADENCE[kind] ?? 1)) % 1;
   if (phase < was && hopping() && kind === 'rabbit') { // a hop lands: the ear flops, a puff of dust
     softVel += 4;
     for (let i = 0; i < 2; i++) parts.push({ x: RUN_X + 6 + i * 4, y: GROUND - 1, vx: -20 - rnd() * 20, vy: -10 - rnd() * 15, life: 0.25, color: COLOR.FAINT });
