@@ -432,7 +432,7 @@ function drawButtons(pal) {
     drawButton(b.x, b.y, icon, b.id === pressedBtn || (b.id === 'scores' && board), pal);
   }
   // on a phone: where to tap, half seen, at the middle of each side (the whole half works): duck left, jump right
-  if (TOUCH && !board && (state === 'title' || state === 'run' || state === 'paused')) {
+  if (TOUCH && !board && (state === 'run' || state === 'paused')) { // (not on the title: there a tap picks an animal)
     const PAD = 15, y = Math.round((H - PAD) / 2);
     ctx.globalAlpha = 0.5;
     drawButton(4, y, 'duck', ducking, pal, PAD);
@@ -998,10 +998,8 @@ function hud(pal) {
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 14, pal[COLOR.INK], 'center');
     const pick = playable().length > 1;
-    if (TOUCH) {
-      text(ctx, pick ? 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN' : 'TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
-      text(ctx, 'HOLD LEFT: DUCK      TAP RIGHT: JUMP', W / 2, GROUND + 6, pal[COLOR.DIM], 'center');
-    } else text(ctx, pick ? '< > PICK - SPACE OR TAP TO RUN' : 'SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+    if (TOUCH) text(ctx, pick ? 'TAP AN ANIMAL TO PICK IT - TAP AGAIN TO RUN' : 'TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
+    else text(ctx, pick ? '< > PICK - SPACE OR TAP TO RUN' : 'SPACE OR TAP TO RUN', W / 2, 25, pal[COLOR.INK], 'center');
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8 && fresh && TOUCH) text(ctx, 'NEW HIGH SCORE! TAP TO ENTER YOUR NAME', W / 2, 36, pal[7], 'center');
