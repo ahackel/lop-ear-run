@@ -6,10 +6,10 @@
 //   relaxed    knocked out                    reward     food
 //   exploring  the first stretch              bump       it runs into something
 //   tension    once crows fly in (300)        smash      a super power smashes something
-//   action     once the run is fast (700)     chased     the next animal gives chase
-//   danger     while the next animal chases   escape     … and is left behind
-//              it (the fox: a wolf)           dusk, dawn night falls, and ends
-//   wonder     while it is night              discovery  the next animal unlocked (at nightfall)
+//   action     once the run is fast (700)     dusk, dawn night falls, and ends
+//   wonder     as night falls                 chased     the next animal gives chase (each night)
+//   danger     while the next animal chases   escape     … and is left behind at dawn
+//              it (the fox: a wolf)           discovery  … the first time: it is unlocked
 //   power      while a super power lasts      record     past the best score so far
 //                                             alert      knocked out (fanfare: into the high scores)
 //                                             power, powerdown   golden food gives one, and it wears off
@@ -27,7 +27,14 @@ const START_SPEED = 110, MAX_SPEED = 270, ACCEL = 3; // art pixels per second (p
 const GRAVITY = 1500, JUMP = 330, JUMP_CUT = 140; // a held jump rises to about 36 px, a tap to about 12
 const RUN_X = 30, SCORE_PER_PX = 0.1;
 const BRANCHES_FROM = 150, CROWS_FROM = 300, FAST_FROM = 700; // the scores where branches, crows (tension) and speed (action) begin
-const NIGHT_EVERY = 900, NIGHT_SECS = 14, FOX_FIRST = 500, FOX_EVERY = 1000, FOX_SECS = 12;
+// A run is days and nights. Night falls after a day's run (DAY points); the next animal comes after a moment (HUNT_FROM s)
+// and chases the animal till dawn. It runs at CRUISE_X; a bump brings it closer, and it falls back in RECOVER seconds; a
+// second bump before it is back lets it catch the animal (at CATCH_X). Getting away at dawn unlocks it (the
+// first time), and the next day is harder (up to the fifth): faster, closer, more crows and packs, hungrier, and the
+// chaser takes longer to fall back.
+const DAY = 1000, NIGHT_SECS = 18, HUNT_FROM = 2.5, CRUISE_X = -8, CATCH_X = 6, RECOVER = 5, HARDEST = 4;
+const DAY_SPEED = 30, DAY_TIGHT = 0.05, DAY_PACKS = 0.25, DAY_DRAIN = 0.15, DAY_CROWS = 0.03, DAY_RECOVER = 2, ESCAPE = 100;
+const hard = () => Math.min(day - 1, HARDEST); // how much harder than the first day
 const DRAIN = 2, BUMP = 30, MEAL = 12, SAFE_SECS = 1.5; // energy (of 100): lost per second, per bump; won per food; blinking after a bump
 // golden food (the first after 250, then one in every 400-700 points) gives a super power for 8 seconds, each animal its own
 const POWER_SECS = 8, GOLD_FIRST = 250, GOLD_GAP = [400, 700];
@@ -108,7 +115,7 @@ function updateMood(options) {
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
-let spawnIn, chase, night, nextNight, nextFox, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
+let spawnIn, chase, night, nextNight, day, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
 let fresh = null; // a knock-out's new entry in the high scores, to name
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
@@ -119,7 +126,7 @@ const AUTO = new URLSearchParams(location.search).has('auto'); // ?auto: the ani
 function reset() {
   speed = START_SPEED; dist = 0; bonus = 0; t = 0; alt = 0; vAlt = 0; held = false; ducking = false; soft = 0.2; softVel = 0; phase = 0;
   obstacles = []; food = []; parts = []; floats = [];
-  spawnIn = 120; chase = null; night = 0; nextNight = NIGHT_EVERY; nextFox = FOX_FIRST; flash = 0; hundreds = 0;
+  spawnIn = 120; chase = null; night = 0; nextNight = DAY; day = 1; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
   power = 0; gold = null; nextGold = GOLD_FIRST + rnd() * 150; airJumps = 0; quake = 0;
 }
@@ -151,8 +158,8 @@ const nextKind = (k, d) => { let i = KINDS.indexOf(k); do i = (i + d + KINDS.len
 const chooseNext = (d) => choose(nextKind(kind, d));
 const playable = () => KINDS.filter(unlocked); // the ones on the title (the others stay a surprise)
 
-// The animals come one by one: a run starts with the rabbit, chased by the cat; reaching night with an animal unlocks
-// the one that chases it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
+// The animals come one by one: a run starts with the rabbit, chased by the cat at night; getting away from it till dawn
+// unlocks it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
 const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
 let open = ['rabbit'];
 try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
@@ -195,6 +202,7 @@ function bump(o) {
   }
   if (!power) energy = Math.max(0, energy - BUMP * T().bump); // (a super power keeps the energy)
   safe = SAFE_SECS; hurtT = 0.35; slow = 1;
+  if (chase && !chase.leaving) { if (chase.heat > 0.05) chase.catching = true; chase.heat = 1; } // the chaser closes in
   if (alt === 0) vAlt = 150; // knocked up a little
   softVel -= 14;
   const [hx, hy] = headAt();
@@ -231,9 +239,21 @@ function sparkle(n, v = 40) {
   }
 }
 
+// dawn: the chaser gives up (the first time it joins), and the next day is harder
+function dawn() {
+  const c = chaserOf(kind), away = chase && !chase.leaving, joins = !unlocked(c) && !AUTO, worth = ESCAPE * day;
+  if (chase) chase.leaving = true;
+  bonus += worth;
+  floats.push({ text: `ESCAPED! +${worth}`, x: RUN_X, y: GROUND - 40, life: 1.4 });
+  if (joins) unlock(c);
+  else call('sting', away ? 'escape' : 'dawn');
+  day++; nextNight = far() + DAY;
+  floats.push({ text: `DAY ${day}`, x: W / 2 - textWidth(`DAY ${day}`) / 2, y: joins ? 40 : 30, life: 2, rise: 0 }); // (under the unlock)
+}
+
 function knockOut(why) {
   state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = false; power = 0;
-  if (chase) chase.leaving = true;
+  if (chase && !chase.caught) chase.leaving = true; // (one that caught it stays)
   if (!AUTO) fresh = record(kind, score());
   call('sting', fresh ? 'fanfare' : 'alert'); // (into the high scores: a fanfare)
   updateMood({ within: 0 });
@@ -539,17 +559,17 @@ function drawBoard(pal) {
 function spawn() {
   const s = far(), r = rnd();
   let o;
-  if (s >= CROWS_FROM - T().early && r < 0.22) {
+  if (s >= CROWS_FROM - T().early && r < 0.22 + DAY_CROWS * hard()) {
     const at = ['low', 'head', 'head', 'high'][Math.floor(rnd() * 4)];
     const bottom = at === 'low' ? GROUND - 1 : at === 'head' ? DUCK_UNDER : GROUND - 24;
     o = { kind: 'crow', sprite: crow(0), x: W, y: bottom - CROW_BOTTOM, fly: 20, duck: at === 'head', over: at === 'high' };
-  } else if (s >= BRANCHES_FROM - T().early && r < 0.38) {
+  } else if (s >= BRANCHES_FROM - T().early && r < 0.38 + 2 * DAY_CROWS * hard()) {
     o = { kind: 'branch', sprite: branch(rnd), x: W, y: 0, fly: 0, duck: true };
   } else {
     const k = rnd(), sp = k < 0.15 ? rock(rnd) : k < 0.3 ? log(rnd) : cactus(rnd, s > 150 && rnd() < 0.35);
     o = { kind: 'ground', sprite: sp, x: W, y: GROUND - sp.h + 1, fly: 0 };
     // at speed, small cacti come in twos and threes
-    for (let n = speed > 170 && rnd() < 0.35 * T().packs ? 1 + Math.floor(rnd() * (speed > 220 ? 2 : 1)) : 0, x = W + sp.w; n > 0; n--) {
+    for (let n = speed > 170 && rnd() < 0.35 * T().packs * (1 + DAY_PACKS * hard()) ? 1 + Math.floor(rnd() * (speed > 220 ? 2 : 1)) : 0, x = W + sp.w; n > 0; n--) {
       const more = cactus(rnd, false);
       obstacles.push({ kind: 'ground', sprite: more, x: x - 2, y: GROUND - more.h + 1, fly: 0 });
       x += more.w - 2;
@@ -557,7 +577,7 @@ function spawn() {
     }
   }
   obstacles.push(o);
-  const gap = (speed * (0.75 + rnd() * 0.9) + 24) * T().tight + (o.duck ? 20 : 0); // (time to stand up after ducking)
+  const gap = (speed * (0.75 + rnd() * 0.9) + 24) * T().tight * (1 - DAY_TIGHT * hard()) + (o.duck ? 20 : 0); // (time to stand up after ducking)
   spawnIn = o.sprite.w + (o.extra || 0) + gap;
   // golden food, now and then: high over a ground obstacle (jump it at the right moment)
   if (o.kind === 'ground' && !gold && !power && s >= nextGold) {
@@ -626,7 +646,7 @@ function update(dt) {
     t += dt;
     slow = Math.max(0, slow - dt / 1.2);
     const boost = power ? { dog: 1.3, boar: 1.35, cheetah: 1.6 }[kind] || 1 : 1;
-    speed = Math.min(MAX_SPEED, START_SPEED + ACCEL * t) * T().speed * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * boost;
+    speed = Math.min(MAX_SPEED + DAY_SPEED * hard(), START_SPEED + ACCEL * t) * T().speed * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * boost;
   } else speed *= Math.exp(-5 * dt); // knocked out: the world rolls to a stop (back a little, after a bump)
   const dx = speed * dt;
   dist += state === 'run' ? dx : 0;
@@ -669,17 +689,18 @@ function update(dt) {
   for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + rnd() * 80; c.y = 8 + rnd() * 30; } }
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
-  if (chase) {
+  if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
     chase.t += dt;
-    if (chase.leaving || chase.t >= FOX_SECS) chase.x -= (state === 'run' ? 60 : 30) * dt;
-    else chase.x = Math.min(-4, chase.x + 20 * dt) + Math.sin(chase.t * 9) * 0.6;
-    if (chase.x < -40 && (chase.leaving || chase.t > FOX_SECS)) {
-      if (!chase.leaving) {
-        bonus += 100;
-        call('sting', 'escape');
-        floats.push({ text: 'ESCAPED! +100', x: RUN_X, y: GROUND - 40, life: 1.4 });
+    if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
+    else if (!chase.caught) {
+      if (power) chase.catching = false;
+      chase.heat = Math.max(0, chase.heat - dt / (RECOVER + DAY_RECOVER * hard()));
+      const to = power ? CRUISE_X - 12 : chase.catching ? CATCH_X : CRUISE_X + ((CATCH_X - CRUISE_X) / 2) * chase.heat;
+      chase.x += Math.max(-10 * dt, Math.min(40 * dt, to - chase.x));
+      if (state === 'run' && chase.catching && chase.x >= CATCH_X - 0.5) { // caught
+        speed = 0; chase.caught = true;
+        return knockOut(`CAUGHT BY THE ${ANIMALS[chaserOf(kind)].name}!`);
       }
-      chase = null;
     }
   }
   if (state !== 'run') return;
@@ -699,6 +720,7 @@ function update(dt) {
       if (rnd() < dt * 40) parts.push({ x: RUN_X + 2, y: animalY() + 6 + rnd() * 8, vx: -30 - rnd() * 40, vy: -10 - rnd() * 20, life: 0.6, color: COLOR.LEAF });
       for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
     }
+    if ((kind === 'fox' || kind === 'skunk') && chase) chase.leaving = true; // (it comes, and turns away)
     if (!power) { call('sting', 'powerdown'); updateMood({ within: 0 }); }
   }
 
@@ -722,19 +744,22 @@ function update(dt) {
   });
 
   // running tires: without food the energy runs out
-  if (!power) energy -= DRAIN * T().drain * dt; // (a super power keeps the energy)
+  if (!power) energy -= DRAIN * T().drain * (1 + DAY_DRAIN * hard()) * dt; // (a super power keeps the energy)
   if (energy <= 0) return knockOut('TOO TIRED!');
 
-  // the events: night falls now and then, the next animal gives chase now and then (never both at once)
+  // the days: night falls after a day's run, the next animal chases the animal through it, and at dawn it is left behind
   const s = far();
-  if (night) { night = Math.max(0, night - dt); if (!night) call('sting', 'dawn'); }
-  else if (!chase && s >= nextNight) {
-    night = NIGHT_SECS; nextNight += NIGHT_EVERY;
-    const c = chaserOf(kind);
-    if (c && !unlocked(c) && !AUTO) unlock(c); // night reached: the chaser joins
-    else call('sting', 'dusk');
-  }
-  if (!chase && !night && s >= nextFox && !(power && kind === 'fox')) { chase = { t: 0, x: -40 }; nextFox += FOX_EVERY; call('sting', 'chased'); }
+  if (night) {
+    const was = night;
+    night = Math.max(0, night - dt);
+    if (was > NIGHT_SECS - HUNT_FROM && night <= NIGHT_SECS - HUNT_FROM) { // the chaser comes
+      chase = { t: 0, x: -40, heat: 0, catching: false };
+      call('sting', 'chased');
+      const t = `THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`;
+      floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2, rise: 0 });
+    }
+    if (!night) dawn();
+  } else if (s >= nextNight) { night = NIGHT_SECS; call('sting', 'dusk'); }
   if (beat && score() > beat && !AUTO) { // past the best score so far
     beat = 0;
     call('sting', 'record');
@@ -867,7 +892,7 @@ function draw() {
   ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
-    animal(c, 'run', Math.floor(chase.t * 12) % 4, 0.45).draw(ctx, chase.x + 4, GROUND - FOOT, pal);
+    (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, 0.45) : animal(c, 'run', Math.floor(chase.t * 12) % 4, 0.45)).draw(ctx, Math.round(chase.x + 4 + (chase.caught ? 0 : Math.sin(chase.t * 9) * 0.6)), GROUND - FOOT, pal);
   }
 
   if (state === 'title') {
@@ -894,7 +919,7 @@ function draw() {
   }
 
   // the energy, the score (blinking at every hundred)
-  if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); }
+  if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - 6, 12, pal[COLOR.DIM], 'right'); }
   const pad = (n) => String(n).padStart(5, '0');
   if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - 6, 5, pal[COLOR.INK], 'right');
   if (best()) text(ctx, `HI ${pad(best())}`, W - 30, 5, pal[COLOR.DIM], 'right');

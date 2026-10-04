@@ -1,6 +1,6 @@
 # Lop Hop
 
-A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). The next animal chases it, and reaching night unlocks that one: fifteen in all, the rabbit the easy start, each after it clearly harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs) and worth more points (×1 to ×4). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is days and nights, and every day is harder than the one before (up to the fifth: faster, closer obstacles, more crows and packs, hungrier). At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Getting away till dawn unlocks that one: fifteen in all, the rabbit the easy start, each after it clearly harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs) and worth more points (×1 to ×4). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 | Animal | Food | Power |
 |---|---|---|
@@ -37,12 +37,12 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 | high scores | `setMood('highscore')` |
 | knocked out | `setMood('relaxed')` |
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
-| the next animal gives chase (from 500, every 1000) | `danger` |
-| night falls (every 900) | `wonder` |
+| night falls (after every 1000) | `wonder` |
+| the next animal gives chase (through the night) | `danger` |
 | a super power (golden food, 8 s) | `power`, with `sting('power')` and `sting('powerdown')` |
 | a run starts, a jump, food, a bump, a smash | `sting('go')`, `jump`, `reward`, `bump`, `smash` |
-| the chaser comes, and is left behind | `sting('chased')`, `escape` |
-| night falls (unlocking the chaser: `discovery`), and ends | `sting('dusk')`, `dawn` |
+| night falls, and the chaser comes | `sting('dusk')`, `chased` |
+| dawn: the chaser is left behind (unlocked the first time: `discovery`; already lost: `dawn`) | `sting('escape')` |
 | past the best score so far | `sting('record')` |
 | knocked out (into the high scores) | `sting('alert')` (`fanfare`) |
 
