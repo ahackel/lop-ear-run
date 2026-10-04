@@ -420,9 +420,9 @@ function buttons() {
   const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: 4 + i * (BTN + 2), y: 2 }));
   if (state !== 'title' || board || carousel === null) return row;
-  // more animals than fit on the title: arrows at the sides scroll them, each while there are more that way
-  const y = GROUND - 18, more = playable().length - 1;
-  return [...row, ...(titleX(0) < 0 ? [{ id: 'prev', x: 4, y }] : []), ...(titleX(more) > W - 26 ? [{ id: 'next', x: W - 4 - BTN, y }] : [])];
+  // arrows at the sides pick the animal before or after (round the row), whenever there is more than one
+  const y = GROUND - 18;
+  return playable().length > 1 ? [...row, { id: 'prev', x: 4, y }, { id: 'next', x: W - 4 - BTN, y }] : row;
 }
 const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
 let pressedBtn = null;
