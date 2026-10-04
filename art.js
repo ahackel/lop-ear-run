@@ -227,7 +227,7 @@ const DRAW = {
       ][k];
       near = legs([[7, 13.5, ...feet[0]], [15.5, 13.5, ...feet[2]]], 1.2);
       far = legs([[8, 13.5, ...feet[1]], [16, 13.5, ...feet[3]]], 1.1);
-      tail = [4, 9.5, (k % 2 ? 0.95 : 0.55) + 0.6 * lag(ear)]; // wagging, and on the spring
+      tail = [4, 9.5, 0.75 + (pose === 'run' ? [0.18, 0, -0.18, 0][k] : 0) + 0.6 * lag(ear)]; // swinging with the stride, on the spring
       earAt = [18, 3.5]; eye = [21, 5.5]; nose = [25, 8]; tongue = pose === 'run';
     }
     const [tx, ty, ta] = tail, tdx = -Math.sin(ta), tdy = -Math.cos(ta);

@@ -697,6 +697,13 @@ function update(dt) {
   groundX = (groundX + dx) % GROUND_LOOP;
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
     chase.t += dt;
+    // it runs like the animal: its own stride, its ear or tail on a spring kicked by every stride (a hop: the rabbit)
+    const c = chaserOf(kind), went = chase.phase;
+    chase.phase = (chase.phase + dt * (1.6 + Math.max(speed, 60) / 90)) % 1;
+    if (chase.phase < went && !chase.caught) chase.softVel += c === 'rabbit' ? 4 : -3;
+    const aim = chase.caught ? 0.15 + 0.05 * Math.sin(blinkT * 2) : 0.45 + 0.12 * Math.sin(chase.phase * Math.PI * 2);
+    chase.softVel += ((aim - chase.soft) * 170 - chase.softVel * 11) * dt;
+    chase.soft += chase.softVel * dt;
     if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
@@ -764,7 +771,7 @@ function update(dt) {
     const was = night;
     night = Math.max(0, night - dt);
     if (was > NIGHT_SECS - HUNT_FROM && night <= NIGHT_SECS - HUNT_FROM) { // the chaser comes
-      chase = { t: 0, x: -40, heat: 0, catching: false };
+      chase = { t: 0, x: -40, heat: 0, catching: false, phase: 0, soft: 0.45, softVel: 0 };
       call('sting', 'chased');
       const t = `THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`;
       floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2, rise: 0 });
@@ -941,7 +948,9 @@ function scene(pal) {
   ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
-    (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, 0.45) : animal(c, 'run', Math.floor(chase.t * 12) % 4, 0.45)).draw(ctx, Math.round(chase.x + 4 + (chase.caught ? 0 : Math.sin(chase.t * 9) * 0.6)), GROUND - FOOT, pal);
+    const st = stride(c, chase.phase), blink = (blinkT + 1.3) % 3.2 < 0.12, hop = c === 'rabbit' && chase.phase % 0.5 < 0.25 ? 1 : 0;
+    (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, chase.soft, blink) : animal(c, 'run', st.frame, chase.soft, blink, hop))
+      .draw(ctx, Math.round(chase.x + 4), GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
   }
 
   if (state === 'title') {
