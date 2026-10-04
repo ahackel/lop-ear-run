@@ -269,9 +269,13 @@ const DRAW = {
       eye = [15.5, 7]; nose = [18.5, 8.5];
     } else { // run, jump, hurt
       const k = pose === 'jump' ? (f ? 2 : 0) : pose === 'hurt' ? 1 : f;
-      muzzle = ellipse(22.3, 10, 2, 1.6);
-      body = [ellipse(10.5, 12, 7, 3.8), ellipse(19.5, 8.5, 4, 3.7), muzzle];
-      ears = [triangle(16.4, 6.2, 17, 1.6, 19.5, 5), triangle(20, 4.8, 22, 1.4, 23, 6.6)];
+      // the gallop flexes its back: long and low as the legs reach out (0), arched up as they gather under it (2); the
+      // head rises as it gathers and dips as the front feet land, the ears lie back when it stretches
+      const bend = pose === 'hurt' ? 0 : [-1, 0, 1, 0][k], hy = pose === 'run' ? [0, 0, -1, 1][k] : 0, lie = bend < 0 ? 0.8 : 0;
+      muzzle = ellipse(22.3, 10 + hy, 2, 1.6);
+      const back = bend < 0 ? [ellipse(10.3, 12.4, 7.8, 3.4)] : bend > 0 ? [ellipse(11, 12.2, 6.4, 3.6), ellipse(10.8, 10.8, 4.6, 2.8)] : [ellipse(10.5, 12, 7, 3.8)];
+      body = [...back, ellipse(19.5, 8.5 + hy, 4, 3.7), muzzle];
+      ears = [triangle(16.4, 6.2 + hy, 17 - lie, 1.6 + hy + lie / 2, 19.5, 5 + hy), triangle(20, 4.8 + hy, 22 - lie, 1.4 + hy + lie / 2, 23, 6.6 + hy)];
       const feet = [
         [[3, 17.3], [4.5, 18], [19.5, 16.5], [18, 17.6]],
         [[7, 18.4], [8.5, 18.4], [14.5, 18.4], [16.5, 18.4]],
@@ -281,9 +285,9 @@ const DRAW = {
       near = legs([[6.5, 13.5, ...feet[0]], [15, 13.5, ...feet[2]]], 1);
       far = legs([[7.5, 13.5, ...feet[1]], [15.5, 13.5, ...feet[3]]], 0.9);
       chest = ellipse(16, 13, 2.5, 2.2);
-      stripes = [6.5, 9.5, 12.5].map((x) => capsule(x, 8, x - 0.5, 10.3, 0.6));
-      tailAt = [4, 10.5, 0.6 + 0.8 * lag(tailA)];
-      eye = [20.5, 7.5]; nose = [23, 9.5];
+      stripes = [6.5, 9.5, 12.5].map((x) => capsule(x, 8, x - 0.5, 10.3 - bend * 0.5, 0.6));
+      tailAt = [4 - bend * 0.3, 10.5 + bend * -0.5, 0.6 + 0.8 * lag(tailA) + (pose === 'run' ? [0.05, 0, -0.3, -0.1][k] : 0)]; // (swinging against the stride)
+      eye = [20.5, 7.5 + hy]; nose = [23, 9.5 + hy];
     }
     // the tail: up and back from the rump, its tip curling forward
     const [tx, ty, ta] = tailAt, d1 = [-Math.sin(ta), -Math.cos(ta)], d2 = [-Math.sin(ta - 0.9), -Math.cos(ta - 0.9)];
