@@ -20,7 +20,7 @@ import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas');
 world.width = W; world.height = H;
-const ctx = world.getContext('2d');
+let ctx = world.getContext('2d'); // (the world; for a moment the second palette's canvas, see draw)
 
 // ------------------------------------------------------------------------------------------------------------- tuning
 const START_SPEED = 110, MAX_SPEED = 270, ACCEL = 3; // art pixels per second (per second)
@@ -838,29 +838,61 @@ function dizzyBirds(pal, behind) {
   }
 }
 
-// between day and night: the two palettes blended, in SHADES steps (a sprite keeps its pixels for each step it is drawn in)
-const SHADES = 24, shades = [];
-const blend = (a, b, f) => `#${[1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - f) + parseInt(b.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('')}`;
-function shade(d) {
-  const i = Math.round(d * d * (3 - 2 * d) * SHADES); // (eased: slow at the ends)
-  return shades[i] ||= i === 0 ? PALETTES.day : i === SHADES ? PALETTES.night
-    : Object.fromEntries(Object.keys(PALETTES.day).map((k) => [k, blend(PALETTES.day[k], PALETTES.night[k], i / SHADES)]));
+// dusk and dawn: day turns to a sunset, then to night; night to a morning, then to day. Each of the two passes on the way
+// is a crossfade: the world drawn in both palettes, the second over the first (a pixel's colours blend smoothly). Sunset
+// and morning are the day tinted, with a sky (its top colour, banded down to bg at the horizon).
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const blend = (a, b, f) => `#${hex(a).map((v, i) => Math.round(v * (1 - f) + hex(b)[i] * f).toString(16).padStart(2, '0')).join('')}`;
+const tint = (pal, by, f, more) => ({ ...Object.fromEntries(Object.entries(pal).map(([k, c]) =>
+  [k, blend(c, `#${hex(c).map((v, i) => Math.round((v * hex(by)[i]) / 255).toString(16).padStart(2, '0')).join('')}`, f)])), ...more });
+const SKIES = {
+  day: PALETTES.day,
+  sunset: tint(PALETTES.day, '#ff8c5a', 0.6, { bg: '#f7a76c', sky: '#7a5fa6' }),
+  night: PALETTES.night,
+  morning: tint(PALETTES.day, '#ffb4c4', 0.45, { bg: '#ffdcbc', sky: '#94b4e2' }),
+};
+const ease = (f) => f * f * (3 - 2 * f);
+// the two palettes to draw in and how much of the second, from how dark it is and which way it is going
+function skies() {
+  const [a, b, c] = night ? ['day', 'sunset', 'night'] : ['night', 'morning', 'day'], f = night ? dark : 1 - dark;
+  return f < 0.5 ? [SKIES[a], SKIES[b], ease(f * 2)] : f < 1 ? [SKIES[b], SKIES[c], ease(f * 2 - 1)] : [SKIES[c], null, 0];
 }
+const second = document.createElement('canvas');
+second.width = W; second.height = H;
+const worldCtx = ctx, secondCtx = second.getContext('2d');
 
 function draw() {
-  const pal = power && kind === 'dino' && state === 'run' ? chrome(shade(dark)) : shade(dark); // (chrome mode: all grey)
-  if (stageBg !== pal.bg) { // around the game in full screen, and the phone's bars
-    document.documentElement.style.setProperty('--game-bg', stageBg = pal.bg);
-    document.querySelector('meta[name=theme-color]').content = pal.bg;
+  let [a, b, f] = skies();
+  if (power && kind === 'dino' && state === 'run') [a, b, f] = [chrome(dark < 0.5 ? PALETTES.day : PALETTES.night), null, 0]; // (chrome mode: all grey)
+  const bg = f ? blend(a.bg, b.bg, f) : a.bg;
+  if (stageBg !== bg) { // around the game in full screen, and the phone's bars
+    document.documentElement.style.setProperty('--game-bg', stageBg = bg);
+    document.querySelector('meta[name=theme-color]').content = bg;
   }
+  if (f < 1) scene(a);
+  if (f > 0) {
+    ctx = secondCtx;
+    scene(b);
+    ctx = worldCtx;
+    ctx.globalAlpha = f; ctx.drawImage(second, 0, 0); ctx.globalAlpha = 1;
+  }
+  // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
+  const lum = (c) => { const [r, g, b] = hex(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
+  const top = f ? blend(a.sky || a.bg, b.sky || b.bg, f) : a.sky || a.bg, stands = (p) => Math.abs(lum(p[COLOR.INK]) - lum(top));
+  hud(f && stands(b) > stands(a) ? b : a);
+  present();
+}
+
+// the world, in one palette
+function scene(pal) {
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0, 0, W, H);
-
-  if (dark) { // the stars and the moon come out as it gets dark
-    ctx.globalAlpha = dark;
+  if (pal.sky) { // a sunset or a morning: the sky in bands
+    for (let i = 0; i < 8; i++) { ctx.fillStyle = blend(pal.sky, pal.bg, i / 7); ctx.fillRect(0, Math.round((i * GROUND) / 8), W, Math.ceil(GROUND / 8)); }
+  }
+  if (pal === PALETTES.night) { // the stars and the moon
     for (const s of stars) if (Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
     moon.draw(ctx, W - 60, 10, pal);
-    ctx.globalAlpha = 1;
   }
   // far hills
   ctx.fillStyle = pal[COLOR.FAINT];
@@ -881,11 +913,7 @@ function draw() {
     else { ctx.fillRect(x, GROUND - 1, 1, 1); ctx.fillRect(x + 2, GROUND - 2, 1, 2); ctx.fillRect(x + 4, GROUND - 1, 1, 1); }
   }
 
-  if (board) { // the high scores, in place of the run
-    drawBoard(pal);
-    drawButtons(pal);
-    return present();
-  }
+  if (board) return; // (the high scores, in place of the run: see hud)
 
   const meal = FOOD[ANIMALS[kind].food];
   for (const f of food) meal.draw(ctx, f.x, f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
@@ -929,7 +957,11 @@ function draw() {
     if (f.sprite) f.sprite.draw(ctx, f.x, Math.round(f.y), pal);
     else text(ctx, f.text, f.x, Math.round(f.y), pal[COLOR.INK]);
   }
+}
 
+// what is written over the world (and the high scores), in one palette
+function hud(pal) {
+  if (board) { drawBoard(pal); drawButtons(pal); return; }
   // the energy, the score (blinking at every hundred)
   if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - 6, 12, pal[COLOR.DIM], 'right'); }
   const pad = (n) => String(n).padStart(5, '0');
@@ -953,7 +985,6 @@ function draw() {
   }
 
   drawButtons(pal);
-  present();
 }
 // up to the screen, in whole pixels
 function present() {
