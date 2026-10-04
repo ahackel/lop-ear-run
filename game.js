@@ -15,11 +15,10 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
-const world = document.createElement('canvas');
-world.width = W; world.height = H;
+const world = document.createElement('canvas'); // (screen-sized: art pixels scaled up, see fit)
 let ctx = world.getContext('2d'); // (the world; for a moment the second palette's canvas, see draw)
 
 // ------------------------------------------------------------------------------------------------------------- tuning
@@ -885,9 +884,7 @@ function skies() {
   return i < way.length - 1 ? [SKIES[way[i]], SKIES[way[i + 1]], ease(f - i)] : [SKIES[way[i]], null, 0];
 }
 const second = document.createElement('canvas');
-second.width = W; second.height = H;
 const worldCtx = ctx, secondCtx = second.getContext('2d');
-worldCtx.imageSmoothingEnabled = secondCtx.imageSmoothingEnabled = false; // (the giant dino: big pixels, not blurred ones)
 
 function draw() {
   const [a, b, f] = skies();
@@ -901,7 +898,7 @@ function draw() {
     ctx = secondCtx;
     scene(b);
     ctx = worldCtx;
-    ctx.globalAlpha = f; ctx.drawImage(second, 0, 0); ctx.globalAlpha = 1;
+    ctx.globalAlpha = f; ctx.drawImage(second, 0, 0, W, H); ctx.globalAlpha = 1;
   }
   // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
   const lum = (c) => { const [r, g, b] = hex(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
@@ -920,17 +917,20 @@ function scene(pal) {
   }
   // far hills
   ctx.fillStyle = pal[COLOR.FAINT];
-  for (let x = 0; x < W; x++) {
-    const u = x + hillX, h = 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3);
-    ctx.fillRect(x, Math.round(GROUND - h), 1, Math.round(h));
+  const hills = snap(hillX), from = Math.floor(hills);
+  for (let x = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
+    const u = x + from, h = 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3);
+    ctx.fillRect(x - (hills - from), Math.round(GROUND - h), 1, Math.round(h));
   }
   for (const c of clouds) cloud.draw(ctx, c.x, c.y, pal);
 
   // the ground
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(0, GROUND, W, 1);
+  const scroll = snap(groundX);
   for (const b of groundBits) {
-    const x = Math.round(((b.x - groundX) % GROUND_LOOP + GROUND_LOOP) % GROUND_LOOP);
+    let x = snap(((b.x - scroll) % GROUND_LOOP + GROUND_LOOP) % GROUND_LOOP);
+    if (x > GROUND_LOOP - 6) x -= GROUND_LOOP; // (going off on the left)
     if (x >= W) continue;
     if (b.kind === 'dot') ctx.fillRect(x, GROUND + b.y, 1, 1);
     else if (b.kind === 'dash') ctx.fillRect(x, GROUND + b.y, 3, 1);
@@ -939,26 +939,28 @@ function scene(pal) {
 
   if (board) return; // (the high scores, in place of the run: see hud)
 
+  // what lies on the ground moves with it, rounded with it to the same screen pixel (on its own, it could be one off)
+  const onGround = (x) => snap(x + groundX) - scroll;
   const meal = FOOD[ANIMALS[kind].food];
-  for (const f of food) meal.draw(ctx, f.x, f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
+  for (const f of food) meal.draw(ctx, onGround(f.x), f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
   if (gold) { // golden, with a glint going round it
-    const y = gold.y + Math.round(Math.sin(blinkT * 5));
-    meal.draw(ctx, gold.x, y, golden(pal));
+    const x = onGround(gold.x), y = gold.y + Math.round(Math.sin(blinkT * 5));
+    meal.draw(ctx, x, y, golden(pal));
     const a = blinkT * 6;
     ctx.fillStyle = pal[COLOR.YELLOW];
-    ctx.fillRect(Math.round(gold.x + meal.w / 2 + Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 + Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
+    ctx.fillRect(x + Math.round(meal.w / 2 + Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 + Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
     ctx.fillStyle = pal[COLOR.WHITE];
-    ctx.fillRect(Math.round(gold.x + meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
+    ctx.fillRect(x + Math.round(meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
   }
   ctx.globalAlpha = stinks() ? 0.35 : 1; // (faded while the skunk stinks: it runs through them)
   const frozen = power && kind === 'sabre'; // (ice age: ice)
-  for (const o of obstacles) o.sprite.draw(ctx, o.x, o.y, frozen ? icy(pal) : pal);
+  for (const o of obstacles) o.sprite.draw(ctx, onGround(o.x), o.y, frozen ? icy(pal) : pal);
   ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
     const st = stride(c, chase.phase), blink = (blinkT + 1.3) % 3.2 < 0.12, hop = c === 'rabbit' && chase.phase % 0.5 < 0.25 ? 1 : 0;
     (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, chase.soft, blink) : animal(c, 'run', st.frame, chase.soft, blink, hop))
-      .draw(ctx, Math.round(chase.x + 4), GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
+      .draw(ctx, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
   }
 
   if (state === 'title') {
@@ -977,7 +979,7 @@ function scene(pal) {
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
   }
-  for (const p of parts) { ctx.fillStyle = pal[p.color]; ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+  for (const p of parts) { ctx.fillStyle = pal[p.color]; ctx.fillRect(snap(p.x), snap(p.y), 1, 1); }
   for (const f of floats) {
     if (f.sprite) f.sprite.draw(ctx, f.x, Math.round(f.y), pal);
     else text(ctx, f.text, f.x, Math.round(f.y), pal[COLOR.INK]);
@@ -1011,16 +1013,20 @@ function hud(pal) {
 
   drawButtons(pal);
 }
-// up to the screen, in whole pixels
+// up to the screen (the world is drawn in its pixels already)
 function present() {
-  vctx.imageSmoothingEnabled = false;
   const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * (view.width / W) : 0; // a quake shakes the screen
-  vctx.drawImage(world, q, q && (rnd() < 0.5 ? -q : q), view.width, view.height);
+  vctx.drawImage(world, q, q && (rnd() < 0.5 ? -q : q));
 }
 
+// the canvases in screen pixels, a whole number per art pixel: the art is drawn in art pixels, scaled up (not blurred),
+// and what moves is placed to the screen pixel (see snap), so it glides instead of stepping a big pixel at a time
 function fit() {
   const scale = Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
-  if (view.width !== W * scale) { view.width = W * scale; view.height = H * scale; }
+  if (world.width === W * scale) return;
+  setScale(scale);
+  for (const c of [view, world, second]) { c.width = W * scale; c.height = H * scale; }
+  for (const cx of [worldCtx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, 0); cx.imageSmoothingEnabled = false; }
 }
 new ResizeObserver(fit).observe(view);
 fit();

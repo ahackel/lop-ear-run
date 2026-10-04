@@ -55,6 +55,11 @@ class Grid {
 }
 const union = (...masks) => masks.reduce((a, m) => a.map((v, i) => v | m[i]));
 
+// the screen pixels per art pixel: things move in screen pixels (smoothly), while the art keeps its big pixels
+let S = 1;
+export const setScale = (s) => { S = s; };
+export const snap = (v) => Math.round(v * S) / S; // (to the nearest screen pixel)
+
 // a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette) }; drawn into a canvas per palette, on first use
 function sprite(g, mask, extra) {
   const canvases = {};
@@ -73,8 +78,8 @@ function sprite(g, mask, extra) {
         }
         cx.putImageData(img, 0, 0);
       }
-      if (scale === 1) ctx.drawImage(c, Math.round(x), Math.round(y));
-      else ctx.drawImage(c, Math.round(x), Math.round(y), Math.round(g.w * scale), Math.round(g.h * scale));
+      if (scale === 1) ctx.drawImage(c, snap(x), snap(y), g.w, g.h);
+      else ctx.drawImage(c, snap(x), snap(y), Math.round(g.w * scale), Math.round(g.h * scale));
     },
   };
 }
