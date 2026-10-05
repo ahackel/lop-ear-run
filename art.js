@@ -142,7 +142,7 @@ export const ANIMALS = {
 // as it rises, gathered as it falls), the others gallop
 export function stride(kind, phase, move = 'run') {
   const g = rigged(kind) && RIGS[kind].poses[move]?.gait;
-  if (g) return { frame: Math.floor(phase * g.frames) % g.frames, lift: 0 }; // (its body bobs itself)
+  if (g) return { frame: Math.floor(phase * g.frames) % g.frames, lift: g.leap ? leapLift(g, phase) : 0 }; // (a gallop: its body bobs itself; a leap: up it goes)
   if (move === 'duck') return { frame: Math.floor(phase * 4) % 2, lift: 0 }; // shuffling
   if (kind === 'rabbit') {
     if (phase < 0.3) return { frame: 0, lift: 0 };
@@ -707,6 +707,28 @@ function gaitPose(rig, m, f) {
   return { ...m, joints: { hip: plus(J.hip, bob(0.1)), chest: plus(J.chest, chest), head: plus(J.head, times(chest, g.head ?? 0.7)) }, paws };
 }
 
+// a frame of a leap (a gait of bounds: the rabbit, the squirrel): on the ground for `land` of the stride, gathering
+// (gather: the hip forward) and crouching, then off into the air (how high: height, see stride), stretched out (the hip
+// back), the nose up as it rises and down as it falls (pitch). Each leg: when its paw is down (down: [touches, leaves],
+// in the stride), where (at: from its root, as it touches and as it leaves; it slides back between), and the point it
+// swings toward in the air (air: from its root, and from the ground)
+function leapPose(rig, m, f) {
+  const g = m.gait, p = f / g.frames, J = { ...rig.joints, ...m.joints }, down = p < g.land, paws = {};
+  const crouch = down ? Math.sin((Math.PI * p) / g.land) : 0, air = down ? 0 : Math.sin((Math.PI * (p - g.land)) / (1 - g.land)), tilt = down ? 0 : Math.cos((Math.PI * (p - g.land)) / (1 - g.land));
+  const hip = plus(J.hip, [g.gather * crouch - g.stretch * air, g.crouch * crouch + g.pitch * tilt]), chest = plus(J.chest, [0, 0.4 * g.crouch * crouch - g.pitch * tilt]);
+  const wrap = (x) => ((x % 1) + 1) % 1;
+  for (const name in g.legs) {
+    const { down: [td, lo], at: [xt, xl], air: [cx, cy] } = g.legs[name], L = rig.legs[name], x0 = toWorld(jointFrame(J[L.on], 0), L.at)[0];
+    const into = wrap(p - td), span = wrap(lo - td) || 1;
+    if (into < span) { paws[name] = [x0 + xt + ((xl - xt) * into) / span, g.ground]; continue; }
+    const u = (into - span) / (1 - span), a = [x0 + xl, g.ground], c = [x0 + cx, g.ground + cy], b = [x0 + xt, g.ground]; // (a curve from a to b, pulled toward c)
+    paws[name] = plus(plus(times(a, (1 - u) ** 2), times(c, 2 * u * (1 - u))), times(b, u * u));
+  }
+  return { ...m, joints: { hip, chest, head: plus(J.head, times(minus(chest, J.chest), g.head ?? 0.8)) }, paws };
+}
+// how high a leap has the body, where the stride is
+const leapLift = (g, phase) => (phase < g.land ? 0 : g.height * Math.sin((Math.PI * (phase - g.land)) / (1 - g.land)));
+
 // a rig's pose for a move and a frame. A move is keyframes (a list), a gait, or a loop worked out by its own function
 // (at: 0…1 → a pose, in frames at fps); one it has none for: the run. (Worked-out poses are kept.)
 const worked = new Map();
@@ -716,7 +738,7 @@ function poseOf(rig, name, frame) {
   let list = worked.get(m);
   if (!list) worked.set(m, (list = []));
   const n = m.gait ? m.gait.frames : m.frames, i = frame % n;
-  return list[i] || (list[i] = m.gait ? gaitPose(rig, m, i) : m.at(i / n));
+  return list[i] || (list[i] = m.gait ? (m.gait.leap ? leapPose : gaitPose)(rig, m, i) : m.at(i / n));
 }
 // a rig in a pose: the pose's settings over the rig's, the joints' frames
 function posed(rig, name, frame) {

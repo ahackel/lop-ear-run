@@ -71,7 +71,8 @@ for (const k of Object.keys(ANIMALS)) {
 for (const k of Object.keys(ANIMALS).filter(rigged)) {
   const every = (move, n) => [...new Set([...Array(n).keys()].map((i) => (move === 'idle' ? idleFrame(k, i / 10) : stride(k, i / n, move).frame)))].map((f) => [move, f]);
   const poses = [...every('run', 64), ['jump', 0], ['jump', 1], ...every('duck', 64), ...every('idle', 200), ['hurt', 0], ['ko', 0]];
-  const low = poses.filter(([p]) => p !== 'jump' && p !== 'ko').map(([p, f]) => { const s = animal(k, p, f); return s.oy + s.h - 1 === FOOT && s.px.slice(-s.w).some(Boolean); }); // (its last row: the feet's, drawn)
+  const leaps = [...Array(64).keys()].some((i) => stride(k, i / 64).lift > 0); // (a leap's frames may be in the air: none below the ground then)
+  const low = poses.filter(([p]) => p !== 'jump' && p !== 'ko').map(([p, f]) => { const s = animal(k, p, f); return p === 'run' && leaps ? s.oy + s.h - 1 <= FOOT : s.oy + s.h - 1 === FOOT && s.px.slice(-s.w).some(Boolean); }); // (its last row: the feet's, drawn)
   const body = {}, moves = [['run', 0, 0], ['jump', 0, -20], ['jump', 1, -10], ['run', 1, 0], ['duck', 0, 0], ['ko', 0, 0], ['idle', 1, 0]];
   let whole = true;
   for (let i = 0; i < 600; i++) {
