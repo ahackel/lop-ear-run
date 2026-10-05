@@ -13,7 +13,7 @@ const rig = {
   dots: [{ on: 'head', at: [2.5, 2], color: 'PINK' }], // a blush
   legs: {
     // the hind leg: its thigh in the haunch, its long foot from the heel (the knee here) to the toe
-    hindNear: { on: 'hip', at: [0, 2], thigh: 3.2, shin: 5.5, r: 1.3, bend: 1 },
+    hindNear: { on: 'hip', at: [0, 2], thigh: 4, shin: 6.5, r: 1.3, bend: 1 },
     frontNear: { on: 'chest', at: [2.5, 0.5], thigh: 2.3, shin: 2.3, r: 1.2, bend: -1 },
   },
   chains: {
@@ -32,7 +32,7 @@ const low = { joints: { hip: [7.5, 16], chest: [12.5, 16], head: [17.5, 15.5] },
 
 // the hop: long and slow (rate: 0.6 of the usual strides), on the ground for the first quarter of it, then 6 high
 const run = { gait: { leap: true, rate: 0.6, frames: 12, land: 0.25, height: 6, stretch: 1.5, gather: 1, crouch: 0.6, pitch: 1.2, ground: 18.4, legs: {
-  hindNear: { down: [0, 0.3], at: [4, 2], air: [-9, -2] }, frontNear: { down: [0.92, 0.25], at: [0.5, -0.5], air: [4.5, -3] },
+  hindNear: { down: [0, 0.25], at: [4, 2], air: [-22, -1] }, frontNear: { down: [0.92, 0.25], at: [0.5, -0.5], air: [4.5, -3] },
 } } };
 
 // sitting about, t (0…1) through an 8 s loop: crouched, breathing, its nose twitching now and then; once it sits up tall
@@ -46,7 +46,7 @@ const idle = (t) => {
 export default { ...rig, poses: {
   run,
   jump: [ // rising, stretched out, the foot trailing; falling, gathered, reaching for the ground
-    { joints: { hip: [7, 14.5], chest: [12, 12.3], head: [15.5, 7.8] }, paws: { hindNear: [1.5, 17.5], frontNear: [19, 15] } },
+    { joints: { hip: [7, 14.5], chest: [12, 12.3], head: [15.5, 7.8] }, paws: { hindNear: [0, 17.6], frontNear: [19, 15] } },
     { joints: { hip: [7.5, 12.8], chest: [12, 14], head: [16, 9.5] }, paws: { hindNear: [11.5, 17.6], frontNear: [16.5, 17.8] } },
   ],
   duck: crawl(rig, low, { bob: 0.2, legs: { hindNear: [0, 1], frontNear: [0.5, 2.5] } }), // (its round back barely rolling)

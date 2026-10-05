@@ -162,7 +162,8 @@ const playable = () => KINDS.filter(unlocked); // the ones on the title (the oth
 const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
 let open = ['rabbit'];
 try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
-function unlocked(k) { return open.includes(k); }
+const ALL = new URLSearchParams(location.search).has('all'); // ?all: every animal open, for this visit (nothing saved)
+function unlocked(k) { return ALL || open.includes(k); }
 // the one unlocked last: in this run (gained, played next, from the knock-out or the title) and until played (newKind,
 // marked NEW on the title)
 let gained = null, newKind = null;
