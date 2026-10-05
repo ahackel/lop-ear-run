@@ -153,6 +153,9 @@ export function stride(kind, phase, move = 'run') {
   return { frame, lift: frame === 0 ? 1 : 0 };
 }
 
+// how fast a run's strides go, for an animal (1: the usual; less: longer strides, as a rig's gait says)
+export const strideRate = (kind) => (rigged(kind) && RIGS[kind].poses.run?.gait?.rate) || 1;
+
 // sitting (on the title), t seconds in → its frame: a rig's own loop (breathing, looking about), or two frames
 export function idleFrame(kind, t) {
   const m = rigged(kind) && RIGS[kind].poses.idle;

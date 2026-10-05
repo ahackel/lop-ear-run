@@ -15,7 +15,7 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame, rigged } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame, rigged, strideRate } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas'); // (screen-sized: art pixels scaled up, see fit)
@@ -670,7 +670,7 @@ function update(dt) {
   dist += state === 'run' ? dx : 0;
   if (doubles() && state === 'run') bonus += dx * SCORE_PER_PX * T().mult; // double points
   const was = phase;
-  phase = (phase + dt * (1.6 + speed / 90)) % 1;
+  phase = (phase + dt * (1.6 + speed / 90) * strideRate(kind)) % 1;
   if (phase < was && hopping() && (kind === 'rabbit' || kind === 'squirrel')) { // a hop (a leap) lands: the ear flops, a puff of dust
     softVel += 4;
     for (let i = 0; i < 2; i++) parts.push({ x: RUN_X + 6 + i * 4, y: GROUND - 1, vx: -20 - rnd() * 20, vy: -10 - rnd() * 15, life: 0.25, color: COLOR.FAINT });
@@ -711,7 +711,7 @@ function update(dt) {
     chase.t += dt;
     // it runs like the animal: its own stride, its ear or tail on a spring kicked by every stride (a hop: the rabbit)
     const c = chaserOf(kind), went = chase.phase;
-    chase.phase = (chase.phase + dt * (1.6 + Math.max(speed, 60) / 90)) % 1;
+    chase.phase = (chase.phase + dt * (1.6 + Math.max(speed, 60) / 90) * strideRate(c)) % 1;
     if (chase.phase < went && !chase.caught) chase.softVel += c === 'rabbit' ? 4 : -3;
     const aim = chase.caught ? 0.15 + 0.05 * Math.sin(blinkT * 2) : 0.45 + 0.12 * Math.sin(chase.phase * Math.PI * 2);
     chase.softVel += ((aim - chase.soft) * 170 - chase.softVel * 11) * dt;

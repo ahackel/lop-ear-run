@@ -30,8 +30,8 @@ const crouched = { paws: { hindNear: [11, 18.4], frontNear: [15, 18.4] } };
 const low = { joints: { hip: [7.5, 16], chest: [12.5, 16], head: [17.5, 15.5] }, torso: { r: 3.3, ends: 6 },
   chains: { tail: { at: [-5.5, -0.5], angle: 1.5 } } };
 
-// the hop: on the ground for the first 30% of it, then 4 high
-const run = { gait: { leap: true, frames: 10, land: 0.3, height: 4, stretch: 1, gather: 1, crouch: 0.6, pitch: 1.2, ground: 18.4, legs: {
+// the hop: long and slow (rate: 0.6 of the usual strides), on the ground for the first quarter of it, then 6 high
+const run = { gait: { leap: true, rate: 0.6, frames: 12, land: 0.25, height: 6, stretch: 1.5, gather: 1, crouch: 0.6, pitch: 1.2, ground: 18.4, legs: {
   hindNear: { down: [0, 0.3], at: [4, 2], air: [-9, -2] }, frontNear: { down: [0.92, 0.25], at: [0.5, -0.5], air: [4.5, -3] },
 } } };
 
@@ -49,7 +49,7 @@ export default { ...rig, poses: {
     { joints: { hip: [7, 14.5], chest: [12, 12.3], head: [15.5, 7.8] }, paws: { hindNear: [1.5, 17.5], frontNear: [19, 15] } },
     { joints: { hip: [7.5, 12.8], chest: [12, 14], head: [16, 9.5] }, paws: { hindNear: [11.5, 17.6], frontNear: [16.5, 17.8] } },
   ],
-  duck: crawl(rig, low, { legs: { hindNear: [0, 1], frontNear: [0.5, 2.5] } }),
+  duck: crawl(rig, low, { bob: 0.2, legs: { hindNear: [0, 1], frontNear: [0.5, 2.5] } }), // (its round back barely rolling)
   hurt: [crouched],
   ko: [{ ...ko(rig, low), dots: [] }],
   idle: { frames: 80, fps: 10, at: idle },
