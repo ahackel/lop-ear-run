@@ -1,7 +1,7 @@
 // The rabbit as a rig (see the cat, and kit.js): round and compact, one lop ear in front, a cotton tail, a pink nose and
 // blush; long hind feet, short front legs. It hops (a leap: see leapPose in art.js): crouched on the ground, gathered,
 // pushing off with its hind feet, stretched out as it rises, reaching for the ground as it falls.
-import { crawl, ko, bump, wave } from './kit.js';
+import { crawl, jump, ko, bump, wave } from './kit.js';
 
 // @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
 export const build = {
@@ -36,6 +36,12 @@ export const build = {
     },
   },
   face: { eye: [1.5, -1], nose: [4.5, 1], noseColor: 'PINK' },
+  moves: {
+    jump: [
+      { joints: { hip: [7, 14.5], chest: [12, 12.3], head: [15.5, 7.8] }, paws: { hindNear: [0, 17.6], frontNear: [19, 15] } },
+      { joints: { hip: [7.5, 12.8], chest: [12, 14], head: [16, 9.5] }, paws: { hindNear: [11.5, 17.6], frontNear: [16.5, 17.8] } },
+    ],
+  },
 };
 // @end
 
@@ -62,10 +68,7 @@ export const make = (rig) => {
 
   return { ...rig, poses: {
   run,
-  jump: [ // rising, stretched out, the foot trailing; falling, gathered, reaching for the ground
-    { joints: { hip: [7, 14.5], chest: [12, 12.3], head: [15.5, 7.8] }, paws: { hindNear: [0, 17.6], frontNear: [19, 15] } },
-    { joints: { hip: [7.5, 12.8], chest: [12, 14], head: [16, 9.5] }, paws: { hindNear: [11.5, 17.6], frontNear: [16.5, 17.8] } },
-  ],
+  jump: jump(rig), // (the build's own: see moves)
   duck: crawl(rig, low, { bob: 0.2, legs: { hindNear: [0, 1], frontNear: [0.5, 2.5] } }), // (its round back barely rolling)
   hurt: [crouched],
   ko: [{ ...ko(rig, low), dots: [] }],

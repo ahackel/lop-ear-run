@@ -23,6 +23,9 @@
 //                stiffness pulls each link to its rest, damping stops it ringing, weight pulls it down
 //   face         eye, nose (in the head's frame), noseColor
 //   recolor      { name: name }: colors swapped everywhere (the wolf: a grey fox)
+//   moves        the build's own over the moves its make works out, by name (run, duck, jump, hurt, ko): keyframes set by
+//                hand (a list of poses, each: joints, paws { leg: [x, y] }, headAngle, torso, chains { name: what of it
+//                changes: angle, at, curl, tip }), or { gait: settings } over a gait's (the workshop's timeline sets both)
 
 export const ease = (u) => u * u * (3 - 2 * u), clamp01 = (u) => Math.min(1, Math.max(0, u));
 // eased in from a to a + e and out from b - e to b: 0…1…0

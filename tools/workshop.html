@@ -50,6 +50,14 @@
   .field > span { color: var(--dim); }
   .field .nums { display: flex; gap: 4px; flex-wrap: wrap; }
   .note { color: var(--dim); }
+  #timeline { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 4px 2px; border-top: 1px solid var(--line); }
+  #timeline .frames { display: flex; gap: 4px; flex-wrap: wrap; }
+  #timeline .frames button { padding: 2px; border-radius: 5px; display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--dim); }
+  #timeline .frames button.on { border-color: var(--sel); box-shadow: 0 0 0 1px var(--sel); color: var(--ink); }
+  #timeline .frames canvas { display: block; width: 84px; height: 52px; image-rendering: pixelated; border-radius: 3px; }
+  #timeline input[type=range] { width: min(420px, 60vw); }
+  #timeline .note { flex-basis: 100%; }
+  .field.own > span:first-child { color: var(--accent); }
   #previewCard { grid-column: 1 / -1; padding: 8px; }
   #preview { display: block; width: 100%; image-rendering: pixelated; border-radius: 4px; }
   #sprites { display: flex; gap: 14px; align-items: flex-end; padding: 8px 10px; }
@@ -71,12 +79,13 @@
   <section class="card" id="stageWrap">
     <canvas id="stage"></canvas>
     <div class="bar">
-      <label>Pose <select id="move"></select></label>
-      <label>Frame <input id="frame" type="range" min="0" max="0" value="0"></label>
-      <span id="frameNo"></span>
+      <label>Move <select id="move"></select></label>
+      <button id="play" title="Play the move (Space)">▶ Play</button>
+      <label title="The frames before (blue) and after (orange), faded"><input id="onion" type="checkbox" checked> Onion skin</label>
       <label><input id="allHandles" type="checkbox" checked> All handles</label>
       <span id="hint">Drag the handles. Click a shape to pick it. Shift: half pixels.</span>
     </div>
+    <div id="timeline"></div>
   </section>
   <aside>
     <div class="card"><div id="parts"></div></div>

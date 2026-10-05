@@ -15,7 +15,7 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame, rigged, strideRate } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, rigged, strideRate } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas'); // (screen-sized: art pixels scaled up, see fit)
@@ -624,7 +624,7 @@ function animalPose() {
   if (state === 'title') return ['idle', idleFrame(kind, blinkT), blink, w];
   if (hurtT > 0) return ['hurt', 0, false, 0];
   if (power && kind === 'hedgehog') return ['ball', Math.floor(phase * 8) % 4, false, 0]; // spike ball
-  if (alt > 0) return ['jump', vAlt > 0 ? 0 : 1, blink, 0];
+  if (alt > 0) return ['jump', jumpFrame(kind, vAlt / (JUMP * T().jump)), blink, 0];
   if (ducking) return ['duck', stride(kind, phase, 'duck').frame, blink, w];
   return ['run', stride(kind, phase).frame, blink, w];
 }
@@ -756,8 +756,8 @@ function update(dt) {
     if (!power) { call('sting', 'powerdown'); updateMood({ within: 0 }); }
   }
 
-  // what the animal runs into, what it eats
-  const sp = animalSprite(), ay = animalY();
+  // what the animal runs into (the frame of its move as it is, not eased into: it ducks as quickly as ever), what it eats
+  const [pose, f, blink, w] = animalPose(), sp = animal(kind, pose, f, soft, blink, w), ay = animalY();
   if (!safe && !passes()) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
   const meal = FOOD[ANIMALS[kind].food];
   if (power && kind === 'fox') for (const f of food) { // sly: the food comes to the fox

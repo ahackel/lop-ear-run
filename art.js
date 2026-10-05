@@ -162,6 +162,13 @@ export function idleFrame(kind, t) {
   return m?.at ? Math.floor(t * m.fps) % m.frames : Math.floor(t * 5) % 2;
 }
 
+// jumping, rise: how fast it goes up (1: as it takes off, 0: at the top, -1: falling as fast) → its frame: a rig's jump
+// keyframes, spread over the arc (two: rising, falling)
+export function jumpFrame(kind, rise) {
+  const m = rigged(kind) && RIGS[kind].poses.jump, n = Array.isArray(m) ? m.length : 2;
+  return clamp(Math.floor(((1 - rise) / 2) * n), 0, n - 1);
+}
+
 const animals = new Map();
 // body: a rig's moving parts (its chains), as moveBody left them; none: at rest
 export function animal(kind, pose, frame = 0, soft = 0.4, blink = false, wiggle = 0, body = null, scale = 1) {
@@ -647,7 +654,24 @@ Object.assign(DRAW, {
 // far a point lies outside them), so they join smoothly. Each frame is drawn into a grid just big enough for it, with its
 // offset (ox, oy) from the 26×20 box the game places every animal by: a tail can reach out of the box. With ?old in the
 // address, the animals are drawn as they were (DRAW), to compare.
-const RIGS = { rabbit, cat, dog, fox, hedgehog, squirrel, otter, skunk, wolf, boar, bear, cheetah, rhino, sabre, dino };
+// (moves: the build's own, over the moves its make worked out: a list of keyframes set by hand in the workshop's timeline,
+// in place of the move; or a gait's settings over the worked-out ones, a leg's over its own)
+function withMoves(rig) {
+  if (!rig.moves) return rig;
+  const poses = { ...rig.poses };
+  for (const name in rig.moves) {
+    const o = rig.moves[name], m = poses[name];
+    if (Array.isArray(o)) poses[name] = o;
+    else if (o.gait && m?.gait) {
+      const legs = { ...m.gait.legs };
+      for (const l in o.gait.legs || {}) legs[l] = Array.isArray(legs[l]) ? o.gait.legs[l] : { ...legs[l], ...o.gait.legs[l] };
+      poses[name] = { ...m, gait: { ...m.gait, ...o.gait, legs } };
+    }
+  }
+  return { ...rig, poses };
+}
+const RIGS = Object.fromEntries(Object.entries({ rabbit, cat, dog, fox, hedgehog, squirrel, otter, skunk, wolf, boar, bear, cheetah, rhino, sabre, dino })
+  .map(([k, rig]) => [k, withMoves(rig)]));
 const LEGACY = typeof location !== 'undefined' && /[?&]old\b/.test(location.search);
 export const rigged = (kind) => !LEGACY && !!RIGS[kind];
 const NAMED = { OUT, FUR, EAR, PINK, INK, BERRY, ORANGE, LEAF, FAINT, LIGHT, FOX, BELLY, TAN, BROWN, GINGER, STRIPE, YELLOW, BARK, WOOD,
@@ -744,12 +768,32 @@ function poseOf(rig, name, frame) {
   return list[i] || (list[i] = m.gait ? (m.gait.leap ? leapPose : gaitPose)(rig, m, i) : m.at(i / n));
 }
 // a rig in a pose: the pose's settings over the rig's, the joints' frames
-function posed(rig, name, frame) {
-  const p = poseOf(rig, name, frame);
+const posed = (rig, name, frame) => posedAs(rig, poseOf(rig, name, frame));
+function posedAs(rig, p) {
   const J = { ...rig.joints, ...p.joints }, a = Math.atan2(J.chest[1] - J.hip[1], J.chest[0] - J.hip[0]);
   const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0) };
   return { p, J, F, a, torso: { ...rig.torso, ...p.torso } };
 }
+// a pose between two (u: 0 the first, 1 the second): the joints, the paws, the head's turn, the torso and the chains' rest
+// part way; what cannot be part way (the shapes of a pose of its own, flipped, pads), the nearer one's
+function mixPose(rig, a, b, u) {
+  const m = u < 0.5 ? a : b, lerp = (x, y) => x + (y - x) * u, part = (x, y) => (x && y ? mix(x, y, u) : u < 0.5 ? x : y);
+  const ja = { ...rig.joints, ...a.joints }, jb = { ...rig.joints, ...b.joints }, ta = { ...rig.torso, ...a.torso }, tb = { ...rig.torso, ...b.torso };
+  const out = { ...m, joints: {}, paws: {}, chains: {}, headAngle: lerp(a.headAngle || 0, b.headAngle || 0), torso: { ...ta, ...tb, r: lerp(ta.r || 0, tb.r || 0), ends: lerp(ta.ends ?? tb.ends ?? 0, tb.ends ?? ta.ends ?? 0) } };
+  for (const k in ja) out.joints[k] = mix(ja[k], jb[k], u);
+  for (const k in rig.legs) out.paws[k] = part(a.paws?.[k], b.paws?.[k]);
+  for (const k in rig.chains) {
+    const ca = { curl: 0, ...rig.chains[k], ...a.chains?.[k] }, cb = { curl: 0, ...rig.chains[k], ...b.chains?.[k] };
+    out.chains[k] = ca.ear ? { tip: mix(ca.tip, cb.tip, u) } : { ...(u < 0.5 ? a : b).chains?.[k], angle: lerp(ca.angle, cb.angle), curl: lerp(ca.curl, cb.curl), at: mix(ca.at, cb.at, u), root: part(ca.root, cb.root) };
+  }
+  return out;
+}
+// landing (s: how hard, 1…0): the body lower (the legs bend to keep their paws down), the torso flatter and longer
+function squashPose(rig, p, s) {
+  const J = { ...rig.joints, ...p.joints }, t = { ...rig.torso, ...p.torso }, down = (q, k) => [q[0], q[1] + k * 1.5 * s];
+  return { ...p, joints: { hip: down(J.hip, 1), chest: down(J.chest, 0.8), head: down(J.head, 0.5) }, torso: t.r > 0 ? { ...t, r: t.r - 0.35 * s, ends: t.ends + 0.4 * s } : t };
+}
+
 // a chain at rest in a pose: its root, its direction, its links (an ear: one, from the middle of its base to its tip)
 function chainRest(rig, P, name) {
   const c = { links: 1, curl: 0, r: 1, ...rig.chains[name], ...P.p.chains?.[name] }, f = P.F[c.on];
@@ -769,8 +813,10 @@ function restPoints(c) {
 // the animal moves. x, y: where its box is now; wind: how fast the world goes by (the air streams past the runner)
 export function moveBody(body, kind, pose, frame, x, y, wind, dt) {
   if (!rigged(kind)) return;
-  const rig = RIGS[kind], P = posed(rig, pose, frame), was = body.at || [x, y];
-  if (body.kind !== kind || dt > 0.2 || Math.hypot(x - was[0], y - was[1]) > 40) { body.kind = kind; body.chains = {}; } // (a new start)
+  const rig = RIGS[kind], was = body.at || [x, y];
+  if (body.kind !== kind || dt > 0.2 || Math.hypot(x - was[0], y - was[1]) > 40) { body.kind = kind; body.chains = {}; body.move = null; body.landed = Infinity; } // (a new start)
+  ease(body, rig, pose, frame, dt);
+  const P = bodyPosed(rig, kind, pose, frame, body)[0];
   for (const name in rig.chains) {
     const c = chainRest(rig, P, name);
     let pts = body.chains[name];
@@ -780,6 +826,32 @@ export function moveBody(body, kind, pose, frame, x, y, wind, dt) {
   }
   body.at = [x, y];
 }
+// a move eased into from the one before (from: that move and its frame; since: how long ago), and from one keyframe to
+// the next; a landing (landed: how long ago, after a jump). Not into or out of sitting or being knocked out: they snap.
+// Both in steps (a few a move, as the frames go), so the frames drawn are few.
+const BLEND = 0.12, SQUASH = 0.2, STEPS = 3, SNAPS = ['idle', 'ko', 'ball'];
+function ease(body, rig, pose, frame, dt) {
+  const was = body.move, keys = Array.isArray(rig.poses[pose]);
+  body.since = (body.since ?? Infinity) + dt; body.landed = (body.landed ?? Infinity) + dt;
+  if (was && (was.pose !== pose || (keys && was.frame !== frame))) {
+    body.from = SNAPS.includes(was.pose) || SNAPS.includes(pose) ? null : was; body.since = 0;
+    if (was.pose === 'jump' && pose !== 'jump' && !SNAPS.includes(pose)) body.landed = 0;
+  }
+  body.move = { pose, frame };
+}
+// a rig as an animal on screen has it (body: see moveBody; it eases and lands only in the move it is in) → [its pose
+// placed, a key for the frame drawn from it]
+function bodyPosed(rig, kind, pose, frame, body) {
+  const on = body?.kind === kind && body.move?.pose === pose && body.move.frame === frame;
+  const u = on && body.from && body.since < BLEND ? (Math.floor((body.since / BLEND) * STEPS) + 1) / (STEPS + 1) : 1;
+  const s = on && body.landed < SQUASH ? 1 - Math.floor((body.landed / SQUASH) * STEPS) / STEPS : 0;
+  if (u === 1 && !s) return [posed(rig, pose, frame), ''];
+  let p = poseOf(rig, pose, frame);
+  if (u < 1) p = mixPose(rig, poseOf(rig, body.from.pose, body.from.frame), p, u);
+  if (s) p = squashPose(rig, p, s);
+  return [posedAs(rig, p), u < 1 ? `${body.from.pose}${body.from.frame} ${u} ${s}` : `${s}`];
+}
+
 // one step of a chain: each link springs toward its rest angle as the body holds it (a quarter of it following the link
 // before, so the chain bends as one), stiffest at the root; damping (against bending) keeps it from ringing; the air drags
 // on every point (still as the animal rises or falls, so a tail droops as it takes off and floats as it falls); its weight
@@ -804,13 +876,13 @@ function stepChain(pts, c, root, h, wind) {
 // a while (the most recent few hundred).
 const rigFrames = new Map();
 function rigFrame(kind, pose, frame, blink, body, scale = 1) {
-  const rig = RIGS[kind], P = posed(rig, pose, frame), chains = {};
+  const rig = RIGS[kind], [P, eased] = bodyPosed(rig, kind, pose, frame, body), chains = {};
   const live = body?.kind === kind && body.chains && body.at;
   for (const name in rig.chains) {
     const pts = live && body.chains[name] ? body.chains[name].map((q) => minus(q.p, body.at)) : restPoints(chainRest(rig, P, name));
     chains[name] = pts.map(([x, y]) => [Math.round(x * 4) / 4, Math.round(y * 4) / 4]);
   }
-  const key = `${kind} ${pose} ${frame} ${blink} ${scale} ${JSON.stringify(chains)}`;
+  const key = `${kind} ${pose} ${frame} ${eased} ${blink} ${scale} ${JSON.stringify(chains)}`;
   let s = rigFrames.get(key);
   if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; } // (the most recent last)
   s = drawRig(rig, P, pose, blink, chains, scale);
@@ -919,8 +991,8 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
 }
 
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
-export function setRig(kind, rig) { RIGS[kind] = rig; rigFrames.clear(); worked.clear(); }
-export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), restPoints, toWorld, toLocal, sdShape, NAMED };
+export function setRig(kind, rig) { RIGS[kind] = withMoves(rig); rigFrames.clear(); worked.clear(); }
+export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), pose: (kind, move, frame) => poseOf(RIGS[kind], move, frame), move: (kind, name) => RIGS[kind].poses[name], chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), restPoints, toWorld, toLocal, sdShape, NAMED };
 
 // the birds that circle a knocked-out head: two frames
 const birds = [0, 1].map((f) => {

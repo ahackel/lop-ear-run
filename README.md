@@ -60,7 +60,10 @@ npm run rigs       # writes every animal's build the way the workshop saves it
 
 The animals are edited in the workshop: with `npm run dev` running, open http://localhost:8323/tools/workshop.html.
 Drag the handles on the joints, shapes, legs, tails and ears, pick colors and layers in the list, watch the animal run in
-the game's scene, and save: it writes the animal's build back into its file.
+the game's scene, and save: it writes the animal's build back into its file. Its moves are on a timeline, with the frames
+before and after faded: a jump, hurt or knocked-out pose can be set by hand (drag the joints, paws, head, tail and ears of
+each keyframe), a run or a crawl tuned by its gait's settings. In the game, an animal eases from one move into the next
+and squashes as it lands.
 
 | Path | |
 |---|---|

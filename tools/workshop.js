@@ -1,9 +1,11 @@
 // The animal workshop (npm run dev, then /tools/workshop.html). It edits an animal's build, the data between the
 // `// @build` and `// @end` lines of animals/<kind>.js: handles on the joints, the shapes, the legs' roots, the chains and
 // the face, drawn over the animal's own pixels; a list of its parts and an inspector for the one picked; a preview in
-// the game's scene. After every change the animal is made again from its build (its make) and drawn by the game's own
-// code; Save writes the build back into its file (POST /save, see serve.mjs and rig-format.js).
-import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strideRate, idleFrame, golden, icy, cactus } from '../art.js';
+// the game's scene. Its moves on a timeline: keyframes set by hand (handles on the joints, paws, head, tail and ears of
+// a frame), a gait's settings, a loop to look at; the frames before and after faded (onion skin). After every change the
+// animal is made again from its build (its make) and drawn by the game's own code; Save writes the build back into its
+// file (POST /save, see serve.mjs and rig-format.js).
+import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strideRate, idleFrame, jumpFrame, golden, icy, cactus } from '../art.js';
 
 const { toWorld, toLocal, sdShape, NAMED } = rigParts;
 const KINDS = Object.keys(ANIMALS);
@@ -22,7 +24,7 @@ let Z = 16;
 
 const mods = {}, saved = {}, histories = {};
 let kind, mod, build, made, P, sel = { type: 'rig' }, drag = null;
-const view = { move: 'edit', frame: 0 };
+const view = { move: 'edit', frame: 0, play: false, t: 0 };
 
 // ------------------------------------------------------------------------------------------------- the animal, edited
 const editable = () => !!build.joints; // (the wolf is the fox, recolored)
@@ -30,20 +32,26 @@ const hist = () => (histories[kind] ||= { past: [], future: [] });
 const snapshot = () => JSON.stringify(build);
 const dirty = (k) => JSON.stringify(mods[k].build) !== saved[k];
 
-// made again from its build: drawn anew, and the frames its parts are placed in (standing: the pose the handles edit)
+// made again from its build: drawn anew, and the frames its parts are placed in (standing: the pose the build's handles
+// edit; a move's frame: the one its handles edit)
 function rebuild() {
   made = mod.make(build);
   setRig(kind, made);
   if (kind === 'fox') setRig('wolf', mods.wolf.make(mods.wolf.build));
-  P = rigParts.posed(kind, 'hurt', 0);
+  place();
+}
+function place() {
+  if (view.move !== 'edit') view.frame = Math.min(view.frame, frames(view.move) - 1);
+  P = view.move === 'edit' ? rigParts.posed(kind, 'hurt', 0) : rigParts.posed(kind, view.move, view.frame);
 }
 function changed() { rebuild(); draw(); status(); }
-function commit(fn) { remember(); fn(); changed(); }
+function refresh() { listParts(); inspect(); timeline(); draw(); }
+function commit(fn) { remember(); fn(); changed(); timeline(); }
 function remember() { const h = hist(); h.past.push(snapshot()); if (h.past.length > 300) h.past.shift(); h.future = []; }
 function restore(json) {
   for (const k of Object.keys(build)) delete build[k];
   Object.assign(build, JSON.parse(json));
-  changed(); listParts(); inspect();
+  changed(); refresh();
 }
 function undo() { const h = hist(); if (h.past.length) { h.future.push(snapshot()); restore(h.past.pop()); } }
 function redo() { const h = hist(); if (h.future.length) { h.past.push(snapshot()); restore(h.future.pop()); } }
@@ -53,7 +61,7 @@ async function choose(k) {
   pv.body = {};
   $('kind').value = k;
   const url = new URL(location.href); url.searchParams.set('animal', k); window.history.replaceState(null, '', url);
-  rebuild(); fillMoves(); listParts(); inspect(); draw(); status();
+  fillMoves(); rebuild(); refresh(); status();
 }
 
 function status() {
@@ -79,7 +87,7 @@ const world = (f, p) => toWorld(f, p);
 let step = 0.1;
 const round = (v) => Math.round(v / step) * step;
 const roundAll = (p) => p.map((v) => +round(v).toFixed(3));
-const plus = (a, b) => [a[0] + b[0], a[1] + b[1]], minus = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const plus = (a, b) => [a[0] + b[0], a[1] + b[1]], minus = (a, b) => [a[0] - b[0], a[1] - b[1]], times = (a, k) => [a[0] * k, a[1] * k];
 
 function geomOf(s) { return GEOMS.find((g) => Array.isArray(s[g])); }
 // handles and outline of a shape (in its joint's frame)
@@ -127,6 +135,7 @@ function shapeBits(s) {
 function parts() {
   const out = [];
   if (!editable()) return out;
+  if (view.move !== 'edit') return kindOf(view.move) === 'keys' ? poseParts() : out;
   const list = (name, label, color) => (build[name] || []).forEach((s, i) => {
     const bits = shapeBits(s);
     out.push({ sel: { type: 'item', list: name, i }, group: label, label: s.name || geomOf(s), color: color(s), obj: s, ...bits });
@@ -179,13 +188,36 @@ function parts() {
   }
   return out;
 }
+// a keyframe's parts: its joints (the head with its turn), each paw, each tail's angle and ear's tip. Each writes into the
+// frame only what it changes; the rest is the build's
+function poseParts() {
+  const K = frameKey(), out = [], F = P.F, turnAt = world(F.head, [5, 0]);
+  out.push({ sel: { type: 'frame' }, group: 'Frame', label: `frame ${view.frame + 1} of ${keys().length}`, obj: K, handles: [], lines: [] });
+  for (const n of ['hip', 'chest', 'head']) {
+    const handles = [{ at: P.J[n], anchor: true, joint: true, set: (p) => { (K.joints ||= {})[n] = roundAll(p); } }];
+    if (n === 'head') handles.push({ at: turnAt, size: true, set: (p) => { const d = minus(p, P.J.head), a = +Math.atan2(d[1], d[0]).toFixed(2); if (a) K.headAngle = a; else delete K.headAngle; } });
+    out.push({ sel: { type: 'joint', name: n }, group: 'Joints', label: n === 'head' ? 'head (the ring: its turn)' : n, obj: K, lines: n === 'head' ? [[P.J.head, turnAt]] : [], handles });
+  }
+  for (const n in build.legs) {
+    out.push({ sel: { type: 'paw', name: n }, group: 'Paws', label: n, color: swatch(build.fur), obj: K, lines: [],
+      handles: [{ at: P.p.paws[n], anchor: true, set: (p) => { (K.paws ||= {})[n] = roundAll(p); } }] });
+  }
+  for (const n in build.chains) {
+    const c = rigParts.chainRest(kind, P, n), f = F[c.on], tip = plus(c.root, times(c.dir, c.length)), own = () => ((K.chains ||= {})[n] ||= {});
+    const handles = [{ at: tip, anchor: true, set: c.ear ? (p) => { own().tip = roundAll(local(f, p)); }
+      : (p) => { const d = minus(p, c.root); own().angle = +(f.a - Math.atan2(d[0], -d[1])).toFixed(3); } }];
+    out.push({ sel: { type: 'chain', name: n }, group: 'Tails and ears', label: n, color: swatch(build.chains[n].color || build.fur), obj: K, handles,
+      lines: [c.ear ? [c.base[0], tip, c.base[1]] : [c.root, tip]] });
+  }
+  return out;
+}
 const same = (a, b) => a.type === b.type && a.list === b.list && a.i === b.i && a.name === b.name;
 const current = () => parts().find((p) => same(p.sel, sel));
 
 // --------------------------------------------------------------------------------------------------------- the stage
 const toScreen = ([x, y]) => [(x - X0) * Z, (y - Y0) * Z];
 const toArt = (e) => { const r = $('stage').getBoundingClientRect(), k = $('stage').width / r.width; return [(e.clientX - r.left) * k / Z + X0, (e.clientY - r.top) * k / Z + Y0]; };
-const editing = () => view.move === 'edit' && editable();
+const editing = () => editable() && (view.move === 'edit' || kindOf(view.move) === 'keys'); // (handles: the build's, or a keyframe's)
 
 function sprite() { return view.move === 'edit' ? animal(kind, 'hurt', 0) : animal(kind, view.move, view.frame); }
 
@@ -199,21 +231,29 @@ function draw() {
   for (let y = 1; y < VH; y++) ctx.fillRect(0, y * Z, c.width, 1);
   const pal = PALETTES.day;
   ctx.fillStyle = pal[COLOR.FAINT]; ctx.fillRect(0, (FOOT - Y0) * Z, c.width, Z); // the ground's row
-  const s = sprite();
-  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
-    const k = s.px[y * s.w + x];
-    if (!k) continue;
-    ctx.fillStyle = pal[k]; ctx.fillRect((x + s.ox - X0) * Z, (y + s.oy - Y0) * Z, Z, Z);
+  place();
+  const s = sprite(), n = view.move === 'edit' ? 1 : frames(view.move);
+  const pixels = (sp, color) => {
+    for (let y = 0; y < sp.h; y++) for (let x = 0; x < sp.w; x++) {
+      const k = sp.px[y * sp.w + x];
+      if (!k) continue;
+      ctx.fillStyle = color || pal[k]; ctx.fillRect((x + sp.ox - X0) * Z, (y + sp.oy - Y0) * Z, Z, Z);
+    }
+  };
+  if ($('onion').checked && n > 1 && !view.play) { // (the frames before and after: faded, under it)
+    pixels(animal(kind, view.move, (view.frame + n - 1) % n), 'rgba(43,123,217,0.28)');
+    if (n > 2) pixels(animal(kind, view.move, (view.frame + 1) % n), 'rgba(217,99,43,0.28)');
   }
+  pixels(s);
   // the box every animal is placed by (dashed), the frame's own bounds (dotted)
   ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.strokeStyle = css('--dim');
   ctx.strokeRect(-X0 * Z, -Y0 * Z, 26 * Z, 20 * Z);
   ctx.setLineDash([2, 3]); ctx.strokeStyle = css('--accent');
   ctx.strokeRect((s.ox - X0) * Z, (s.oy - Y0) * Z, s.w * Z, s.h * Z);
   ctx.setLineDash([]);
-  if (editing()) drawHandles(ctx);
+  if (editing() && !view.play) drawHandles(ctx);
   drawSprites(s);
-  $('frameNo').textContent = view.move === 'edit' ? '' : `${view.frame + 1} / ${+$('frame').max + 1}`;
+  markFrames();
 }
 
 function drawHandles(ctx) {
@@ -245,6 +285,7 @@ function drawSprites(s) {
 // pick and drag: a handle of the picked part, a joint or another part's handle, or (a click) the part under the pointer
 $('stage').addEventListener('pointerdown', (e) => {
   if (!editing()) return;
+  if (view.play) setPlay(false);
   const p = toArt(e), near = (h) => Math.hypot(...minus(toScreen(h.at), toScreen(p))) < 9;
   const all = parts(), on = current();
   let hit = on?.handles.find(near), owner = on;
@@ -278,6 +319,7 @@ $('stage').addEventListener('pointerup', () => {
 function listParts() {
   const box = $('parts'); box.textContent = '';
   if (!editable()) { box.append(el('div', { className: 'group', textContent: `the ${kind} is the fox, recolored` })); return; }
+  if (view.move !== 'edit' && kindOf(view.move) !== 'keys') { box.append(el('p', { className: 'note', style: 'padding:0 10px', textContent: ABOUT[kindOf(view.move)] })); return; }
   let group = null;
   for (const p of parts()) {
     if (p.group !== group) {
@@ -294,6 +336,7 @@ function listParts() {
     box.append(row);
   }
   // (a group with nothing in it yet, to add to)
+  if (view.move !== 'edit') return;
   for (const [list, label] of [['paint', 'Paint'], ['top', 'On top'], ['dots', 'Dots']]) {
     if (build[list]?.length) continue;
     box.append(el('div', { className: 'group' }, el('span', { textContent: label }), el('button', { textContent: '+ add', onclick: () => add(list) })));
@@ -303,7 +346,7 @@ function listParts() {
 const fresh = (list) => (list === 'dots' ? { name: 'dot', on: 'head', at: [0, 0], color: 'OUT' }
   : list === 'top' ? { name: 'shape', color: build.fur, shapes: [{ on: 'head', ellipse: [0, -3, 1, 1] }] }
     : { name: list === 'paint' ? 'marking' : 'shape', ...(list === 'paint' ? { color: 'BELLY' } : {}), on: 'spine', ellipse: [2, 0, 2, 1.5] });
-function add(list) { commit(() => { (build[list] ||= []).push(fresh(list)); sel = { type: 'item', list, i: build[list].length - 1 }; }); listParts(); inspect(); }
+function add(list) { commit(() => { (build[list] ||= []).push(fresh(list)); sel = { type: 'item', list, i: build[list].length - 1 }; }); refresh(); }
 
 // moves a list item: up or down (d), copied, gone, or to another layer (body shapes, paint, on top)
 function itemDo(what, arg) {
@@ -331,6 +374,7 @@ function itemDo(what, arg) {
 function inspect() {
   const box = $('inspector'); box.textContent = '';
   if (!editable()) { box.append(el('p', { className: 'note', textContent: 'The wolf is made from the fox: its shapes are the fox’s, its colors swapped. Edit the fox.' })); return; }
+  if (view.move !== 'edit') { inspectMove(box); return; }
   const p = current() || parts()[0], o = p.obj;
   const title = el('h2', {}, el('span', { className: 'sw', style: `width:12px;height:12px;border-radius:3px;background:${p.color || 'transparent'}` }), el('span', { textContent: p.label }));
   box.append(title);
@@ -346,7 +390,7 @@ function inspect() {
   }
   if (sel.type === 'joint') { box.append(field('place', nums(o, sel.name))); return; }
   if (sel.type === 'rig') { box.append(el('p', { className: 'note', textContent: 'Pick a part in the list or on the stage. The animal itself:' })); }
-  const skip = sel.type === 'rig' ? ['joints', 'shapes', 'paint', 'top', 'dots', 'legs', 'chains', 'face', 'spikes'] : sel.list === 'top' ? ['shapes'] : [];
+  const skip = sel.type === 'rig' ? ['joints', 'shapes', 'paint', 'top', 'dots', 'legs', 'chains', 'face', 'spikes', 'moves'] : sel.list === 'top' ? ['shapes'] : [];
   fields(o, box, skip);
   if (sel.type === 'item' && sel.list === 'top') o.shapes.forEach((s, i) => { box.append(el('div', { className: 'group', textContent: `shape ${i + 1}` })); fields(s, box, []); });
 }
@@ -400,20 +444,191 @@ function convert(v, from, to) {
   return [[r(x0), r(y1)], [r(cx), r(y0)], [r(x1), r(y1)]];
 }
 
-// ------------------------------------------------------------------------------------------------ the pose shown
-function frames(move) {
-  const m = made.poses[move] || made.poses.run;
-  return Array.isArray(m) ? m.length : m.gait ? m.gait.frames : m.frames;
-}
+// ------------------------------------------------------------------------------------------- the moves: a timeline
+// what a move is: keyframes set by hand (in the build's moves: their handles edit them), keyframes the animal's make
+// works out (to set by hand), a gait (worked out from its settings: to tune), a loop (worked out in code: to look at)
+const MOVES = ['run', 'jump', 'duck', 'idle', 'hurt', 'ko'];
+const moveOf = (name) => rigParts.move(kind, name) || rigParts.move(kind, 'run');
+const kindOf = (name) => (Array.isArray(build.moves?.[name]) ? 'keys' : Array.isArray(moveOf(name)) ? 'worked' : moveOf(name).gait ? 'gait' : 'loop');
+const keys = () => build.moves[view.move];
+const frameKey = () => keys()[view.frame];
+function frames(name) { const m = moveOf(name); return Array.isArray(m) ? m.length : m.gait ? m.gait.frames : m.frames; }
+const ABOUT = {
+  keys: 'Keyframes set by hand: drag the joints, paws, head, tail and ears of the frame.',
+  worked: 'Keyframes worked out from the build: they follow its edits. Set them by hand to drag them.',
+  gait: 'A gait: each frame worked out from where it is in the stride, by the settings in the inspector.',
+  loop: 'A loop worked out in code (its make, in the animal’s file): to look at.',
+};
+// in the game: which of a move's frames show when
+const GAME = {
+  run: 'In the game: frame after frame as it runs.', duck: 'In the game: frame after frame as it crawls.',
+  jump: 'In the game: spread over the jump, the first as it takes off, the last as it falls fastest.',
+  idle: 'In the game: on the title, sitting.', hurt: 'In the game: the first, as it is hit.', ko: 'In the game: the first, knocked out.',
+};
+// a gait's settings, what each does
+const GAIT = {
+  frames: 'poses in a stride', rate: 'strides, of the usual', stance: 'of a stride, a paw on the ground', reach: 'how far a paw sweeps',
+  lift: 'how high a paw swings', bob: 'how much the body bobs', beat: 'bobs in a stride', head: 'how much the head follows the chest',
+  ground: 'the paws’ row', land: 'of a leap, on the ground', height: 'how high a leap goes', stretch: 'the hip back, in the air',
+  gather: 'the hip forward, on the ground', crouch: 'how low it crouches', pitch: 'the nose up rising, down falling',
+};
+
 function fillMoves() {
   const s = $('move'); s.textContent = '';
-  s.append(el('option', { value: 'edit', textContent: editable() ? 'standing (edit)' : 'standing' }));
-  for (const m of ['run', 'jump', 'duck', 'idle', 'hurt', 'ko']) s.append(el('option', { value: m, textContent: m }));
-  s.value = view.move = 'edit'; view.frame = 0; $('frame').max = 0; $('frame').value = 0;
+  s.append(el('option', { value: 'edit', textContent: editable() ? 'standing (the build)' : 'standing' }));
+  for (const m of MOVES) s.append(el('option', { value: m, textContent: m }));
+  s.value = view.move = 'edit'; view.frame = 0; setPlay(false);
 }
-$('move').onchange = () => { view.move = $('move').value; view.frame = 0; $('frame').max = view.move === 'edit' ? 0 : frames(view.move) - 1; $('frame').value = 0; draw(); };
-$('frame').oninput = () => { view.frame = +$('frame').value; draw(); };
+function show(move, frame = 0) {
+  view.move = move; view.frame = frame; $('move').value = move;
+  if (!['joint', 'paw', 'chain', 'frame'].includes(sel.type) || move === 'edit') sel = { type: move === 'edit' ? 'rig' : 'frame' };
+  place(); refresh();
+}
+$('move').onchange = () => show($('move').value);
 $('allHandles').onchange = draw;
+$('onion').onchange = draw;
+
+// the strip of frames (a long loop: a slider), what can be done with them, what the move is
+let strip = [];
+function timeline() {
+  const box = $('timeline'); box.textContent = ''; strip = [];
+  if (view.move === 'edit') { box.append(el('span', { className: 'note', textContent: 'The build: what every move is made from. Pick a move to see its frames.' })); return; }
+  const n = frames(view.move), what = kindOf(view.move), can = editable();
+  if (n > 16) {
+    const r = el('input', { type: 'range', min: 0, max: n - 1, value: view.frame });
+    r.oninput = () => { setPlay(false); view.frame = +r.value; draw(); };
+    box.append(r, el('span', { className: 'frameNo' }));
+    strip = [r];
+  } else {
+    const row = el('div', { className: 'frames' });
+    for (let i = 0; i < n; i++) {
+      const b = el('button', { title: `Frame ${i + 1}`, onclick: () => { setPlay(false); view.frame = i; place(); if (what === 'keys') { listParts(); inspect(); } draw(); } }, el('canvas', { width: 42, height: 26 }), el('span', { textContent: i + 1 }));
+      row.append(b); strip.push(b);
+    }
+    box.append(row);
+  }
+  const act = (t, tip, fn, off) => box.append(el('button', { textContent: t, title: tip, disabled: !!off, onclick: fn }));
+  if (can && what === 'keys') {
+    act('← Earlier', 'This frame earlier in the move', () => keyDo('move', -1), view.frame === 0);
+    act('Later →', 'This frame later in the move', () => keyDo('move', 1), view.frame === n - 1);
+    act('⧉ Copy frame', 'A copy of this frame after it', () => keyDo('copy'));
+    act('✕ Frame', 'Delete this frame', () => keyDo('delete'), n < 2);
+    act('Back to worked out', 'Forget the frames set by hand: the move as the animal’s make works it out', () => commit(() => dropMove()));
+  }
+  if (can && what === 'worked') act('Set by hand', 'Copy the worked-out frames into the build, to drag their handles', byHand);
+  if (can && what === 'gait' && build.moves?.[view.move]) act('Back to worked out', 'Forget the settings changed here', () => commit(() => dropMove()));
+  box.append(el('span', { className: 'note', textContent: `${ABOUT[what]} ${GAME[view.move] || ''}` }));
+  markFrames();
+}
+// the frames in the strip drawn (as they are now), the one shown marked
+function markFrames() {
+  if (view.move === 'edit' || !strip.length) return;
+  if (strip[0].type === 'range') { strip[0].value = view.frame; strip[0].nextSibling.textContent = `${view.frame + 1} / ${frames(view.move)}`; return; }
+  strip.forEach((b, i) => {
+    b.className = i === view.frame ? 'on' : '';
+    const c = b.firstChild, ctx = c.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = PALETTES.day.bg; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = PALETTES.day[COLOR.FAINT]; ctx.fillRect(0, 6 + FOOT, c.width, 1);
+    animal(kind, view.move, i).draw(ctx, 8, 6, PALETTES.day);
+  });
+}
+
+// playing the move, as fast as the game would (a gait: at the preview's speed)
+function setPlay(on) { view.play = on; view.t = 0; $('play').textContent = on ? '❚❚ Stop' : '▶ Play'; }
+$('play').onclick = () => { if (view.move === 'edit') show('run'); setPlay(!view.play); draw(); };
+function fps() {
+  const m = moveOf(view.move);
+  return m.gait ? m.gait.frames * (1.6 + +$('speed').value / 90) * (view.move === 'duck' ? 1 : strideRate(kind)) : m.fps || 4;
+}
+function stepPlay(dt) {
+  if (!view.play || view.move === 'edit') return;
+  view.t += dt;
+  const f = (view.frame + Math.floor(view.t * fps())) % frames(view.move);
+  if (view.t * fps() >= 1) { view.t = 0; view.frame = f; draw(); }
+}
+
+// keyframes: one earlier or later, copied, gone; all of them set by hand (from the worked-out ones) or forgotten
+function keyDo(what, d) {
+  commit(() => {
+    const k = keys(), i = view.frame;
+    if (what === 'move') { [k[i], k[i + d]] = [k[i + d], k[i]]; view.frame = i + d; }
+    else if (what === 'copy') { k.splice(i + 1, 0, JSON.parse(JSON.stringify(k[i]))); view.frame = i + 1; }
+    else if (what === 'delete') { k.splice(i, 1); view.frame = Math.max(0, i - 1); }
+  });
+  refresh();
+}
+const tidy = (v) => JSON.parse(JSON.stringify(v, (k, x) => (typeof x === 'number' ? +x.toFixed(3) : x)));
+function byHand() {
+  const n = frames(view.move);
+  commit(() => { (build.moves ||= {})[view.move] = [...Array(n).keys()].map((i) => tidy(rigParts.pose(kind, view.move, i))); });
+  sel = { type: 'frame' }; refresh();
+}
+function dropMove() {
+  delete build.moves[view.move];
+  if (!Object.keys(build.moves).length) delete build.moves;
+  sel = { type: 'frame' }; view.frame = 0; setTimeout(refresh);
+}
+
+// the inspector for a move: a keyframe's part (or the frame), a gait's settings, or what the move is
+function inspectMove(box) {
+  const what = kindOf(view.move);
+  if (what === 'gait') { inspectGait(box); return; }
+  if (what !== 'keys') { box.append(el('h2', { textContent: view.move }), el('p', { className: 'note', textContent: ABOUT[what] })); return; }
+  const K = frameKey(), p = current() || poseParts()[0];
+  box.append(el('h2', {}, el('span', { textContent: p.label })));
+  const vec = (label, now, put, note) => {
+    const ins = now.map((v, j) => { const i = el('input', { type: 'number', step: 0.1, value: +v.toFixed(3) }); i.onchange = () => commit(() => { const q = now.slice(); q[j] = +i.value; put(q); }); return i; });
+    box.append(field(label, el('span', { className: 'nums' }, ...ins), note));
+  };
+  const one = (label, now, put, step = 0.1, note) => { const i = el('input', { type: 'number', step, value: +(+now).toFixed(3) }); i.onchange = () => commit(() => put(+i.value)); box.append(field(label, i, note)); };
+  const own = (has, label) => (has ? `${label}: this frame’s own` : 'the build’s');
+  if (sel.type === 'joint') {
+    const n = sel.name;
+    vec('place', P.J[n], (q) => { (K.joints ||= {})[n] = q; }, own(K.joints?.[n], 'set'));
+    if (n === 'head') one('turn', K.headAngle || 0, (v) => { if (v) K.headAngle = v; else delete K.headAngle; }, 0.05, 'radians, + down');
+  } else if (sel.type === 'paw') vec('place', P.p.paws[sel.name], (q) => { (K.paws ||= {})[sel.name] = q; });
+  else if (sel.type === 'chain') {
+    const n = sel.name, c = { ...build.chains[n], ...K.chains?.[n] };
+    if (c.ear) vec('tip', c.tip, (q) => { ((K.chains ||= {})[n] ||= {}).tip = q; }, own(K.chains?.[n]?.tip, 'set'));
+    else {
+      one('angle', c.angle, (v) => { ((K.chains ||= {})[n] ||= {}).angle = v; }, 0.05, own(K.chains?.[n]?.angle !== undefined, 'set'));
+      one('curl', c.curl || 0, (v) => { ((K.chains ||= {})[n] ||= {}).curl = v; }, 0.05);
+    }
+    if (K.chains?.[n]) box.append(el('button', { textContent: 'As the build has it', onclick: () => commit(() => { delete K.chains[n]; if (!Object.keys(K.chains).length) delete K.chains; }) }));
+  } else {
+    const t = { ...build.torso, ...K.torso };
+    one('head turn', K.headAngle || 0, (v) => { if (v) K.headAngle = v; else delete K.headAngle; }, 0.05, 'radians, + down');
+    if (build.torso.r || K.torso) {
+      one('torso r', t.r, (v) => { K.torso = { ...K.torso, r: v }; });
+      one('torso ends', t.ends, (v) => { K.torso = { ...K.torso, ends: v }; });
+    }
+    const flip = el('input', { type: 'checkbox', checked: !!K.flip, onchange: () => commit(() => { if (flip.checked) K.flip = true; else delete K.flip; }) });
+    box.append(field('on its back', flip));
+    fields(K, box, ['joints', 'paws', 'chains', 'headAngle', 'torso', 'flip']);
+    box.append(el('p', { className: 'note', textContent: 'Pick a joint, a paw, a tail or an ear on the stage or in the list.' }));
+  }
+}
+// a gait's settings: each one changed here goes into the build's moves (marked), over what the animal's make works out
+function inspectGait(box) {
+  const g = moveOf(view.move).gait, mine = () => (((build.moves ||= {})[view.move] ||= {}).gait ||= {}), own = build.moves?.[view.move]?.gait || {};
+  box.append(el('h2', { textContent: `${view.move}: ${g.leap ? 'a leap' : 'a gait'}` }));
+  for (const k of Object.keys(g)) {
+    if (typeof g[k] !== 'number') continue;
+    const i = el('input', { type: 'number', step: k === 'frames' ? 1 : 0.05, min: k === 'frames' ? 2 : undefined, value: +g[k].toFixed(3) });
+    i.onchange = () => { commit(() => { mine()[k] = k === 'frames' ? Math.max(2, Math.round(+i.value)) : +i.value; }); inspect(); };
+    const f = field(k, i, GAIT[k]); if (k in own) f.classList.add('own');
+    box.append(f);
+  }
+  box.append(el('div', { className: 'group', textContent: g.leap ? 'legs: down [touches, leaves] · at [touches, leaves] · air [x, y]' : 'legs: [when in the stride, where its sweep is]' }));
+  for (const n in g.legs) {
+    const L = g.legs[n], set = (v) => { commit(() => { (mine().legs ||= {})[n] = v; }); inspect(); };
+    const mk = (arr, put) => arr.map((v, j) => { const i = el('input', { type: 'number', step: 0.05, value: +v.toFixed(3) }); i.onchange = () => { const q = arr.slice(); q[j] = +i.value; put(q); }; return i; });
+    const ins = Array.isArray(L) ? mk(L, set) : ['down', 'at', 'air'].flatMap((k) => mk(L[k], (q) => set({ ...L, [k]: q })));
+    const f = field(n, el('span', { className: 'nums' }, ...ins)); if (own.legs?.[n]) f.classList.add('own');
+    box.append(f);
+  }
+  box.append(el('p', { className: 'note', textContent: 'Settings changed here (marked) are kept in the build; the rest are worked out by the animal’s make.' }));
+}
 
 // ----------------------------------------------------------------------------------------- the preview: the game's scene
 const pv = { phase: 0, alt: 0, vAlt: 0, body: {}, t: 0, scroll: 0, wait: 0.6, cacti: [] };
@@ -421,7 +636,7 @@ const pv = { phase: 0, alt: 0, vAlt: 0, body: {}, t: 0, scroll: 0, wait: 0.6, ca
 let last = 0;
 function tick(now) {
   const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
-  if (kind) { stepPreview(dt); drawPreview(); }
+  if (kind) { stepPlay(dt); stepPreview(dt); drawPreview(); }
   requestAnimationFrame(tick);
 }
 function stepPreview(dt) {
@@ -436,7 +651,7 @@ function stepPreview(dt) {
   moveBody(pv.body, kind, pose, frame, 30, GROUND - FOOT - pv.alt - lift, speed, dt);
 }
 function pvPose(act) {
-  if (act === 'jump' && pv.alt > 0) return ['jump', pv.vAlt > 0 ? 0 : 1, 0];
+  if (act === 'jump' && pv.alt > 0) return ['jump', jumpFrame(kind, pv.vAlt / (330 * ANIMALS[kind].jump)), 0];
   if (act === 'run' || act === 'jump') { const s = stride(kind, pv.phase); return ['run', s.frame, s.lift]; }
   if (act === 'duck') return ['duck', stride(kind, pv.phase, 'duck').frame, 0];
   if (act === 'idle') return ['idle', idleFrame(kind, pv.t), 0];
@@ -468,7 +683,12 @@ document.addEventListener('keydown', (e) => {
   if (cmd && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (cmd && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
   else if (!typing && (e.key === 'Delete' || e.key === 'Backspace') && sel.type === 'item') { e.preventDefault(); itemDo('delete'); }
-  else if (!typing && e.key === 'Escape') { sel = { type: 'rig' }; listParts(); inspect(); draw(); }
+  else if (!typing && e.key === 'Escape') { sel = { type: view.move === 'edit' ? 'rig' : 'frame' }; listParts(); inspect(); draw(); }
+  else if (!typing && e.key === ' ') { e.preventDefault(); $('play').click(); }
+  else if (!typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && view.move !== 'edit') { // a frame back or on
+    e.preventDefault(); setPlay(false);
+    const n = frames(view.move); view.frame = (view.frame + (e.key === 'ArrowLeft' ? n - 1 : 1)) % n; place(); listParts(); inspect(); draw();
+  }
 });
 window.addEventListener('beforeunload', (e) => { if (KINDS.some((k) => mods[k] && dirty(k))) e.preventDefault(); });
 window.addEventListener('resize', draw);

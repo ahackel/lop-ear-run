@@ -67,19 +67,20 @@ for (const k of Object.keys(ANIMALS)) {
     `the ${k} runs into what hangs low (${Math.min(...stand)} rows tall) and ducks under it (${Math.max(...duck)} rows)`);
 }
 // a rigged animal stands on the ground in every pose (its frames end on the feet's row, none below it), and its chains
-// stay whole as its body runs, jumps, ducks and falls
+// stay whole as its body runs, jumps, ducks and falls (easing from move to move, squashed as it lands: nothing below the
+// ground then either)
 for (const k of Object.keys(ANIMALS).filter(rigged)) {
   const every = (move, n) => [...new Set([...Array(n).keys()].map((i) => (move === 'idle' ? idleFrame(k, i / 10) : stride(k, i / n, move).frame)))].map((f) => [move, f]);
   const poses = [...every('run', 64), ['jump', 0], ['jump', 1], ...every('duck', 64), ...every('idle', 200), ['hurt', 0], ['ko', 0]];
   const leaps = [...Array(64).keys()].some((i) => stride(k, i / 64).lift > 0); // (a leap's frames may be in the air: none below the ground then)
   const low = poses.filter(([p]) => p !== 'jump' && p !== 'ko').map(([p, f]) => { const s = animal(k, p, f); return p === 'run' && leaps ? s.oy + s.h - 1 <= FOOT : s.oy + s.h - 1 === FOOT && s.px.slice(-s.w).some(Boolean); }); // (its last row: the feet's, drawn)
-  const body = {}, moves = [['run', 0, 0], ['jump', 0, -20], ['jump', 1, -10], ['run', 1, 0], ['duck', 0, 0], ['ko', 0, 0], ['idle', 1, 0]];
+  const body = {}, moves = [['run', 0, 0], ['jump', 0, -20], ['jump', 1, -10], ['run', 1, 0], ['duck', 0, 0], ['run', 2, 0], ['hurt', 0, 0], ['duck', 1, 0], ['ko', 0, 0], ['idle', 1, 0]];
   let whole = true;
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < 900; i++) {
     const [p, f, up] = moves[Math.floor(i / 90) % moves.length];
     moveBody(body, k, p, f, 20, 59 + up * Math.sin((i % 90) / 90 * Math.PI), 200, 1 / 60);
     const s = animal(k, p, f, 0.4, false, 0, body);
-    whole &&= Object.values(body.chains).every((c) => c.every((q) => Number.isFinite(q.p[0]) && Number.isFinite(q.p[1]))) && s.w < 60 && s.h < 60;
+    whole &&= Object.values(body.chains).every((c) => c.every((q) => Number.isFinite(q.p[0]) && Number.isFinite(q.p[1]))) && s.w < 60 && s.h < 60 && s.oy + s.h - 1 <= FOOT;
   }
   ok(low.every(Boolean) && whole, `the ${k}'s rig stands on the ground in every pose, its chains stay whole in motion`);
 }
