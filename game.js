@@ -15,7 +15,7 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame, rigged } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas'); // (screen-sized: art pixels scaled up, see fit)
@@ -627,7 +627,7 @@ function animalPose() {
   if (ducking) return ['duck', stride(kind, phase, 'duck').frame, blink, w];
   return ['run', stride(kind, phase).frame, blink, w];
 }
-const animalSprite = () => { const [pose, f, blink, w] = animalPose(); return animal(kind, pose, f, soft, blink, w, body); };
+const animalSprite = (scale = 1) => { const [pose, f, blink, w] = animalPose(); return animal(kind, pose, f, soft, blink, w, body, scale); };
 // a rigged animal's moving parts (its tail, its ears: see the rigs in art.js), swung by how it moves on the screen
 const body = {};
 // the giant dino's size (it grows and shrinks in a quarter second) and where it is drawn: its feet stay on the ground,
@@ -653,7 +653,7 @@ function update(dt) {
     : 0.45 + 0.12 * Math.sin(phase * Math.PI * 2);
   softVel += ((target - soft) * 170 - softVel * 11) * dt;
   soft += softVel * dt;
-  { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? titleX(sel) : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); }
+  { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? W / 2 - 13 : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); } // (on the title: where it settles, so sliding there does not fling its ears)
   if (state === 'ko') koT += dt;
   if (state === 'ko' && fresh && !TOUCH && koT > 1.2) { showScores(fresh); fresh = null; } // a new high score: its name (on a phone: on a tap)
   if (AUTO && state === 'ko' && koT > 3) start();
@@ -982,7 +982,8 @@ function scene(pal) {
       ctx.globalAlpha = 1;
     }
     const [gx, gy, , , s] = giantBox();
-    animalSprite().draw(ctx, gx, gy, flashing ? golden(pal) : pal, s);
+    if (rigged(kind)) animalSprite(s).draw(ctx, gx, gy, flashing ? golden(pal) : pal); // (a rig: drawn bigger, still smooth)
+    else animalSprite().draw(ctx, gx, gy, flashing ? golden(pal) : pal, s);
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
   }
