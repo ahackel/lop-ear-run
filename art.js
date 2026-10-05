@@ -127,6 +127,7 @@ export const ANIMALS = {
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
 // as it rises, gathered as it falls), the others gallop
 export function stride(kind, phase) {
+  if (rigged(kind) && RIGS[kind].gait) { const n = RIGS[kind].gait.frames; return { frame: Math.floor(phase * n) % n, lift: 0 }; } // (its body bobs itself)
   if (kind === 'rabbit') {
     if (phase < 0.3) return { frame: 0, lift: 0 };
     const q = (phase - 0.3) / 0.7;
@@ -665,9 +666,25 @@ function reach(root, target, a, b, bend) {
   return [knee, plus(knee, times(unit(minus(target, knee)), b))];
 }
 
-// a rig in a pose (move and frame): the pose's settings over the rig's, the joints' frames
+// a frame of a rig's gait (its run): where the stride is (frame / frames) → the joints bobbing, each paw on the ground
+// pushing back (the stance) or swinging forward in an arc
+function gaitPose(rig, f) {
+  const g = rig.gait, p = f / g.frames, J = rig.joints, bob = (o) => [0, g.bob * Math.sin(Math.PI * 2 * (p + o))];
+  const chest = bob(-0.15), paws = {};
+  for (const name in g.legs) {
+    const [o, ahead] = g.legs[name], L = rig.legs[name], x = toWorld(jointFrame(J[L.on], 0), L.at)[0] + ahead, q = (((p - o) % 1) + 1) % 1;
+    if (q < g.stance) paws[name] = [x + g.reach * (0.5 - q / g.stance), g.ground];
+    else { const u = (q - g.stance) / (1 - g.stance); paws[name] = [x - g.reach / 2 + g.reach * u * u * (3 - 2 * u), g.ground - g.lift * Math.sin(Math.PI * u)]; }
+  }
+  return { joints: { hip: plus(J.hip, bob(0.1)), chest: plus(J.chest, chest), head: plus(J.head, times(chest, 0.7)) }, paws };
+}
+const gaits = new Map();
+const gaitFrame = (rig, f) => { let list = gaits.get(rig); if (!list) gaits.set(rig, (list = [])); return list[f] || (list[f] = gaitPose(rig, f)); };
+
+// a rig in a pose (move and frame): the pose's settings over the rig's, the joints' frames. The run (and any move it has
+// no pose for): its gait
 function posed(rig, name, frame) {
-  const list = rig.poses[name] || rig.poses.run, p = list[frame % list.length];
+  const list = rig.poses[name], p = list ? list[frame % list.length] : gaitFrame(rig, frame % rig.gait.frames);
   const J = { ...rig.joints, ...p.joints }, a = Math.atan2(J.chest[1] - J.hip[1], J.chest[0] - J.hip[0]);
   const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0) };
   return { p, J, F, a, torso: { ...rig.torso, ...p.torso } };

@@ -3,13 +3,15 @@
 // joint is placed in that joint's frame: the spine's (hip and chest: from the hip toward the chest, turning with it) or
 // the head's. Colors are palette names.
 
-// the run's four frames: where each paw goes (the legs bend to reach it)
-const stride = [
-  { hindNear: [3, 17.3], hindFar: [4.5, 18], frontNear: [19.5, 16.5], frontFar: [18, 17.6] }, // stretched out
-  { hindNear: [7, 18.4], hindFar: [8.5, 18.4], frontNear: [14.5, 18.4], frontFar: [16.5, 18.4] }, // landing
-  { hindNear: [10.5, 17.6], hindFar: [9, 18], frontNear: [12.5, 17.3], frontFar: [14, 17.8] }, // gathered
-  { hindNear: [5.5, 18.4], hindFar: [7, 18.4], frontNear: [16.5, 18.4], frontFar: [15, 18.4] }, // pushing off
-].map((paws) => ({ paws }));
+// (the run is a gait, worked out from the stride: see gait below) standing, all four paws down: hurt
+const standing = { paws: { hindNear: [7, 18.4], hindFar: [8.5, 18.4], frontNear: [14.5, 18.4], frontFar: [16.5, 18.4] } };
+
+// jumping: rising, the nose up, the hind legs trailing and the front ones reaching forward; falling, the nose down, the
+// paws reaching for the ground
+const jump = [
+  { joints: { hip: [7, 12.45], chest: [14, 11.1], head: [19.5, 7.9] }, paws: { hindNear: [3.3, 16.9], hindFar: [4.3, 16.9], frontNear: [17.6, 16.6], frontFar: [18.5, 16.6] } },
+  { joints: { hip: [7, 11.55], chest: [14, 12.9], head: [19.5, 9.1] }, paws: { hindNear: [3.9, 17.3], hindFar: [4.9, 17.3], frontNear: [17, 17.9], frontFar: [17.8, 17.9] } },
+];
 
 // lying low (ducking, and knocked out on its back): the body long and flat, the ears laid back
 const low = { joints: { hip: [7, 16.3], chest: [14, 16.3], head: [19.5, 15.3] }, torso: { r: 2.9, ends: 4.5 },
@@ -61,10 +63,14 @@ export default {
     earB: { on: 'head', ear: [[0.5, -3.7], [3.5, -1.9]], tip: [2.5, -7.1], stiffness: 1400, damping: 22, weight: 60 },
   },
   face: { eye: [1, -1], nose: [3.5, 1], noseColor: 'PINK' }, // in the head's frame
+  // the run: a rotary gallop worked out from where the cat is in its stride, in `frames` poses. Each paw pushes back
+  // along the ground (reach) for `stance` of the stride, then swings forward in an arc (lift); legs: each one's place in
+  // the stride and where its paw's sweep is centred (from its root). The body bobs, the hip and the chest out of step.
+  gait: { frames: 8, stance: 0.4, reach: 6, lift: 2.6, bob: 0.6, ground: 18.4,
+    legs: { hindNear: [0, -0.5], hindFar: [0.1, -0.5], frontNear: [0.5, 0.8], frontFar: [0.6, 0.8] } },
   poses: {
-    run: stride,
-    jump: [stride[0], stride[2]], // rising, falling
-    hurt: [stride[1]],
+    jump, // rising, falling
+    hurt: [standing],
     duck: [duck(0), duck(1)],
     ko: [{ ...low, flip: true, paws: { hindNear: [6, 11], hindFar: [10, 11], frontNear: [14, 11], frontFar: [17, 11] } }], // on its back, legs up
     idle: [sit(0), sit(1)],
