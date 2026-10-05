@@ -230,7 +230,7 @@ function startPower() {
   updateMood({ within: 0 });
   floats.push({ text: POWERS[kind], x: W / 2 - textWidth(POWERS[kind]) / 2, y: 28, life: 1.6 });
   sparkle(16, 140);
-  if ((kind === 'fox' || kind === 'skunk') && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: kind === 'fox' ? 'LOST YOU!' : 'PHEW!', x: 4, y: GROUND - 32, life: 1.2 }); }
+  if ((kind === 'fox' || kind === 'skunk') && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: kind === 'fox' ? 'LOST YOU!' : 'PHEW!', x: safeL + 4, y: GROUND - 32, life: 1.2 }); }
 }
 // golden sparks around the animal
 function sparkle(n, v = 40) {
@@ -309,18 +309,23 @@ addEventListener('keyup', (e) => {
   if (JUMP_KEYS.includes(e.code)) release();
   else if (DUCK_KEYS.includes(e.code)) ducking = false;
 });
-// touch: a finger on the left half ducks while it is held, one on the right half jumps (both at once too); a mouse
-// click jumps. On the title, a tap on an animal picks it (a second tap runs).
+// touch: a finger on the left half of the screen ducks while it is held, one on the right half jumps (both at once too),
+// anywhere but on the game's buttons (around the game too, where it does not fill the screen); a mouse click jumps. On
+// the title, a tap on an animal picks it (a second tap runs).
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 const fingers = new Map(); // pointer id → 'duck' | 'jump'
-view.addEventListener('pointerdown', (e) => {
+const stage = document.getElementById('stage');
+// where a pointer is, in the game's pixels (outside it: below 0 or past W, H)
+const artAt = (e) => { const r = view.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
+stage.addEventListener('pointerdown', (e) => {
+  if (e.target === nameEl) return; // (typing a name)
   e.preventDefault();
-  const x = (e.offsetX / view.clientWidth) * W, y = (e.offsetY / view.clientHeight) * H;
-  view.setPointerCapture(e.pointerId);
+  const [x, y] = artAt(e);
+  stage.setPointerCapture(e.pointerId);
   const btn = buttonAt(x, y);
   if (btn) { pressedBtn = btn.id; return; }
   if (scoresOpen()) { startAudio(); return tapScores(); }
-  if (state === 'title') {
+  if (state === 'title' && y >= 0 && y < H) { // (on the game, not around it)
     const k = playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
     if (k && k !== kind) { startAudio(); choose(k); return; }
   }
@@ -329,7 +334,7 @@ view.addEventListener('pointerdown', (e) => {
 });
 const lift = (e) => {
   if (pressedBtn) {
-    const btn = e.type === 'pointerup' && buttonAt((e.offsetX / view.clientWidth) * W, (e.offsetY / view.clientHeight) * H);
+    const btn = e.type === 'pointerup' && buttonAt(...artAt(e));
     if (btn?.id === pressedBtn) { startAudio(); ACTS[btn.id](); }
     pressedBtn = null;
   }
@@ -338,16 +343,16 @@ const lift = (e) => {
   if (what === 'duck' && ![...fingers.values()].includes('duck')) ducking = false;
   if (what === 'jump') release();
 };
-view.addEventListener('pointerup', lift);
+stage.addEventListener('pointerup', lift);
 // a phone brings up its keyboard only for a field focused during a tap: after a knock-out with a new high score, the tap
 // opens the high scores with the name field focused
-view.addEventListener('touchend', (e) => {
-  if (!TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
+stage.addEventListener('touchend', (e) => {
+  if (e.target === nameEl || !TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
   e.preventDefault();
   showScores(fresh);
   fresh = null;
 });
-view.addEventListener('pointercancel', lift);
+stage.addEventListener('pointercancel', lift);
 // phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
 addEventListener('pointerup', () => {
   startAudio();
@@ -375,7 +380,6 @@ function toggleMute() {
 // full screen: only the game (Esc, F or its button leaves), sideways on a phone. Where the browser has none (iPhone), or
 // its request fails or never answers (some embedded browsers), the game fills the window instead. Phones, tablets and
 // the installed app show only the game anyway (the page's CSS).
-const stage = document.getElementById('stage');
 const APP = matchMedia('(pointer: coarse), (display-mode: standalone), (display-mode: fullscreen)');
 const isFull = () => !!document.fullscreenElement || stage.classList.contains('full');
 // installed, the app is full screen already; on a phone without the API (iPhone) the game fills the screen anyway
@@ -404,9 +408,6 @@ const ICONS = {
   home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
   prev: ['....xx.', '...xx..', '..xx...', '.xx....', '..xx...', '...xx..', '....xx.'],
   next: ['.xx....', '..xx...', '...xx..', '....xx.', '...xx..', '..xx...', '.xx....'],
-  // the tap areas on a phone: bigger (11×11)
-  duck: ['.....x.....', '.....x.....', '.....x.....', '.....x.....', '.x...x...x.', '..x..x..x..', '...x.x.x...', '....xxx....', '.....x.....', '...........', 'xxxxxxxxxxx'],
-  jump: ['.....x.....', '....xxx....', '...x.x.x...', '..x..x..x..', '.x...x...x.', '.....x.....', '.....x.....', '.....x.....', '.....x.....', '...........', 'xxxxxxxxxxx'],
 };
 const ACTS = {
   sound: toggleMute,
@@ -417,14 +418,15 @@ const ACTS = {
   next: () => chooseNext(1),
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
+let safeL = 0, safeR = 0; // how much of the game, on the left and right, a phone's notch (or its round corners) may cover (see fit)
 function buttons() {
-  if (state === 'run' || state === 'paused') return [{ id: 'sound', x: 60, y: 2 }, { id: 'home', x: 60 + BTN + 2, y: 2 }];
+  if (state === 'run' || state === 'paused') return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
   const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
-  const row = ids.map((id, i) => ({ id, x: 4 + i * (BTN + 2), y: 2 }));
+  const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
   if (state !== 'title' || board || carousel === null) return row;
   // arrows at the sides pick the animal before or after (round the row), whenever there is more than one
   const y = GROUND - 18;
-  return playable().length > 1 ? [...row, { id: 'prev', x: 4, y }, { id: 'next', x: W - 4 - BTN, y }] : row;
+  return playable().length > 1 ? [...row, { id: 'prev', x: safeL + 4, y }, { id: 'next', x: W - safeR - 4 - BTN, y }] : row;
 }
 const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
 let pressedBtn = null;
@@ -433,17 +435,39 @@ function drawButtons(pal) {
     const icon = b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id;
     drawButton(b.x, b.y, icon, b.id === pressedBtn || (b.id === 'scores' && board), pal);
   }
-  // on a phone: where to tap, half seen, at the middle of each side (the whole half works): duck left, jump right
-  if (TOUCH && !board && (state === 'run' || state === 'paused')) { // (not on the title: there a tap picks an animal)
-    const PAD = 15, y = Math.round((H - PAD) / 2);
-    ctx.globalAlpha = 0.5;
-    drawButton(4, y, 'duck', ducking, pal, PAD);
-    drawButton(W - 4 - PAD, y, 'jump', [...fingers.values()].includes('jump'), pal, PAD);
-    ctx.globalAlpha = 1;
+  // on a phone, while running (not on the title: there a tap picks an animal)
+  const on = TOUCH && !board && (state === 'run' || state === 'paused');
+  showPad(pads.duck, on, ducking);
+  showPad(pads.jump, on, [...fingers.values()].includes('jump'));
+}
+// on a phone: where to tap, round, half seen, in the bottom corners of the screen (below the game, clear of a notch; the
+// whole half of the screen works): duck left, jump right. In the game's pixels and colors (--px, --game-ink, --game-bg)
+const PAD = 17, ARROW = ['....x....', '...xxx...', '..xxxxx..', '.xxxxxxx.', 'xxxxxxxxx', '...xxx...', '...xxx...', '...xxx...', '...xxx...'];
+function padSvg(icon) {
+  const r = PAD / 2, o = (PAD - icon.length) / 2;
+  const inside = (x, y) => x >= 0 && y >= 0 && x < PAD && y < PAD && Math.hypot(x + 0.5 - r, y + 0.5 - r) <= r;
+  const paths = { ring: '', fill: '', icon: '' };
+  for (let y = 0; y < PAD; y++) for (let x = 0; x < PAD; x++) {
+    if (!inside(x, y)) continue;
+    const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+    paths[edge ? 'ring' : icon[y - o]?.[x - o] === 'x' ? 'icon' : 'fill'] += `M${x} ${y}h1v1h-1z`;
   }
+  return `<svg viewBox="0 0 ${PAD} ${PAD}">${Object.entries(paths).map(([k, d]) => `<path class="${k}" d="${d}"/>`).join('')}</svg>`;
+}
+const pads = Object.fromEntries([['duck', [...ARROW].reverse()], ['jump', ARROW]].map(([id, icon]) => {
+  const el = document.createElement('div');
+  el.className = 'pad'; el.id = `${id}Pad`; el.hidden = true; el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = padSvg(icon);
+  stage.append(el);
+  return [id, el];
+}));
+function showPad(el, on, pressed) {
+  if (el.hidden === on) el.hidden = !on;
+  if (el.classList.contains('on') !== pressed) el.classList.toggle('on', pressed);
 }
 // a button: a frame with rounded corners, an icon in it (inverted while pressed)
-function drawButton(x, y, icon, on, pal, size = BTN) {
+function drawButton(x, y, icon, on, pal) {
+  const size = BTN;
   const ink = pal[COLOR.INK];
   ctx.fillStyle = ink;
   ctx.fillRect(x + 1, y, size - 2, 1); ctx.fillRect(x + 1, y + size - 1, size - 2, 1);
@@ -558,8 +582,8 @@ function drawBoard(pal) {
   const [l1, l2, r1, r2] = board.typing
     ? ['NEW HIGH SCORE!', 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
     : ['', '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
-  text(ctx, l1, 6, GROUND - 16, pal[7]); text(ctx, l2, 6, GROUND - 9, ink);
-  text(ctx, r1, W - 6, GROUND - 16, ink, 'right'); text(ctx, r2, W - 6, GROUND - 9, ink, 'right');
+  text(ctx, l1, safeL + 6, GROUND - 16, pal[7]); text(ctx, l2, safeL + 6, GROUND - 9, ink);
+  text(ctx, r1, W - safeR - 6, GROUND - 16, ink, 'right'); text(ctx, r2, W - safeR - 6, GROUND - 9, ink, 'right');
 }
 
 // ------------------------------------------------------------------------------------------------------------ world
@@ -816,7 +840,7 @@ const stars = Array.from({ length: 28 }, () => ({ x: Math.floor(rnd() * W), y: M
 let hillX = 0, groundX = 0;
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GROUND_LOOP), kind: rnd() < 0.15 ? 'tuft' : rnd() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(rnd() * 4) }));
-let stageBg = null;
+let stageBg = null, stageInk = null;
 // the title's animals in a row, the one picked in the middle: the row slides to it (carousel: where it is now)
 let carousel = null;
 const titleX = (i) => Math.round(W / 2 - 13 + (i - carousel) * 34);
@@ -840,25 +864,27 @@ function standing(k, i, on, pal) {
 function energyBar(pal) {
   const low = energy < 30;
   if (low && state === 'run' && Math.floor(blinkT * 4) % 2) return;
-  heart.draw(ctx, 6, 5, pal);
+  const x = safeL;
+  heart.draw(ctx, x + 6, 5, pal);
   ctx.fillStyle = pal[COLOR.INK];
-  ctx.fillRect(13, 5, 42, 5);
+  ctx.fillRect(x + 13, 5, 42, 5);
   ctx.fillStyle = pal.bg;
-  ctx.fillRect(14, 6, 40, 3);
+  ctx.fillRect(x + 14, 6, 40, 3);
   ctx.fillStyle = pal[low ? COLOR.BERRY : COLOR.ENERGY];
-  ctx.fillRect(14, 6, Math.ceil((40 * energy) / 100), 3);
+  ctx.fillRect(x + 14, 6, Math.ceil((40 * energy) / 100), 3);
 }
 
 // what is left of a super power, under the energy: a star and a golden bar (blinking in its last two seconds)
 function powerBar(pal) {
   if (!power || (power < 2 && Math.floor(power * 6) % 2)) return;
-  star.draw(ctx, 6, 12, pal);
+  const x = safeL;
+  star.draw(ctx, x + 6, 12, pal);
   ctx.fillStyle = pal[COLOR.INK];
-  ctx.fillRect(13, 12, 42, 5);
+  ctx.fillRect(x + 13, 12, 42, 5);
   ctx.fillStyle = pal.bg;
-  ctx.fillRect(14, 13, 40, 3);
+  ctx.fillRect(x + 14, 13, 40, 3);
   ctx.fillStyle = pal[COLOR.YELLOW];
-  ctx.fillRect(14, 13, Math.ceil((40 * power) / POWER_SECS), 3);
+  ctx.fillRect(x + 14, 13, Math.ceil((40 * power) / POWER_SECS), 3);
 }
 
 // birds circling a knocked-out head; the ones behind it are drawn first
@@ -912,7 +938,9 @@ function draw() {
   // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
   const lum = (c) => { const [r, g, b] = hex(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
   const stands = (p) => Math.abs(lum(p[COLOR.INK]) - lum(bg));
-  hud(f && stands(b) > stands(a) ? b : a);
+  const hp = f && stands(b) > stands(a) ? b : a;
+  if (stageInk !== hp[COLOR.INK]) document.documentElement.style.setProperty('--game-ink', stageInk = hp[COLOR.INK]); // (the pads)
+  hud(hp);
   present();
 }
 
@@ -1000,10 +1028,10 @@ function scene(pal) {
 function hud(pal) {
   if (board) { drawBoard(pal); drawButtons(pal); return; }
   // the energy, the score (blinking at every hundred)
-  if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - 6, 12, pal[COLOR.DIM], 'right'); }
+  if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.DIM], 'right'); }
   const pad = (n) => String(n).padStart(5, '0');
-  if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - 6, 5, pal[COLOR.INK], 'right');
-  if (best()) text(ctx, `HI ${pad(best())}`, W - 30, 5, pal[COLOR.DIM], 'right');
+  if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - safeR - 6, 5, pal[COLOR.INK], 'right');
+  if (best()) text(ctx, `HI ${pad(best())}`, W - safeR - 30, 5, pal[COLOR.DIM], 'right');
 
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 14, pal[COLOR.INK], 'center');
@@ -1020,7 +1048,7 @@ function hud(pal) {
   }
 
   drawButtons(pal);
-  if (FPS) text(ctx, rate.shown, W - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
+  if (FPS) text(ctx, rate.shown, W - safeR - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
 }
 // up to the screen (the world is drawn in its pixels already)
 function present() {
@@ -1031,7 +1059,16 @@ function present() {
 // the canvases in screen pixels, a whole number per art pixel: the art is drawn in art pixels, scaled up (not blurred),
 // and what moves is placed to the screen pixel (see snap), so it glides instead of stepping a big pixel at a time
 const FORCE = +new URLSearchParams(location.search).get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
+// (a probe for how much of the screen's sides a notch or round corners may cover, in CSS pixels)
+const inset = document.createElement('div');
+inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left)';
+document.body.append(inset);
 function fit() {
+  // the game fills the screen's width on a phone (see index.html): what is drawn at its sides keeps clear of the notch
+  const r = view.getBoundingClientRect(), cs = getComputedStyle(inset), art = W / (r.width || W);
+  safeL = Math.max(0, Math.ceil((parseFloat(cs.paddingLeft) - r.left) * art));
+  safeR = Math.max(0, Math.ceil((parseFloat(cs.paddingRight) - (document.documentElement.clientWidth - r.right)) * art));
+  document.documentElement.style.setProperty('--px', r.width / W || 1); // (CSS pixels an art pixel: the pads)
   const scale = FORCE || Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
   if (world.width === W * scale) return;
   setScale(scale);
@@ -1039,6 +1076,7 @@ function fit() {
   for (const cx of [worldCtx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, 0); cx.imageSmoothingEnabled = false; }
 }
 new ResizeObserver(fit).observe(view);
+addEventListener('resize', fit); // (turned the other way round: the notch on the other side)
 fit();
 
 // fixed steps, so a slow frame never lets the animal pass through a cactus; at most a quarter second caught up. At most
