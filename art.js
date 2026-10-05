@@ -49,49 +49,65 @@ const triangle = (ax, ay, bx, by, cx, cy) => (x, y) => {
 
 class Grid {
   constructor(w, h) { this.w = w; this.h = h; this.px = new Uint8Array(w * h); }
-  // fill the shapes with a color; outline: the pixels around them (4-neighbours) in that color. → the filled mask
-  layer(shapes, color, outline = 0) {
-    const { w, h, px } = this, m = new Uint8Array(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (shapes.some((s) => s(x, y))) { m[y * w + x] = 1; px[y * w + x] = color; }
+  // fill the shapes with a color; outline: the pixels around them (4-neighbours) in that color. → the filled mask. (at:
+  // [x0, y0, x1, y1], where the shapes can be: only there is looked at)
+  layer(shapes, color, outline = 0, at = null) {
+    const { w, h, px } = this, m = new Uint8Array(w * h), [x0, y0, x1, y1] = this.clip(at);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (shapes.some((s) => s(x, y))) { m[y * w + x] = 1; px[y * w + x] = color; }
     if (outline) {
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      for (let y = Math.max(0, y0 - 1); y < Math.min(h, y1 + 1); y++) for (let x = Math.max(0, x0 - 1); x < Math.min(w, x1 + 1); x++) {
         const i = y * w + x;
         if (!m[i] && ((x > 0 && m[i - 1]) || (x < w - 1 && m[i + 1]) || (y > 0 && m[i - w]) || (y < h - 1 && m[i + w]))) px[i] = outline;
       }
     }
     return m;
   }
-  // color the shapes, only where `within` (a mask) is set
-  paint(shapes, color, within) {
-    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (within[y * this.w + x] && shapes.some((s) => s(x, y))) this.px[y * this.w + x] = color;
+  // color the shapes, only where `within` (a mask) is set (at: as for layer)
+  paint(shapes, color, within, at = null) {
+    const [x0, y0, x1, y1] = this.clip(at);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (within[y * this.w + x] && shapes.some((s) => s(x, y))) this.px[y * this.w + x] = color;
   }
+  clip(at) { return at ? [Math.max(0, at[0]), Math.max(0, at[1]), Math.min(this.w, at[2]), Math.min(this.h, at[3])] : [0, 0, this.w, this.h]; }
   dot(x, y, c) { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.px[y * this.w + x] = c; }
   get(x, y) { return x >= 0 && y >= 0 && x < this.w && y < this.h ? this.px[y * this.w + x] : 0; }
 }
-const union = (...masks) => masks.reduce((a, m) => a.map((v, i) => v | m[i]));
+const union = (...masks) => { const out = new Uint8Array(masks[0].length); for (const m of masks) for (let i = 0; i < m.length; i++) out[i] |= m[i]; return out; };
 
 // the screen pixels per art pixel: things move in screen pixels (smoothly), while the art keeps its big pixels
 let S = 1;
 export const setScale = (s) => { S = s; };
 export const snap = (v) => Math.round(v * S) / S; // (to the nearest screen pixel)
 
-// a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette) }; drawn into a canvas per palette, on first use.
-// ox, oy (in extra): where its grid starts from where it is placed (a rig's frame, bigger than the box: see the rigs)
+// a palette as 32-bit pixels (RGBA in memory: the bytes of a little-endian word), by index
+const words = new Map();
+function wordsOf(pal) {
+  let out = words.get(pal);
+  if (!out) {
+    out = new Uint32Array(256);
+    for (const k in pal) if (/^\d+$/.test(k)) { const v = parseInt(pal[k].slice(1, 7), 16); out[k] = 0xff000000 | ((v & 0xff) << 16) | (v & 0xff00) | (v >> 16); }
+    words.set(pal, out);
+  }
+  return out;
+}
+// canvases given back by sprites no longer kept (a rig's frames come and go: a new canvas for each would be slow, and
+// without OffscreenCanvas, Safari before 16.4, a new element each time)
+const spare = [];
+// a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette), free() }; drawn into a canvas per palette, on
+// first use (free: its canvases given back). ox, oy (in extra): where its grid starts from where it is placed (a rig's
+// frame, bigger than the box: see the rigs)
 function sprite(g, mask, extra) {
-  const canvases = {}, ox = extra?.ox || 0, oy = extra?.oy || 0;
+  let canvases = {};
+  const ox = extra?.ox || 0, oy = extra?.oy || 0;
   return {
     w: g.w, h: g.h, px: g.px, mask, ...extra,
+    free() { for (const k in canvases) if (spare.length < 64) spare.push(canvases[k]); canvases = {}; },
     draw(ctx, x, y, pal, scale = 1) { // (scale: whole pixels made bigger, for the giant dino)
       let c = canvases[pal.bg];
       if (!c) {
-        c = canvases[pal.bg] = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(g.w, g.h) : Object.assign(document.createElement('canvas'), { width: g.w, height: g.h }); // (Safari before 16.4: none)
-        const cx = c.getContext('2d'), img = cx.createImageData(g.w, g.h);
-        for (let i = 0; i < g.px.length; i++) {
-          const k = g.px[i];
-          if (!k) continue;
-          const hex = pal[k];
-          img.data.set([parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16), 255], i * 4);
-        }
+        c = canvases[pal.bg] = spare.pop() || (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(g.w, g.h) : document.createElement('canvas')); // (Safari before 16.4: none)
+        c.width = g.w; c.height = g.h;
+        const cx = c.getContext('2d'), img = cx.createImageData(g.w, g.h), out = new Uint32Array(img.data.buffer), word = wordsOf(pal);
+        for (let i = 0; i < g.px.length; i++) if (g.px[i]) out[i] = word[g.px[i]];
         cx.putImageData(img, 0, 0);
       }
       x += ox * scale; y += oy * scale;
@@ -887,7 +903,7 @@ function rigFrame(kind, pose, frame, blink, body, scale = 1) {
   if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; } // (the most recent last)
   s = drawRig(rig, P, pose, blink, chains, scale);
   rigFrames.set(key, s);
-  if (rigFrames.size > 400) rigFrames.delete(rigFrames.keys().next().value);
+  if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
   return s;
 }
 
@@ -898,8 +914,24 @@ function rigFrame(kind, pose, frame, blink, body, scale = 1) {
 // for another, everywhere: the wolf is a grey fox)
 function drawRig(rig, P, pose, blink, chains, S = 1) {
   const { p, F, torso } = P, k = rig.smooth ?? 1, fur = NAMED[rig.fur];
-  const placed = (s) => ({ s, f: s.on ? F[s.on] : null }); // a shape with its frame
-  const sd = ({ s, f }, x, y) => { const [lx, ly] = f ? toLocal(f, x, y) : [x, y]; return sdShape(s, lx, ly); };
+  // a shape with its frame (its turn worked out once), its box in the box's coordinates, and how much nearer than its
+  // distance that box may be (an ellipse's distance is short of the true one off its long axis): see near
+  const placed = (s) => {
+    const f = s.on ? F[s.on] : null, [a, b, c, d] = extent(s), q = [[a, b], [c, b], [a, d], [c, d]].map((v) => toWorld(f, v));
+    const e = s.ellipse && Math.min(s.ellipse[2], s.ellipse[3]) / Math.max(s.ellipse[2], s.ellipse[3]);
+    return { s, f, cos: f ? Math.cos(f.a) : 1, sin: f ? Math.sin(f.a) : 0, k: e || 1,
+      box: [Math.min(...q.map((v) => v[0])), Math.min(...q.map((v) => v[1])), Math.max(...q.map((v) => v[0])), Math.max(...q.map((v) => v[1]))] };
+  };
+  const sd = (b, x, y) => { // (as toLocal does it)
+    if (!b.f) return sdShape(b.s, x, y);
+    const dx = x - b.f.o[0], dy = y - b.f.o[1];
+    return sdShape(b.s, dx * b.cos + dy * b.sin, (-dx * b.sin + dy * b.cos) * b.f.flip);
+  };
+  const boxOf = (caps) => [Math.min(...caps.map((c) => Math.min(c[0], c[2]) - c[4])), Math.min(...caps.map((c) => Math.min(c[1], c[3]) - c[4])),
+    Math.max(...caps.map((c) => Math.max(c[0], c[2]) + c[4])), Math.max(...caps.map((c) => Math.max(c[1], c[3]) + c[4]))];
+  const join = (...boxes) => (boxes.length ? [Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])), Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))] : [0, 0, 0, 0]);
+  const ovalBox = ([cx, cy, rx, ry]) => [cx - rx, cy - ry, cx + rx, cy + ry];
+  const triBox = (t) => [Math.min(...t.map((v) => v[0])), Math.min(...t.map((v) => v[1])), Math.max(...t.map((v) => v[0])), Math.max(...t.map((v) => v[1]))];
   const body = [...(p.ownShapes ? [] : rig.shapes || []), ...(p.shapes || [])].map(placed); // (ownShapes: the pose's alone)
   if (torso.r > 0) { // the torso: along the spine from the hip to the chest, reaching past both (an ellipse, or a capsule)
     const len = Math.hypot(P.J.chest[0] - P.J.hip[0], P.J.chest[1] - P.J.hip[1]), half = len / 2;
@@ -908,7 +940,9 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
   const legs = Object.entries(rig.legs || {}).map(([name, L]) => {
     const root = p.roots?.[name] || toWorld(F[L.on], L.at), [knee, paw] = reach(root, p.paws[name], L.thigh, L.shin, L.bend);
     const pad = p.pad && !L.far ? [paw[0], paw[1] + 0.3, ...p.pad] : L.foot ? [paw[0] + L.foot[0] - 0.8, paw[1] + 0.3, ...L.foot] : null; // a paw flat on the ground (a foot: always)
-    return { far: L.far, r: L.r, parts: [[...root, ...knee, L.r], [...knee, ...paw, L.r]], pad, sock: [...mix(knee, paw, 0.35), ...paw, L.r] };
+    const parts = [[...root, ...knee, L.r], [...knee, ...paw, L.r]];
+    return { far: L.far, r: L.r, parts, pad, sock: [...mix(knee, paw, 0.35), ...paw, L.r], box: pad ? join(boxOf(parts), ovalBox(pad)) : boxOf(parts),
+      k: pad ? Math.min(pad[2], pad[3]) / Math.max(pad[2], pad[3]) : 1 };
   });
   const legSd = (L, x, y) => Math.min(sdCapsule(x, y, L.parts[0]), sdCapsule(x, y, L.parts[1]), L.pad ? sdEllipse(x, y, L.pad) : Infinity);
   const over = legs.filter((L) => L.pad && p.over); // (near paws drawn over the body, outlined: where they would hide in it)
@@ -942,24 +976,37 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
   // (the ground). (ox, oy: in the bigger pixels)
   const ox = Math.floor(x0 * S) - 1, oy = Math.floor(y0 * S) - 1, g = new Grid(Math.ceil(x1 * S) + 1 - ox, Math.min(Math.ceil(y1 * S) + 1, (FOOT + 1) * S) - oy);
   const inside = (d) => [(x, y) => d((x + ox + 0.5) / S, (y + oy + 0.5) / S) <= 0]; // (tested at the pixel's middle)
+  const at = (b) => [Math.floor(b[0] * S) - ox - 1, Math.floor(b[1] * S) - oy - 1, Math.ceil(b[2] * S) - ox + 2, Math.ceil(b[3] * S) - oy + 2]; // (a box: its pixels)
+  const any = (list, d) => (x, y) => { for (const q of list) if (d(q, x, y) <= 0) return 0; return 1; }; // (inside any of them)
   const n = Math.round(S), pixel = { dot: (x, y, c) => { for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) g.dot(Math.round(x) * S - ox + a, Math.round(y) * S - oy + b, c); } }; // (a dot: S by S)
   const chain = (t) => {
-    const m = g.layer(inside((x, y) => Math.min(...t.parts.map((c) => sdCapsule(x, y, c)))), t.color, OUT);
+    const m = g.layer(inside(any(t.parts, (c, x, y) => sdCapsule(x, y, c))), t.color, OUT, at(boxOf(t.parts)));
     for (const [[mx, my], color, r] of t.marks) {
-      if (r) g.paint(inside((x, y) => Math.hypot(x - mx, y - my) - r), color, m);
+      if (r) g.paint(inside((x, y) => Math.hypot(x - mx, y - my) - r), color, m, at([mx - r, my - r, mx + r, my + r]));
       else pixel.dot(mx, my, color);
     }
   };
 
   soft.forEach(chain);
-  const farMask = g.layer(inside((x, y) => legs.filter((L) => L.far).reduce((d, L) => Math.min(d, legSd(L, x, y)), Infinity)), fur, OUT);
+  const farLegs = legs.filter((L) => L.far);
+  const farMask = g.layer(inside(any(farLegs, (L, x, y) => legSd(L, x, y))), fur, OUT, at(join(...farLegs.map((L) => L.box))));
+  // the body: its shapes, ears and near legs joined smoothly, one after another. A part too far off to change it is
+  // passed over (smin leaves it as it is when the part is at least its smoothing further), and once a point is inside,
+  // it stays so (smin only ever takes away)
+  const joined = [...body.map((b) => ({ d: (x, y) => sd(b, x, y), box: b.box, near: b.k, k: k * (b.s.smooth ?? 1) })),
+    ...ears.map((e) => ({ d: (x, y) => sdTriangle(x, y, e.tri), box: triBox(e.tri), near: 1, k: k * 0.4 })),
+    ...legs.filter((L) => !L.far).map((L) => ({ d: (x, y) => legSd(L, x, y), box: L.box, near: L.k, k: k * 0.5 }))];
   const bodyMask = g.layer(inside((x, y) => {
-    let d = body.reduce((d, b, i) => (i ? smin(d, sd(b, x, y), k * (b.s.smooth ?? 1)) : sd(b, x, y)), Infinity);
-    for (const e of ears) d = smin(d, sdTriangle(x, y, e.tri), k * 0.4);
-    for (const L of legs) if (!L.far) d = smin(d, legSd(L, x, y), k * 0.5);
+    let d = Infinity;
+    for (const j of joined) {
+      const b = j.box, dx = b[0] > x ? b[0] - x : x > b[2] ? x - b[2] : 0, dy = b[1] > y ? b[1] - y : y > b[3] ? y - b[3] : 0, far = d + j.k;
+      if ((dx * dx + dy * dy) * j.near * j.near >= far * far) continue; // (at most this near: its box's distance, see placed)
+      d = smin(d, j.d(x, y), j.k);
+      if (d <= 0) return d;
+    }
     return d;
   }), fur, OUT);
-  for (const m of p.paint || rig.paint || []) g.paint(inside((x, y) => sd(placed(m), x, y)), NAMED[m.color], bodyMask);
+  for (const m of p.paint || rig.paint || []) { const q = placed(m); g.paint(inside((x, y) => sd(q, x, y)), NAMED[m.color], bodyMask, at(q.box)); }
   const spk = p.spikes || rig.spikes; // spikes or bristles where the region holds, specks inside
   if (spk) { // (as spikes() does, but placed by the box, not the frame's grid: they stay put as frames change size)
     const region = placed(spk), where = (x, y) => sd(region, (x + ox + 0.5) / S, (y + oy + 0.5) / S) <= 0, ticks = [], { w } = g;
@@ -974,12 +1021,12 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
       if (bodyMask[i] && where(x, y) && (((((Y * 26 + X) * 37) % 17) + 17) % 17) % 5 === 0) g.px[i] = NAMED[spk.speck]; // (as in the 26 wide box)
     }
   }
-  if (rig.socks) g.paint(inside((x, y) => Math.min(...legs.map((L) => sdCapsule(x, y, L.sock)))), NAMED[rig.socks], union(farMask, bodyMask));
-  for (const e of ears) if (e.c.tipColor) g.paint(inside((x, y) => Math.max(sdTriangle(x, y, e.tri), Math.hypot(x - e.tip[0], y - e.tip[1]) - (e.c.tipSize || 2))), NAMED[e.c.tipColor], bodyMask);
-  const overMask = over.length ? g.layer(inside((x, y) => over.reduce((d, L) => Math.min(d, sdEllipse(x, y, L.pad)), Infinity)), fur, OUT) : farMask.map(() => 0);
+  if (rig.socks) { const socks = legs.map((L) => L.sock); g.paint(inside(any(socks, (c, x, y) => sdCapsule(x, y, c))), NAMED[rig.socks], union(farMask, bodyMask), at(boxOf(socks))); }
+  for (const e of ears) if (e.c.tipColor) g.paint(inside((x, y) => Math.max(sdTriangle(x, y, e.tri), Math.hypot(x - e.tip[0], y - e.tip[1]) - (e.c.tipSize || 2))), NAMED[e.c.tipColor], bodyMask, at(triBox(e.tri)));
+  const overMask = over.length ? g.layer(inside(any(over, (L, x, y) => sdEllipse(x, y, L.pad))), fur, OUT, at(join(...over.map((L) => ovalBox(L.pad))))) : farMask.map(() => 0);
   for (const t of tops) {
-    const m = g.layer(inside((x, y) => Math.min(...t.shapes.map((b) => sd(b, x, y)))), t.color, OUT);
-    for (const q of t.paint) g.paint(inside((x, y) => sd(placed(q), x, y)), NAMED[q.color], m);
+    const m = g.layer(inside(any(t.shapes, (b, x, y) => sd(b, x, y))), t.color, OUT, at(join(...t.shapes.map((b) => b.box))));
+    for (const q of t.paint.map(placed)) g.paint(inside((x, y) => sd(q, x, y)), NAMED[q.s.color], m, at(q.box));
   }
   front.forEach(chain);
   for (const [[x, y], c] of dots) pixel.dot(x, y, c);

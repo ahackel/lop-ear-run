@@ -162,6 +162,7 @@ const playable = () => KINDS.filter(unlocked); // the ones on the title (the oth
 const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
 let open = ['rabbit'];
 try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
+const FPS = new URLSearchParams(location.search).has('fps'); // ?fps: frames a second, and the work of a frame (to check a device)
 const ALL = new URLSearchParams(location.search).has('all'); // ?all: every animal open, for this visit (nothing saved)
 function unlocked(k) { return ALL || open.includes(k); }
 // the one unlocked last: in this run (gained, played next, from the knock-out or the title) and until played (newKind,
@@ -1019,6 +1020,7 @@ function hud(pal) {
   }
 
   drawButtons(pal);
+  if (FPS) text(ctx, rate.shown, W - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
 }
 // up to the screen (the world is drawn in its pixels already)
 function present() {
@@ -1041,11 +1043,22 @@ fit();
 // fixed steps, so a slow frame never lets the animal pass through a cactus; at most a quarter second caught up
 const STEP = 1 / 120;
 let last = performance.now(), behind = 0;
+// (?fps: each second, the frames drawn in it, the work of a frame on average and at most, in ms)
+const rate = { frames: 0, since: 0, work: 0, worst: 0, shown: '' };
 function frame(now) {
+  const began = performance.now();
   behind = Math.min(0.25, behind + (now - last) / 1000);
   last = now;
   for (; behind >= STEP; behind -= STEP) if (state !== 'paused') { update(STEP); updateBits(STEP); }
   draw();
+  if (FPS) {
+    const work = performance.now() - began;
+    rate.frames++; rate.work += work; rate.worst = Math.max(rate.worst, work);
+    if (now - rate.since >= 1000) {
+      rate.shown = `${Math.round((rate.frames * 1000) / (now - rate.since))} FPS  ${(rate.work / rate.frames).toFixed(1)} MS  MAX ${rate.worst.toFixed(1)}`;
+      Object.assign(rate, { frames: 0, since: now, work: 0, worst: 0 });
+    }
+  }
   requestAnimationFrame(frame);
 }
 updateMood();
