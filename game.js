@@ -14,7 +14,7 @@
 //                                             alert      knocked out (fanfare: into the high scores)
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
-import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
+import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, TRUNK, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
   FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, rigged, strideRate } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
@@ -315,17 +315,17 @@ addEventListener('keyup', (e) => {
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 const fingers = new Map(); // pointer id → 'duck' | 'jump'
 const stage = document.getElementById('stage');
-// where a pointer is, in the game's pixels (outside it: below 0 or past W, H)
-const artAt = (e) => { const r = view.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
+// where a pointer is, in the game's pixels from the top left of the screen (outside it: below 0 or past W, VH)
+const artAt = (e) => { const r = view.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * VH]; };
 stage.addEventListener('pointerdown', (e) => {
   if (e.target === nameEl) return; // (typing a name)
   e.preventDefault();
   const [x, y] = artAt(e);
   stage.setPointerCapture(e.pointerId);
-  const btn = buttonAt(x, y);
+  const btn = buttonAt(x, y) || padAt(e);
   if (btn) { pressedBtn = btn.id; return; }
   if (scoresOpen()) { startAudio(); return tapScores(); }
-  if (state === 'title' && y >= 0 && y < H) { // (on the game, not around it)
+  if (state === 'title' && y >= 0 && y < VH) { // (on the game, not around it)
     const k = playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
     if (k && k !== kind) { startAudio(); choose(k); return; }
   }
@@ -334,7 +334,7 @@ stage.addEventListener('pointerdown', (e) => {
 });
 const lift = (e) => {
   if (pressedBtn) {
-    const btn = e.type === 'pointerup' && buttonAt(...artAt(e));
+    const btn = e.type === 'pointerup' && (buttonAt(...artAt(e)) || padAt(e));
     if (btn?.id === pressedBtn) { startAudio(); ACTS[btn.id](); }
     pressedBtn = null;
   }
@@ -396,7 +396,7 @@ function toggleFull() {
 }
 document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) stage.classList.remove('full'); });
 
-// the game's buttons, in its own pixels (top left): sound, the high scores, full screen, and after a knock-out, back to
+// the game's buttons, in its own pixels from the top left of the screen: sound, the high scores, full screen, and after a knock-out, back to
 // the animals; while running only the sound. A button acts when the press ends on it (a phone lets full screen start
 // only then).
 const ICONS = {
@@ -406,8 +406,6 @@ const ICONS = {
   full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
   leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
   home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
-  prev: ['....xx.', '...xx..', '..xx...', '.xx....', '..xx...', '...xx..', '....xx.'],
-  next: ['.xx....', '..xx...', '...xx..', '....xx.', '...xx..', '..xx...', '.xx....'],
 };
 const ACTS = {
   sound: toggleMute,
@@ -418,16 +416,16 @@ const ACTS = {
   next: () => chooseNext(1),
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
+let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
 let safeL = 0, safeR = 0; // how much of the game, on the left and right, a phone's notch (or its round corners) may cover (see fit)
 function buttons() {
   if (state === 'run' || state === 'paused') return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
   const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
-  const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
-  if (state !== 'title' || board || carousel === null) return row;
-  // arrows at the sides pick the animal before or after (round the row), whenever there is more than one
-  const y = GROUND - 18;
-  return playable().length > 1 ? [...row, { id: 'prev', x: safeL + 4, y }, { id: 'next', x: W - safeR - 4 - BTN, y }] : row;
+  return ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
 }
+// on the title, arrows in the bottom corners (pads, see showPad) pick the animal before or after (round the row),
+// whenever there is more than one
+const picking = () => state === 'title' && !board && carousel !== null && playable().length > 1;
 const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
 let pressedBtn = null;
 function drawButtons(pal) {
@@ -435,15 +433,24 @@ function drawButtons(pal) {
     const icon = b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id;
     drawButton(b.x, b.y, icon, b.id === pressedBtn || (b.id === 'scores' && board), pal);
   }
-  // on a phone, while running (not on the title: there a tap picks an animal)
-  const on = TOUCH && !board && (state === 'run' || state === 'paused');
-  showPad(pads.duck, on, ducking);
-  showPad(pads.jump, on, [...fingers.values()].includes('jump'));
+  if (TOUCH && !board && (state === 'run' || state === 'paused')) {
+    showPad(pads.left, 'duck', ducking);
+    showPad(pads.right, 'jump', [...fingers.values()].includes('jump'));
+  } else if (picking()) {
+    showPad(pads.left, 'prev', pressedBtn === 'prev');
+    showPad(pads.right, 'next', pressedBtn === 'next');
+  } else { showPad(pads.left, null); showPad(pads.right, null); }
 }
-// on a phone: where to tap, round, half seen, in the bottom corners of the screen (below the game, clear of a notch; the
-// whole half of the screen works): duck left, jump right. In the game's pixels and colors (--px, --game-ink, --game-bg)
-const PAD = 17, ARROW = ['....x....', '...xxx...', '..xxxxx..', '.xxxxxxx.', 'xxxxxxxxx', '...xxx...', '...xxx...', '...xxx...', '...xxx...'];
-function padSvg(icon) {
+// round, half seen, in the bottom corners of the game (on a phone: of the screen, below the world, clear of a notch): on
+// the title, the animal before and after; on a phone while running, where to tap (the whole half of the screen works),
+// duck left, jump right. In the game's pixels and colors (--px, --game-ink, --game-bg); smaller on the page (no full
+// screen), under the ground line
+const ARROW = ['....x....', '...xxx...', '..xxxxx..', '.xxxxxxx.', 'xxxxxxxxx', '...xxx...', '...xxx...', '...xxx...', '...xxx...'];
+const LEFT = ARROW.map((_, y) => ARROW.map((r) => r[y]).join('')); // (turned: pointing left)
+const SMALL_LEFT = ['...x...', '..xx...', '.xxxxxx', 'xxxxxxx', '.xxxxxx', '..xx...', '...x...'];
+const flip = (rows) => rows.map((r) => [...r].reverse().join(''));
+const PAD_ICONS = { 17: { jump: ARROW, duck: [...ARROW].reverse(), prev: LEFT, next: flip(LEFT) }, 11: { prev: SMALL_LEFT, next: flip(SMALL_LEFT) } };
+function padSvg(icon, PAD) {
   const r = PAD / 2, o = (PAD - icon.length) / 2;
   const inside = (x, y) => x >= 0 && y >= 0 && x < PAD && y < PAD && Math.hypot(x + 0.5 - r, y + 0.5 - r) <= r;
   const paths = { ring: '', fill: '', icon: '' };
@@ -454,16 +461,29 @@ function padSvg(icon) {
   }
   return `<svg viewBox="0 0 ${PAD} ${PAD}">${Object.entries(paths).map(([k, d]) => `<path class="${k}" d="${d}"/>`).join('')}</svg>`;
 }
-const pads = Object.fromEntries([['duck', [...ARROW].reverse()], ['jump', ARROW]].map(([id, icon]) => {
+const PAD_SVGS = {};
+for (const size in PAD_ICONS) for (const k in PAD_ICONS[size]) PAD_SVGS[`${k}${size}`] = padSvg(PAD_ICONS[size][k], +size);
+const pads = Object.fromEntries(['left', 'right'].map((side) => {
   const el = document.createElement('div');
-  el.className = 'pad'; el.id = `${id}Pad`; el.hidden = true; el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = padSvg(icon);
+  el.className = 'pad'; el.id = `${side}Pad`; el.hidden = true; el.setAttribute('aria-hidden', 'true');
   stage.append(el);
-  return [id, el];
+  return [side, el];
 }));
-function showPad(el, on, pressed) {
-  if (el.hidden === on) el.hidden = !on;
+// a pad showing an icon (null: none), pressed or not
+function showPad(el, icon, pressed = false) {
+  if (el.hidden !== !icon) el.hidden = !icon;
+  const small = !TOUCH && !isFull(), key = icon && `${icon}${small ? 11 : 17}`;
+  if (key && el.dataset.icon !== key) { el.dataset.icon = key; el.innerHTML = PAD_SVGS[key]; el.classList.toggle('small', small); }
   if (el.classList.contains('on') !== pressed) el.classList.toggle('on', pressed);
+}
+// the button a pad is, where a pointer is (on the title: the animal before or after)
+function padAt(e) {
+  if (!picking()) return null;
+  for (const [side, id] of [['left', 'prev'], ['right', 'next']]) {
+    const r = pads[side].getBoundingClientRect(), m = r.width * 0.25; // (a little round it counts too)
+    if (e.clientX >= r.left - m && e.clientX < r.right + m && e.clientY >= r.top - m && e.clientY < r.bottom + m) return { id };
+  }
+  return null;
 }
 // a button: a frame with rounded corners, an icon in it (inverted while pressed)
 function drawButton(x, y, icon, on, pal) {
@@ -548,7 +568,7 @@ function doneTyping() {
 function placeName() {
   if (!board?.typing) return;
   const [x, y] = rowAt(scores.indexOf(board.entry)), s = view.clientWidth / W;
-  Object.assign(nameEl.style, { left: `${view.offsetLeft + (x + 21) * s}px`, top: `${view.offsetTop + (y - 2) * s}px`, width: `${42 * s}px`, height: `${9 * s}px` });
+  Object.assign(nameEl.style, { left: `${view.offsetLeft + (x + 21) * s}px`, top: `${view.offsetTop + (SKY + y - 2) * s}px`, width: `${42 * s}px`, height: `${9 * s}px` });
 }
 new ResizeObserver(placeName).observe(view);
 nameEl.addEventListener('input', () => {
@@ -730,7 +750,7 @@ function update(dt) {
   for (const f of food) f.x -= dx;
   food = food.filter((f) => f.x > -14);
   if (gold) { gold.x -= dx; if (gold.x < -14) gold = null; }
-  for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + rnd() * 80; c.y = 8 + rnd() * 30; } }
+  for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + rnd() * 80; c.y = 8 + rnd() * 30 - rnd() * SKY * 0.7; } }
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
@@ -836,7 +856,7 @@ function updateBits(dt) {
 
 // ------------------------------------------------------------------------------------------------------------- draw
 const clouds = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
-const stars = Array.from({ length: 28 }, () => ({ x: Math.floor(rnd() * W), y: Math.floor(rnd() * 50), p: rnd() * 6 }));
+const stars = Array.from({ length: 100 }, () => ({ x: Math.floor(rnd() * W), y: 50 - Math.floor(rnd() * 210), p: rnd() * 6 })); // (up into the sky a tall screen adds)
 let hillX = 0, groundX = 0;
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GROUND_LOOP), kind: rnd() < 0.15 ? 'tuft' : rnd() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(rnd() * 4) }));
@@ -933,7 +953,7 @@ function draw() {
     ctx = secondCtx;
     scene(b);
     ctx = worldCtx;
-    ctx.globalAlpha = f; ctx.drawImage(second, 0, 0, W, H); ctx.globalAlpha = 1;
+    ctx.globalAlpha = f; ctx.drawImage(second, 0, -SKY, W, VH); ctx.globalAlpha = 1;
   }
   // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
   const lum = (c) => { const [r, g, b] = hex(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
@@ -947,11 +967,11 @@ function draw() {
 // the world, in one palette
 function scene(pal) {
   ctx.fillStyle = pal.bg;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, -SKY, W, VH);
   if (board) return; // (the high scores: on the plain sky, see hud)
   if (pal === PALETTES.night) { // the stars and the moon
-    for (const s of stars) if (Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
-    moon.draw(ctx, W - 60, 10, pal);
+    for (const s of stars) if (s.y >= -SKY && Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
+    moon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
   }
   // far hills
   ctx.fillStyle = pal[COLOR.FAINT];
@@ -1026,12 +1046,14 @@ function scene(pal) {
 
 // what is written over the world (and the high scores), in one palette
 function hud(pal) {
-  if (board) { drawBoard(pal); drawButtons(pal); return; }
-  // the energy, the score (blinking at every hundred)
-  if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.DIM], 'right'); }
-  const pad = (n) => String(n).padStart(5, '0');
-  if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - safeR - 6, 5, pal[COLOR.INK], 'right');
-  if (best()) text(ctx, `HI ${pad(best())}`, W - safeR - 30, 5, pal[COLOR.DIM], 'right');
+  if (board) { drawBoard(pal); atTop(() => drawButtons(pal)); return; }
+  // the energy, the score (blinking at every hundred): at the top of the screen
+  atTop(() => {
+    if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.DIM], 'right'); }
+    const pad = (n) => String(n).padStart(5, '0');
+    if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - safeR - 6, 5, pal[COLOR.INK], 'right');
+    if (best()) text(ctx, `HI ${pad(best())}`, W - safeR - 30, 5, pal[COLOR.DIM], 'right');
+  });
 
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 14, pal[COLOR.INK], 'center');
@@ -1047,9 +1069,13 @@ function hud(pal) {
     text(ctx, TOUCH ? 'PAUSED - TAP TO GO ON' : 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');
   }
 
-  drawButtons(pal);
-  if (FPS) text(ctx, rate.shown, W - safeR - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
+  atTop(() => {
+    drawButtons(pal);
+    if (FPS) text(ctx, rate.shown, W - safeR - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
+  });
 }
+// drawn from the top of the screen, not of the world (see fit: the sky added above it)
+function atTop(draw) { ctx.translate(0, -SKY); draw(); ctx.translate(0, SKY); }
 // up to the screen (the world is drawn in its pixels already)
 function present() {
   const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * (view.width / W) : 0; // a quake shakes the screen
@@ -1068,12 +1094,17 @@ function fit() {
   const r = view.getBoundingClientRect(), cs = getComputedStyle(inset), art = W / (r.width || W);
   safeL = Math.max(0, Math.ceil((parseFloat(cs.paddingLeft) - r.left) * art));
   safeR = Math.max(0, Math.ceil((parseFloat(cs.paddingRight) - (document.documentElement.clientWidth - r.right)) * art));
-  document.documentElement.style.setProperty('--px', r.width / W || 1); // (CSS pixels an art pixel: the pads)
+  const px = r.width / W || 1; // (CSS pixels an art pixel)
+  document.documentElement.style.setProperty('--px', px); // (the pads)
+  // a screen taller than the world (a phone, full screen): the world in the middle, as much more sky above it as room
+  // below it (where the pads are), up to where the branches' trunks end
+  const more = Math.max(0, Math.round((W * r.height) / (r.width || W)) - H);
+  SKY = Math.min(Math.floor(more / 2), TRUNK); VH = H + more;
   const scale = FORCE || Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
-  if (world.width === W * scale) return;
+  if (world.width === W * scale && world.height === VH * scale && worldCtx.getTransform?.().f === SKY * scale) return;
   setScale(scale);
-  for (const c of [view, world, second]) { c.width = W * scale; c.height = H * scale; }
-  for (const cx of [worldCtx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, 0); cx.imageSmoothingEnabled = false; }
+  for (const c of [view, world, second]) { c.width = W * scale; c.height = VH * scale; }
+  for (const cx of [worldCtx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, SKY * scale); cx.imageSmoothingEnabled = false; }
 }
 new ResizeObserver(fit).observe(view);
 addEventListener('resize', fit); // (turned the other way round: the notch on the other side)

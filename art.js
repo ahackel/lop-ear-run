@@ -1126,18 +1126,19 @@ export function log(rnd) {
 }
 
 // a leafy branch hanging from the trees above, down to DUCK_UNDER
+export const TRUNK = 160; // (a branch's trunk goes on this far above the world's top: up into the sky a tall screen adds)
 export function branch(rnd) {
-  const g = new Grid(26, DUCK_UNDER + 1), b = g.h - 1, x0 = 6 + rnd() * 6;
-  const stem = [capsule(x0, -2, x0 + 3, b - 12, 1.5), capsule(x0 + 3, b - 12, 13, b - 5, 1.2)];
+  const T = TRUNK, g = new Grid(26, T + DUCK_UNDER + 1), b = g.h - 1, x0 = 6 + rnd() * 6;
+  const stem = [capsule(x0, 0, x0, T - 2, 1.5), capsule(x0, T - 2, x0 + 3, b - 12, 1.5), capsule(x0 + 3, b - 12, 13, b - 5, 1.2)];
   const leaves = [ellipse(13, b - 3.2, 6.5, 3.6), ellipse(7.5, b - 5, 4.2, 3.2), ellipse(19, b - 5.5, 4.2, 3.2), ellipse(12.5, b - 7.5, 4.5, 3),
-    ...Array.from({ length: 4 }, (_, i) => ellipse(x0 + 0.8 * i + (i % 2 ? 4 : -3), 6 + i * ((b - 20) / 4), 2.6, 1.6))];
+    ...Array.from({ length: 4 }, (_, i) => ellipse(x0 + 0.8 * i + (i % 2 ? 4 : -3), T + 6 + i * ((b - T - 20) / 4), 2.6, 1.6))];
   const mask = union(g.layer(stem, BARK, OUT), g.layer(leaves, LEAF, OUT));
   for (let y = 1; y < g.h; y++) for (let x = 0; x < g.w; x++) {
     const i = y * g.w + x;
     if (g.px[i] === LEAF && (!mask[i + g.w] || y === g.h - 1 || (x * 7 + y * 3) % 11 === 0)) g.px[i] = LEAF_DARK;
   }
   for (let k = 0; k < 3; k++) if (rnd() < 0.5) g.layer([ellipse(7 + k * 5 + rnd() * 2, b - 2 + rnd() * 1.5, 1.2, 1.2)], BERRY, OUT);
-  return sprite(g, mask);
+  return sprite(g, mask, { oy: -T });
 }
 
 // a crow flying left; frame 0 wings up, 1 down

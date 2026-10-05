@@ -59,7 +59,7 @@ ok(calls.every((id) => song.stingers.some((x) => x.id === id)), `every stinger t
 // the art: heights in rows above the ground, the ground row included
 const maskRows = (s) => [...s.mask.keys()].filter((i) => s.mask[i]).map((i) => Math.floor(i / s.w) + (s.oy || 0)); // (in the box)
 const rows = (s) => FOOT - Math.min(...maskRows(s)) + 1;
-const branchBottom = Math.max(...[...branch(Math.random).mask.entries()].filter(([, v]) => v).map(([i]) => Math.floor(i / 26)));
+const aBranch = branch(Math.random), branchBottom = aBranch.oy + Math.max(...[...aBranch.mask.entries()].filter(([, v]) => v).map(([i]) => Math.floor(i / 26)));
 for (const k of Object.keys(ANIMALS)) {
   const frames = (move) => [...new Set([...Array(64).keys()].map((i) => stride(k, i / 64, move).frame))]; // (every frame of its stride)
   const stand = frames('run').map((f) => rows(animal(k, 'run', f))), duck = frames('duck').map((f) => rows(animal(k, 'duck', f)));
