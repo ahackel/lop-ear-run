@@ -1030,8 +1030,9 @@ function present() {
 
 // the canvases in screen pixels, a whole number per art pixel: the art is drawn in art pixels, scaled up (not blurred),
 // and what moves is placed to the screen pixel (see snap), so it glides instead of stepping a big pixel at a time
+const FORCE = +new URLSearchParams(location.search).get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
 function fit() {
-  const scale = Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
+  const scale = FORCE || Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
   if (world.width === W * scale) return;
   setScale(scale);
   for (const c of [view, world, second]) { c.width = W * scale; c.height = H * scale; }

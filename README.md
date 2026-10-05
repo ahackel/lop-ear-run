@@ -59,7 +59,8 @@ npm run rigs       # writes every animal's build the way the workshop saves it
 ```
 
 In the address: `?all` opens every animal for a visit, `?auto` runs by itself, `?fps` shows the frames a second and the
-work of a frame (on average and at most, in ms: a frame has 16.7 at 60), `?old` draws the animals as they were.
+work of a frame (on average and at most, in ms: a frame has 16.7 at 60) and the canvas's size, `?scale=3` draws the game
+3 screen pixels an art pixel (fewer than the screen has: the page scales it up), `?old` draws the animals as they were.
 
 The animals are edited in the workshop: with `npm run dev` running, open http://localhost:8323/tools/workshop.html.
 Drag the handles on the joints, shapes, legs, tails and ears, pick colors and layers in the list, watch the animal run in
