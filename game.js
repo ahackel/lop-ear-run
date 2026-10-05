@@ -14,7 +14,7 @@
 //                                             alert      knocked out (fanfare: into the high scores)
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
-import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, stride, bird, cactus, rock, log, branch, crow,
+import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
   FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
@@ -616,16 +616,20 @@ function wiggle() {
   if (hopping()) return phase % 0.5 < 0.25 ? 1 : 0; // up a pixel, down again: twice a hop
   return blinkT % 1.7 < 0.45 && Math.floor(blinkT * 12) % 2 ? 1 : 0;
 }
-function animalSprite() {
+// the animal's pose now → [pose, frame, blink, wiggle]
+function animalPose() {
   const blink = (blinkT % 3.2) < 0.12, w = wiggle();
-  if (state === 'ko') return animal(kind, alt > 0 ? 'hurt' : 'ko', 0, soft, false, w);
-  if (state === 'title') return animal(kind, 'idle', Math.floor(blinkT * 5) % 2, soft, blink, w);
-  if (hurtT > 0) return animal(kind, 'hurt', 0, soft);
-  if (power && kind === 'hedgehog') return animal(kind, 'ball', Math.floor(phase * 8) % 4, soft); // spike ball
-  if (alt > 0) return animal(kind, 'jump', vAlt > 0 ? 0 : 1, soft, blink);
-  if (ducking) return animal(kind, 'duck', Math.floor(phase * 4) % 2, soft, blink, w);
-  return animal(kind, 'run', stride(kind, phase).frame, soft, blink, w);
+  if (state === 'ko') return [alt > 0 ? 'hurt' : 'ko', 0, false, w];
+  if (state === 'title') return ['idle', Math.floor(blinkT * 5) % 2, blink, w];
+  if (hurtT > 0) return ['hurt', 0, false, 0];
+  if (power && kind === 'hedgehog') return ['ball', Math.floor(phase * 8) % 4, false, 0]; // spike ball
+  if (alt > 0) return ['jump', vAlt > 0 ? 0 : 1, blink, 0];
+  if (ducking) return ['duck', Math.floor(phase * 4) % 2, blink, w];
+  return ['run', stride(kind, phase).frame, blink, w];
 }
+const animalSprite = () => { const [pose, f, blink, w] = animalPose(); return animal(kind, pose, f, soft, blink, w, body); };
+// a rigged animal's moving parts (its tail, its ears: see the rigs in art.js), swung by how it moves on the screen
+const body = {};
 // the giant dino's size (it grows and shrinks in a quarter second) and where it is drawn: its feet stay on the ground,
 // it grows forward a little. → x, y, w, h, scale (1 for anyone else)
 function giantBox() {
@@ -649,6 +653,7 @@ function update(dt) {
     : 0.45 + 0.12 * Math.sin(phase * Math.PI * 2);
   softVel += ((target - soft) * 170 - softVel * 11) * dt;
   soft += softVel * dt;
+  { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? titleX(sel) : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); }
   if (state === 'ko') koT += dt;
   if (state === 'ko' && fresh && !TOUCH && koT > 1.2) { showScores(fresh); fresh = null; } // a new high score: its name (on a phone: on a tap)
   if (AUTO && state === 'ko' && koT > 3) start();
@@ -711,6 +716,8 @@ function update(dt) {
     const aim = chase.caught ? 0.15 + 0.05 * Math.sin(blinkT * 2) : 0.45 + 0.12 * Math.sin(chase.phase * Math.PI * 2);
     chase.softVel += ((aim - chase.soft) * 170 - chase.softVel * 11) * dt;
     chase.soft += chase.softVel * dt;
+    const st = stride(c, chase.phase);
+    moveBody(chase.body, c, chase.caught ? 'idle' : 'run', chase.caught ? Math.floor(blinkT * 5) % 2 : st.frame, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), speed, dt);
     if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
@@ -778,7 +785,7 @@ function update(dt) {
     const was = night;
     night = Math.max(0, night - dt);
     if (was > NIGHT_SECS - HUNT_FROM && night <= NIGHT_SECS - HUNT_FROM) { // the chaser comes
-      chase = { t: 0, x: -40, heat: 0, catching: false, phase: 0, soft: 0.45, softVel: 0 };
+      chase = { t: 0, x: -40, heat: 0, catching: false, phase: 0, soft: 0.45, softVel: 0, body: {} };
       call('sting', 'chased');
       const t = `THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`;
       floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2, rise: 0 });
@@ -959,7 +966,7 @@ function scene(pal) {
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
     const st = stride(c, chase.phase), blink = (blinkT + 1.3) % 3.2 < 0.12, hop = c === 'rabbit' && chase.phase % 0.5 < 0.25 ? 1 : 0;
-    (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, chase.soft, blink) : animal(c, 'run', st.frame, chase.soft, blink, hop))
+    (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, chase.soft, blink, 0, chase.body) : animal(c, 'run', st.frame, chase.soft, blink, hop, chase.body))
       .draw(ctx, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
   }
 

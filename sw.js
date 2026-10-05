@@ -3,7 +3,7 @@
 // offline, the kept files answer. (Answering from the cache first mixed an old game.js with a new index.html after an
 // update.)
 const CACHE = 'lop-hop-2';
-const GAME = ['./', 'index.html', 'game.js', 'art.js', 'song.json', 'manifest.webmanifest',
+const GAME = ['./', 'index.html', 'game.js', 'art.js', 'animals/cat.js', 'song.json', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.png'];
 
 self.addEventListener('install', (e) => {

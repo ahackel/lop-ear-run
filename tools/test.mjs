@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/src/engine/engine.js';
 import { diskSamples } from '../engine/src/disk-samples.js';
-import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch } from '../art.js';
+import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, rigged, moveBody } from '../art.js';
 
 let failed = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) failed++; };
@@ -57,12 +57,28 @@ const calls = [...used.matchAll(/call\('sting', '(\w+)'\)/g)].map((m) => m[1]);
 ok(calls.every((id) => song.stingers.some((x) => x.id === id)), `every stinger the game calls is in the song (${[...new Set(calls)]})`);
 
 // the art: heights in rows above the ground, the ground row included
-const rows = (s) => FOOT - Math.min(...[...s.mask.keys()].filter((i) => s.mask[i]).map((i) => Math.floor(i / s.w))) + 1;
+const maskRows = (s) => [...s.mask.keys()].filter((i) => s.mask[i]).map((i) => Math.floor(i / s.w) + (s.oy || 0)); // (in the box)
+const rows = (s) => FOOT - Math.min(...maskRows(s)) + 1;
 const branchBottom = Math.max(...[...branch(Math.random).mask.entries()].filter(([, v]) => v).map(([i]) => Math.floor(i / 26)));
 for (const k of Object.keys(ANIMALS)) {
   const stand = [0, 1, 2, 3].map((f) => rows(animal(k, 'run', f))), duck = [0, 1].map((f) => rows(animal(k, 'duck', f)));
   ok(Math.min(...stand) >= GROUND - DUCK_UNDER + 4 && Math.max(...duck) <= GROUND - DUCK_UNDER - 1,
     `the ${k} runs into what hangs low (${Math.min(...stand)} rows tall) and ducks under it (${Math.max(...duck)} rows)`);
+}
+// a rigged animal stands on the ground in every pose (its frames end on the feet's row, none below it), and its chains
+// stay whole as its body runs, jumps, ducks and falls
+for (const k of Object.keys(ANIMALS).filter(rigged)) {
+  const poses = [['run', 0], ['run', 1], ['run', 2], ['run', 3], ['jump', 0], ['jump', 1], ['duck', 0], ['duck', 1], ['idle', 0], ['idle', 1], ['hurt', 0], ['ko', 0]];
+  const low = poses.filter(([p]) => p !== 'jump' && p !== 'ko').map(([p, f]) => { const s = animal(k, p, f); return s.oy + s.h - 1 === FOOT && s.px.slice(-s.w).some(Boolean); }); // (its last row: the feet's, drawn)
+  const body = {}, moves = [['run', 0, 0], ['jump', 0, -20], ['jump', 1, -10], ['run', 1, 0], ['duck', 0, 0], ['ko', 0, 0], ['idle', 1, 0]];
+  let whole = true;
+  for (let i = 0; i < 600; i++) {
+    const [p, f, up] = moves[Math.floor(i / 90) % moves.length];
+    moveBody(body, k, p, f, 20, 59 + up * Math.sin((i % 90) / 90 * Math.PI), 200, 1 / 60);
+    const s = animal(k, p, f, 0.4, false, 0, body);
+    whole &&= Object.values(body.chains).every((c) => c.every((q) => Number.isFinite(q.p[0]) && Number.isFinite(q.p[1]))) && s.w < 60 && s.h < 60;
+  }
+  ok(low.every(Boolean) && whole, `the ${k}'s rig stands on the ground in every pose, its chains stay whole in motion`);
 }
 // every animal jumps the tallest cactus (20 high), even the heavy ones (the game's JUMP 330 and GRAVITY 1500)
 const heights = Object.entries(ANIMALS).map(([k, t]) => [k, Math.round((330 * t.jump) ** 2 / (2 * 1500 * t.gravity))]);

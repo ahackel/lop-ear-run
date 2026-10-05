@@ -1,6 +1,7 @@
 // Pixel art for Lop Hop. Sprites are small grids of palette indices, filled from shapes (ellipses, capsules,
 // triangles) and outlined, so ears and tails can swing to any angle. Each sprite comes with a collision mask (ears and
-// tails are soft: they never count).
+// tails are soft: they never count). Some animals are rigs instead (animals/*.js; see the rigs below).
+import cat from './animals/cat.js';
 
 export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: the y of the ground line
 
@@ -60,9 +61,10 @@ let S = 1;
 export const setScale = (s) => { S = s; };
 export const snap = (v) => Math.round(v * S) / S; // (to the nearest screen pixel)
 
-// a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette) }; drawn into a canvas per palette, on first use
+// a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette) }; drawn into a canvas per palette, on first use.
+// ox, oy (in extra): where its grid starts from where it is placed (a rig's frame, bigger than the box: see the rigs)
 function sprite(g, mask, extra) {
-  const canvases = {};
+  const canvases = {}, ox = extra?.ox || 0, oy = extra?.oy || 0;
   return {
     w: g.w, h: g.h, px: g.px, mask, ...extra,
     draw(ctx, x, y, pal, scale = 1) { // (scale: whole pixels made bigger, for the giant dino)
@@ -78,6 +80,7 @@ function sprite(g, mask, extra) {
         }
         cx.putImageData(img, 0, 0);
       }
+      x += ox * scale; y += oy * scale;
       if (scale === 1) ctx.drawImage(c, snap(x), snap(y), g.w, g.h);
       else ctx.drawImage(c, snap(x), snap(y), Math.round(g.w * scale), Math.round(g.h * scale));
     },
@@ -134,7 +137,9 @@ export function stride(kind, phase) {
 }
 
 const animals = new Map();
-export function animal(kind, pose, frame = 0, soft = 0.4, blink = false, wiggle = 0) {
+// body: a rig's moving parts (its chains), as moveBody left them; none: at rest
+export function animal(kind, pose, frame = 0, soft = 0.4, blink = false, wiggle = 0, body = null) {
+  if (rigged(kind)) return rigFrame(kind, pose, frame, blink, body);
   const a = Math.round(clamp(soft, -0.4, 2.6) * 8) / 8, key = `${kind}${pose}${frame}${a}${blink}${wiggle}`;
   if (!animals.has(key)) {
     const g = new Grid(26, 20), { mask, head } = DRAW[kind](g, pose, frame, a, blink, wiggle);
@@ -610,6 +615,180 @@ Object.assign(DRAW, {
   },
 });
 
+// ------------------------------------------------------------------------------------------------------------ rigs
+// An animal can be a rig (animals/<kind>.js, see the cat): joints, shapes on them, legs that bend to reach their paws,
+// chains (a tail, ears) that the body's motion swings, and a pose for each move and frame. Its shapes are distances (how
+// far a point lies outside them), so they join smoothly. Each frame is drawn into a grid just big enough for it, with its
+// offset (ox, oy) from the 26×20 box the game places every animal by: a tail can reach out of the box. With ?old in the
+// address, the animals are drawn as they were (DRAW), to compare.
+const RIGS = { cat };
+const LEGACY = typeof location !== 'undefined' && /[?&]old\b/.test(location.search);
+export const rigged = (kind) => !LEGACY && !!RIGS[kind];
+const NAMED = { OUT, FUR, EAR, PINK, INK, BERRY, ORANGE, LEAF, FAINT, LIGHT, FOX, BELLY, TAN, BROWN, GINGER, STRIPE, YELLOW, BARK, WOOD,
+  FISH, LEAF_DARK, GRAPE, WOLF, BOAR, SNOUT, WOLF_DARK, SKUNK, CHEETAH, RHINO, RHINO_DARK, DINO, DINO_LIGHT };
+
+const plus = (a, b) => [a[0] + b[0], a[1] + b[1]], minus = (a, b) => [a[0] - b[0], a[1] - b[1]], times = (a, k) => [a[0] * k, a[1] * k];
+const turn = ([x, y], t) => [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)]; // (+: clockwise on screen)
+const unit = (a) => times(a, 1 / (Math.hypot(a[0], a[1]) || 1)), mix = (a, b, t) => plus(a, times(minus(b, a), t));
+// distances: negative inside
+const sdEllipse = (x, y, [cx, cy, rx, ry]) => (Math.hypot((x - cx) / rx, (y - cy) / ry) - 1) * Math.min(rx, ry);
+function sdCapsule(x, y, [ax, ay, bx, by, r]) {
+  const dx = bx - ax, dy = by - ay, t = clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  return Math.hypot(x - ax - t * dx, y - ay - t * dy) - r;
+}
+function sdTriangle(x, y, [[ax, ay], [bx, by], [cx, cy]]) { // (Inigo Quilez's)
+  const e = [[bx - ax, by - ay], [cx - bx, cy - by], [ax - cx, ay - cy]], v = [[x - ax, y - ay], [x - bx, y - by], [x - cx, y - cy]];
+  const s = Math.sign(e[0][0] * e[2][1] - e[0][1] * e[2][0]);
+  let d = Infinity, w = Infinity;
+  for (let i = 0; i < 3; i++) {
+    const [ex, ey] = e[i], [vx, vy] = v[i], t = clamp((vx * ex + vy * ey) / (ex * ex + ey * ey), 0, 1);
+    d = Math.min(d, (vx - ex * t) ** 2 + (vy - ey * t) ** 2); w = Math.min(w, s * (vx * ey - vy * ex));
+  }
+  return -Math.sqrt(d) * Math.sign(w);
+}
+const sdShape = (s, x, y) => (s.ellipse ? sdEllipse(x, y, s.ellipse) : s.capsule ? sdCapsule(x, y, s.capsule) : sdTriangle(x, y, s.triangle));
+const smin = (a, b, k) => { if (k <= 0) return Math.min(a, b); const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+// a shape's box, in its own coordinates
+const extent = (s) => (s.ellipse ? [s.ellipse[0] - s.ellipse[2], s.ellipse[1] - s.ellipse[3], s.ellipse[0] + s.ellipse[2], s.ellipse[1] + s.ellipse[3]]
+  : s.capsule ? [Math.min(s.capsule[0], s.capsule[2]) - s.capsule[4], Math.min(s.capsule[1], s.capsule[3]) - s.capsule[4], Math.max(s.capsule[0], s.capsule[2]) + s.capsule[4], Math.max(s.capsule[1], s.capsule[3]) + s.capsule[4]]
+  : [Math.min(...s.triangle.map((p) => p[0])), Math.min(...s.triangle.map((p) => p[1])), Math.max(...s.triangle.map((p) => p[0])), Math.max(...s.triangle.map((p) => p[1]))]);
+
+// a joint's frame: its place, its angle, flipped (on its back); points from it (local) and back (world)
+const jointFrame = (o, a, flip) => ({ o, a, flip: flip ? -1 : 1 });
+const toLocal = (f, x, y) => { const dx = x - f.o[0], dy = y - f.o[1], c = Math.cos(f.a), s = Math.sin(f.a); return [dx * c + dy * s, (-dx * s + dy * c) * f.flip]; };
+const toWorld = (f, [x, y]) => (f ? plus(f.o, turn([x, y * f.flip], f.a)) : [x, y]);
+
+// two bones from a root toward a target (lengths a, b) → [knee, end]; bend 1 puts the knee behind, -1 in front
+function reach(root, target, a, b, bend) {
+  const d = minus(target, root), dist = clamp(Math.hypot(d[0], d[1]), Math.abs(a - b) + 0.01, a + b - 0.01), dir = unit(d);
+  const knee = plus(root, times(turn(dir, bend * Math.acos(clamp((a * a + dist * dist - b * b) / (2 * a * dist), -1, 1))), a));
+  return [knee, plus(knee, times(unit(minus(target, knee)), b))];
+}
+
+// a rig in a pose (move and frame): the pose's settings over the rig's, the joints' frames
+function posed(rig, name, frame) {
+  const list = rig.poses[name] || rig.poses.run, p = list[frame % list.length];
+  const J = { ...rig.joints, ...p.joints }, a = Math.atan2(J.chest[1] - J.hip[1], J.chest[0] - J.hip[0]);
+  const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0) };
+  return { p, J, F, a, torso: { ...rig.torso, ...p.torso } };
+}
+// a chain at rest in a pose: its root, its direction, its links (an ear: one, from the middle of its base to its tip)
+function chainRest(rig, P, name) {
+  const c = { links: 1, curl: 0, r: 1, ...rig.chains[name], ...P.p.chains?.[name] }, f = P.F[c.on];
+  if (c.ear) {
+    const base = c.ear.map((q) => toWorld(f, q)), root = mix(base[0], base[1], 0.5), to = minus(toWorld(f, c.tip), root);
+    return { ...c, base, root, dir: unit(to), length: Math.hypot(to[0], to[1]) };
+  }
+  return { ...c, root: c.root || toWorld(f, c.at), dir: turn([0, -1], f.a - c.angle) };
+}
+function restPoints(c) {
+  const pts = [c.root];
+  for (let i = 0, d = c.dir; i < c.links; i++, d = turn(d, c.curl)) pts.push(plus(pts[i], times(d, c.length / c.links)));
+  return pts;
+}
+
+// the moving parts of an animal on screen (body: kept by the game, one per animal it draws): its chains, stepped by how
+// the animal moves. x, y: where its box is now; wind: how fast the world goes by (the air streams past the runner)
+export function moveBody(body, kind, pose, frame, x, y, wind, dt) {
+  if (!rigged(kind)) return;
+  const rig = RIGS[kind], P = posed(rig, pose, frame), was = body.at || [x, y];
+  if (body.kind !== kind || dt > 0.2 || Math.hypot(x - was[0], y - was[1]) > 40) { body.kind = kind; body.chains = {}; } // (a new start)
+  for (const name in rig.chains) {
+    const c = chainRest(rig, P, name);
+    let pts = body.chains[name];
+    if (!pts || pts.length !== c.links + 1) pts = body.chains[name] = restPoints(c).map((q) => ({ p: plus(q, [x, y]), v: [0, 0] }));
+    const from = pts[0].p, to = plus(c.root, [x, y]), n = Math.ceil(dt * 120);
+    for (let i = 1; i <= n; i++) stepChain(pts, c, mix(from, to, i / n), dt / n, wind);
+  }
+  body.at = [x, y];
+}
+// one step of a chain: each link springs toward its rest angle as the body holds it (a quarter of it following the link
+// before, so the chain bends as one), stiffest at the root; damping (against bending) keeps it from ringing; the air drags
+// on every point (still as the animal rises or falls, so a tail droops as it takes off and floats as it falls); its weight
+const DRAG = 9, WIND = 0.15;
+function stepChain(pts, c, root, h, wind) {
+  pts[0].v = times(minus(root, pts[0].p), 1 / h); pts[0].p = root;
+  const seg = c.length / c.links, air = [-wind * WIND, 0];
+  let rest = c.dir, prev = null;
+  for (let i = 1; i < pts.length; i++) {
+    const q = pts[i], up = pts[i - 1], d = prev ? unit(mix(rest, turn(prev, c.curl), 0.25)) : rest;
+    const k = c.stiffness * (1 - (0.45 * (i - 1)) / Math.max(1, c.links - 1)), want = plus(up.p, times(d, seg));
+    const acc = plus(plus(plus(times(minus(want, q.p), k), times(minus(up.v, q.v), c.damping)), times(minus(air, q.v), DRAG)), [0, c.weight]);
+    const was = q.p;
+    q.v = plus(q.v, times(acc, h));
+    const p = plus(up.p, times(unit(minus(plus(q.p, times(q.v, h)), up.p)), seg)); // moved, then kept at the link's length
+    q.v = times(minus(p, was), 1 / h); q.p = p;
+    prev = unit(minus(p, up.p)); rest = turn(rest, c.curl);
+  }
+}
+
+// a frame of a rigged animal: its chains where the body has them (in the box: to a quarter pixel), or at rest. Kept for
+// a while (the most recent few hundred).
+const rigFrames = new Map();
+function rigFrame(kind, pose, frame, blink, body) {
+  const rig = RIGS[kind], P = posed(rig, pose, frame), chains = {};
+  const live = body?.kind === kind && body.chains && body.at;
+  for (const name in rig.chains) {
+    const pts = live && body.chains[name] ? body.chains[name].map((q) => minus(q.p, body.at)) : restPoints(chainRest(rig, P, name));
+    chains[name] = pts.map(([x, y]) => [Math.round(x * 4) / 4, Math.round(y * 4) / 4]);
+  }
+  const key = `${kind} ${pose} ${frame} ${blink} ${JSON.stringify(chains)}`;
+  let s = rigFrames.get(key);
+  if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; } // (the most recent last)
+  s = drawRig(rig, P, pose, blink, chains);
+  rigFrames.set(key, s);
+  if (rigFrames.size > 400) rigFrames.delete(rigFrames.keys().next().value);
+  return s;
+}
+
+// draw a rig in a pose, back to front as DRAW does: soft chains (the tail), the far legs, the body (torso, shapes, ears,
+// near legs, joined smoothly), the markings on it, the face. The collision mask: the far legs and the body.
+function drawRig(rig, P, pose, blink, chains) {
+  const { p, F, torso } = P, k = rig.smooth ?? 1, fur = NAMED[rig.fur];
+  const placed = (s) => ({ s, f: s.on ? F[s.on] : null }); // a shape with its frame
+  const sd = ({ s, f }, x, y) => { const [lx, ly] = f ? toLocal(f, x, y) : [x, y]; return sdShape(s, lx, ly); };
+  const body = [...(rig.shapes || []), ...(p.shapes || [])].map(placed);
+  if (torso.r > 0) { // the torso: along the spine from the hip to the chest, reaching past both
+    const half = Math.hypot(P.J.chest[0] - P.J.hip[0], P.J.chest[1] - P.J.hip[1]) / 2;
+    body.unshift(placed({ on: 'spine', ellipse: [half, 0, half + torso.ends, torso.r] }));
+  }
+  const legs = Object.entries(rig.legs).map(([name, L]) => {
+    const root = p.roots?.[name] || toWorld(F[L.on], L.at), [knee, paw] = reach(root, p.paws[name], L.thigh, L.shin, L.bend);
+    return { far: L.far, r: L.r, parts: [[...root, ...knee, L.r], [...knee, ...paw, L.r]] };
+  });
+  const legSd = (L, x, y) => Math.min(sdCapsule(x, y, L.parts[0]), sdCapsule(x, y, L.parts[1]));
+  const soft = [], ears = [];
+  for (const name in rig.chains) {
+    const c = rig.chains[name], pts = chains[name];
+    if (c.ear) { const [a, b] = chainRest(rig, P, name).base; ears.push([a, pts[1], b]); }
+    else soft.push({ color: NAMED[c.color] || fur, parts: pts.slice(1).map((q, i) => [...pts[i], ...q, c.r]) });
+  }
+
+  // the frame's bounds: every shape's box (turned with its frame), one more pixel for the outline
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const fit = ([x, y], r = 0) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
+  for (const { s, f } of body) { const [a, b, c, d] = extent(s); for (const q of [[a, b], [c, b], [a, d], [c, d]]) fit(toWorld(f, q)); }
+  for (const L of [...legs, ...soft]) for (const [ax, ay, bx, by, r] of L.parts) { fit([ax, ay], r); fit([bx, by], r); }
+  for (const e of ears) for (const q of e) fit(q);
+  // (nothing below the feet's row: the ground)
+  const ox = Math.floor(x0) - 1, oy = Math.floor(y0) - 1, g = new Grid(Math.ceil(x1) + 1 - ox, Math.min(Math.ceil(y1) + 1, FOOT + 1) - oy);
+  const inside = (d) => [(x, y) => d(x + ox + 0.5, y + oy + 0.5) <= 0]; // (tested at the pixel's middle)
+
+  for (const t of soft) g.layer(inside((x, y) => Math.min(...t.parts.map((c) => sdCapsule(x, y, c)))), t.color, OUT);
+  const farMask = g.layer(inside((x, y) => legs.filter((L) => L.far).reduce((d, L) => Math.min(d, legSd(L, x, y)), Infinity)), fur, OUT);
+  const bodyMask = g.layer(inside((x, y) => {
+    let d = body.reduce((d, b, i) => (i ? smin(d, sd(b, x, y), k * (b.s.smooth ?? 1)) : sd(b, x, y)), Infinity);
+    for (const e of ears) d = smin(d, sdTriangle(x, y, e), k * 0.4);
+    for (const L of legs) if (!L.far) d = smin(d, legSd(L, x, y), k * 0.5);
+    return d;
+  }), fur, OUT);
+  for (const m of p.paint || rig.paint || []) g.paint(inside((x, y) => sd(placed(m), x, y)), NAMED[m.color], bodyMask);
+  const face = rig.face, eye = minus(toWorld(F.head, face.eye), [ox, oy]), nose = minus(toWorld(F.head, face.nose), [ox, oy]);
+  eyes(g, pose, eye, blink);
+  g.dot(nose[0], nose[1], NAMED[face.noseColor] || OUT);
+  return sprite(g, union(farMask, bodyMask), { ox, oy, head: [eye[0] + ox - 1, eye[1] + oy - 6] });
+}
+
 // the birds that circle a knocked-out head: two frames
 const birds = [0, 1].map((f) => {
   const g = new Grid(9, 7);
@@ -892,7 +1071,7 @@ export function text(ctx, s, x, y, color, align = 'left') {
 
 // do two sprites overlap, pixel for pixel (by their masks)?
 export function hits(a, ax, ay, b, bx, by) {
-  ax = Math.round(ax); ay = Math.round(ay); bx = Math.round(bx); by = Math.round(by);
+  ax = Math.round(ax + (a.ox || 0)); ay = Math.round(ay + (a.oy || 0)); bx = Math.round(bx + (b.ox || 0)); by = Math.round(by + (b.oy || 0));
   const x0 = Math.max(ax, bx), x1 = Math.min(ax + a.w, bx + b.w), y0 = Math.max(ay, by), y1 = Math.min(ay + a.h, by + b.h);
   for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (a.mask[(y - ay) * a.w + x - ax] && b.mask[(y - by) * b.w + x - bx]) return true;
   return false;
