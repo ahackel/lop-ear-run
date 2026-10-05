@@ -1,7 +1,32 @@
-// The cat as a rig (see the rigs in art.js): a ginger kitten, pointed ears, the tail up.
-// Places are in the 26×20 box the game puts every animal in (x to the right, y down, the feet on row 19); a shape `on` a
-// joint is placed in that joint's frame: the spine's (hip and chest: from the hip toward the chest, turning with it) or
-// the head's. Colors are palette names.
+// The cat as a rig (see kit.js for what a rig holds): a ginger kitten, pointed ears, the tail up.
+
+// @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
+export const build = {
+  fur: 'GINGER',
+  joints: { hip: [7, 12], chest: [14, 12], head: [19.5, 8.5] },
+  torso: { r: 3.8, ends: 3.5 },
+  shapes: [{ name: 'head', on: 'head', ellipse: [0, 0, 4, 3.7] }, { name: 'muzzle', on: 'head', ellipse: [2.8, 1.5, 2, 1.6] }],
+  paint: [
+    { name: 'stripe', color: 'STRIPE', on: 'spine', capsule: [-0.5, -4, -1, -1.7, 0.6] },
+    { name: 'stripe', color: 'STRIPE', on: 'spine', capsule: [2.5, -4, 2, -1.7, 0.6] },
+    { name: 'stripe', color: 'STRIPE', on: 'spine', capsule: [5.5, -4, 5, -1.7, 0.6] },
+    { name: 'muzzle', color: 'BELLY', on: 'head', ellipse: [2.8, 1.5, 2, 1.6] },
+    { name: 'chest', color: 'BELLY', on: 'chest', ellipse: [2, 1, 2.5, 2.2] },
+  ],
+  legs: {
+    hindFar: { on: 'hip', at: [0.5, 1.5], thigh: 2.75, shin: 2.75, r: 0.9, far: true, bend: 1 },
+    frontFar: { on: 'chest', at: [1.5, 1.5], thigh: 2.75, shin: 2.75, r: 0.9, far: true, bend: -1 },
+    hindNear: { on: 'hip', at: [-0.5, 1.5], thigh: 2.75, shin: 2.75, r: 1, bend: 1 },
+    frontNear: { on: 'chest', at: [1, 1.5], thigh: 2.75, shin: 2.75, r: 1, bend: -1 },
+  },
+  chains: {
+    tail: { on: 'hip', at: [-3, -1.5], angle: 0.6, links: 4, length: 8, r: 1.1, curl: 0.3, stiffness: 900, damping: 30, weight: 60 },
+    earA: { on: 'head', ear: [[-3.1, -2.3], [0, -3.5]], tip: [-2.5, -6.9], stiffness: 1400, damping: 22, weight: 60 },
+    earB: { on: 'head', ear: [[0.5, -3.7], [3.5, -1.9]], tip: [2.5, -7.1], stiffness: 1400, damping: 22, weight: 60 },
+  },
+  face: { eye: [1, -1], nose: [3.5, 1], noseColor: 'PINK' },
+};
+// @end
 
 // (the run and the crawl are gaits, worked out from the stride: see the poses below) standing, all four paws down: hurt
 const standing = { paws: { hindNear: [7, 18.4], hindFar: [8.5, 18.4], frontNear: [14.5, 18.4], frontFar: [16.5, 18.4] } };
@@ -42,51 +67,22 @@ const sit = (t) => {
   };
 };
 
-export default {
-  fur: 'GINGER',
-  joints: { hip: [7, 12], chest: [14, 12], head: [19.5, 8.5] }, // standing, running
-  torso: { r: 3.8, ends: 3.5 }, // an ellipse along the spine, reaching `ends` past the hip and the chest
-  shapes: [
-    { on: 'head', ellipse: [0, 0, 4, 3.7] },
-    { on: 'head', ellipse: [2.8, 1.5, 2, 1.6] }, // the muzzle
-  ],
-  paint: [ // markings, only on the body
-    { color: 'STRIPE', on: 'spine', capsule: [-0.5, -4, -1, -1.7, 0.6] },
-    { color: 'STRIPE', on: 'spine', capsule: [2.5, -4, 2, -1.7, 0.6] },
-    { color: 'STRIPE', on: 'spine', capsule: [5.5, -4, 5, -1.7, 0.6] },
-    { color: 'BELLY', on: 'head', ellipse: [2.8, 1.5, 2, 1.6] }, // the muzzle
-    { color: 'BELLY', on: 'chest', ellipse: [2, 1, 2.5, 2.2] }, // the chest
-  ],
-  // legs: from where they join the body (in its frame) to their paws; bend: which way the knee points (1 back, -1 forward)
-  legs: {
-    hindFar: { on: 'hip', at: [0.5, 1.5], thigh: 2.75, shin: 2.75, r: 0.9, far: true, bend: 1 },
-    frontFar: { on: 'chest', at: [1.5, 1.5], thigh: 2.75, shin: 2.75, r: 0.9, far: true, bend: -1 },
-    hindNear: { on: 'hip', at: [-0.5, 1.5], thigh: 2.75, shin: 2.75, r: 1, bend: 1 },
-    frontNear: { on: 'chest', at: [1, 1.5], thigh: 2.75, shin: 2.75, r: 1, bend: -1 },
-  },
-  // chains, swung by the body's motion: angle from straight up (more: further back), curl per link (+: forward);
-  // stiffness pulls each link to its rest angle, damping stops it ringing, the air drags, weight pulls down
-  chains: {
-    tail: { on: 'hip', at: [-3, -1.5], angle: 0.6, links: 4, length: 8, r: 1.1, curl: 0.3, stiffness: 900, damping: 30, weight: 60, soft: true },
-    // a pointed ear: a triangle on the head, its tip on one stiff link from the middle of its base
-    earA: { on: 'head', ear: [[-3.1, -2.3], [0, -3.5]], tip: [-2.5, -6.9], stiffness: 1400, damping: 22, weight: 60 },
-    earB: { on: 'head', ear: [[0.5, -3.7], [3.5, -1.9]], tip: [2.5, -7.1], stiffness: 1400, damping: 22, weight: 60 },
-  },
-  face: { eye: [1, -1], nose: [3.5, 1], noseColor: 'PINK' }, // in the head's frame
-  poses: {
-    // the run: a rotary gallop worked out from where the cat is in its stride, in `frames` poses. Each paw pushes back
-    // along the ground (reach) for `stance` of the stride, then swings forward in an arc (lift); legs: each one's place
-    // in the stride and where its paw's sweep is centred (from its root). The body bobs, the hip and the chest out of step.
-    run: { gait: { frames: 8, stance: 0.4, reach: 6, lift: 2.6, bob: 0.6, ground: 18.4,
-      legs: { hindNear: [0, -0.5], hindFar: [0.1, -0.5], frontNear: [0.5, 0.8], frontFar: [0.6, 0.8] } } },
-    // ducking: a slinking crawl, low and flat, the head held level, the shoulders and the haunch rolling (bob twice a
-    // stride, the head still). Diagonal paws step together, slow and low, the near ones flat (pad) and outlined over the
-    // belly (over), or they would hide in it
-    duck: { ...low, pad: [1.8, 1], over: true, gait: { frames: 8, stance: 0.6, reach: 4, lift: 0.8, bob: 0.6, beat: 2, head: 0, ground: 18.4,
-      legs: { hindNear: [0, -1], frontFar: [0.05, 1.5], hindFar: [0.5, 1.5], frontNear: [0.55, 3] } } },
-    jump, // rising, falling
-    hurt: [standing],
-    ko: [{ ...low, flip: true, paws: { hindNear: [6, 11], hindFar: [10, 11], frontNear: [14, 11], frontFar: [17, 11] } }], // on its back, legs up
-    idle: { frames: 80, fps: 10, at: sit }, // sitting: an 8 s loop
-  },
-};
+// the cat with its moves, from its build
+export const make = (rig) => ({ ...rig, poses: {
+  // the run: a rotary gallop worked out from where the cat is in its stride, in `frames` poses. Each paw pushes back
+  // along the ground (reach) for `stance` of the stride, then swings forward in an arc (lift); legs: each one's place
+  // in the stride and where its paw's sweep is centred (from its root). The body bobs, the hip and the chest out of step.
+  run: { gait: { frames: 8, stance: 0.4, reach: 6, lift: 2.6, bob: 0.6, ground: 18.4,
+    legs: { hindNear: [0, -0.5], hindFar: [0.1, -0.5], frontNear: [0.5, 0.8], frontFar: [0.6, 0.8] } } },
+  // ducking: a slinking crawl, low and flat, the head held level, the shoulders and the haunch rolling (bob twice a
+  // stride, the head still). Diagonal paws step together, slow and low, the near ones flat (pad) and outlined over the
+  // belly (over), or they would hide in it
+  duck: { ...low, pad: [1.8, 1], over: true, gait: { frames: 8, stance: 0.6, reach: 4, lift: 0.8, bob: 0.6, beat: 2, head: 0, ground: 18.4,
+    legs: { hindNear: [0, -1], frontFar: [0.05, 1.5], hindFar: [0.5, 1.5], frontNear: [0.55, 3] } } },
+  jump, // rising, falling
+  hurt: [standing],
+  ko: [{ ...low, flip: true, paws: { hindNear: [6, 11], hindFar: [10, 11], frontNear: [14, 11], frontFar: [17, 11] } }], // on its back, legs up
+  idle: { frames: 80, fps: 10, at: sit }, // sitting: an 8 s loop
+} });
+
+export default make(build);

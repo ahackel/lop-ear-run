@@ -55,13 +55,20 @@ npm run dev        # http://localhost:8323 (the audio needs http://, not file://
 npm test           # the song plays every mood and stinger; every animal is tall enough to hit a branch and ducks under it
 npm run engine     # copies the engine from ../stardrift-engine into engine/ (or: node tools/engine.mjs <path>)
 npm run icons      # draws icons/ from the game's own pixel art
+npm run rigs       # writes every animal's build the way the workshop saves it
 ```
+
+The animals are edited in the workshop: with `npm run dev` running, open http://localhost:8323/tools/workshop.html.
+Drag the handles on the joints, shapes, legs, tails and ears, pick colors and layers in the list, watch the animal run in
+the game's scene, and save: it writes the animal's build back into its file.
 
 | Path | |
 |---|---|
 | `index.html` | the page: the game and the music panel; on phones and installed, only the game |
 | `game.js` | the game: input, the run, energy, its buttons, the high scores, the calls to the music |
-| `art.js` | the pixel art, drawn from shapes: animals (with swinging ears and tails), obstacles, food, a 3×5 font |
+| `art.js` | the pixel art, drawn from shapes: the rigs that draw the animals, obstacles, food, a 3×5 font |
+| `animals/` | an animal each: its build (joints, shapes, legs, chains, face: the data the workshop edits) and its moves; `kit.js`: what they share |
+| `tools/workshop.html` | the animal workshop (through `npm run dev`, which saves for it) |
 | `song.json` | the music |
 | `engine/` | a copy of the Stardrift engine (`engine/VERSION` says which commit); `npm run engine` refreshes it |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable app: offline files, name, icons, landscape |

@@ -83,6 +83,16 @@ for (const k of Object.keys(ANIMALS).filter(rigged)) {
   }
   ok(low.every(Boolean) && whole, `the ${k}'s rig stands on the ground in every pose, its chains stay whole in motion`);
 }
+// every animal's build is written the way the workshop saves it (so a save changes only what was edited)
+{
+  const { spliceBuild } = await import('./rig-format.js');
+  const off = [];
+  for (const k of Object.keys(ANIMALS)) {
+    const url = new URL(`../animals/${k}.js`, import.meta.url), src = readFileSync(url, 'utf8'), { build } = await import(url);
+    if (spliceBuild(src, build) !== src) off.push(k);
+  }
+  ok(!off.length, `every animal's build is in the workshop's format${off.length ? ` — npm run rigs: ${off}` : ''}`);
+}
 // every animal jumps the tallest cactus (20 high), even the heavy ones (the game's JUMP 330 and GRAVITY 1500)
 const heights = Object.entries(ANIMALS).map(([k, t]) => [k, Math.round((330 * t.jump) ** 2 / (2 * 1500 * t.gravity))]);
 ok(heights.every(([, h]) => h >= 24), `every animal jumps high enough (${heights.map(([k, h]) => `${k} ${h}`).join(', ')})`);

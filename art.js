@@ -918,6 +918,10 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
   return sprite(g, union(farMask, bodyMask, overMask), { ox, oy, head: [(eye[0] - 1) * S, (eye[1] - 6) * S] });
 }
 
+// for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
+export function setRig(kind, rig) { RIGS[kind] = rig; rigFrames.clear(); worked.clear(); }
+export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), restPoints, toWorld, toLocal, sdShape, NAMED };
+
 // the birds that circle a knocked-out head: two frames
 const birds = [0, 1].map((f) => {
   const g = new Grid(9, 7);

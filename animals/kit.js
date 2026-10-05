@@ -1,6 +1,28 @@
 // What the four-legged rigs share (see the cat, and the rigs in art.js), worked out from a rig's own build: standing,
 // the gallop, jumping, lying low (the crawl, knocked out on its back) and an idle that breathes and looks about. Places
 // are in the 26×20 box, the feet on row 19; a leg's length is its thigh and shin.
+//
+// An animal's file holds its build (between `// @build` and `// @end`: the data the workshop edits and writes back) and
+// its make: the build with its moves (poses). A build:
+//   fur          its color (a palette name: see NAMED in art.js), as every color is
+//   joints       hip, chest, head: places in the box. The spine runs from the hip to the chest
+//   torso        r (how thick), ends (how far past the hip and the chest), capsule (round ends): along the spine; r 0: none
+//   shapes       the body: ellipse [x, y, rx, ry], capsule [ax, ay, bx, by, r], box [x0, y0, x1, y1, r] or triangle
+//                [[x, y] × 3], `on` a joint (in its frame: spine, hip, chest turn with the spine; head with the head) or in
+//                the box; joined smoothly (smooth: how much), outlined, and what collisions test
+//   paint        markings: shapes in a color, only on the body
+//   top          shapes drawn over the body, outlined (horns, fangs): { color, shapes }; no collisions
+//   dots         single pixels: { on, at, color }
+//   spikes       a shape where the body bristles (speck: a color for specks inside)
+//   socks        a color for the lower legs
+//   legs         each: on (hip or chest), at (where it joins), thigh, shin, r, far (behind the body), bend (1: the knee
+//                back, -1: forward), foot [rx, ry] (a flat foot)
+//   chains       swung by the body's motion: a tail (on, at, angle from straight up, more: further back; links, length, r
+//                or [r at the root, r at the tip], curl per link, +: forward; color, marks [[t along it, color, r]], end (a
+//                round end), front (drawn over the body)) or a pointed ear (ear: its base [[x, y] × 2] on the head, tip).
+//                stiffness pulls each link to its rest, damping stops it ringing, weight pulls it down
+//   face         eye, nose (in the head's frame), noseColor
+//   recolor      { name: name }: colors swapped everywhere (the wolf: a grey fox)
 
 export const ease = (u) => u * u * (3 - 2 * u), clamp01 = (u) => Math.min(1, Math.max(0, u));
 // eased in from a to a + e and out from b - e to b: 0…1…0

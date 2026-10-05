@@ -2,17 +2,19 @@
 // tusks, a pointed ear, a thin tail.
 import { quadruped, earsBack } from './kit.js';
 
-const rig = {
+// @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
+export const build = {
   fur: 'BOAR',
   joints: { hip: [8, 11.8], chest: [15, 11.8], head: [18.3, 11.2] },
   torso: { r: 4.8, ends: 3.8 },
-  shapes: [
-    { on: 'head', ellipse: [0, 0, 3.9, 3.8] },
-    { on: 'head', ellipse: [4, 1.4, 1.9, 1.9] }, // the snout
+  shapes: [{ name: 'head', on: 'head', ellipse: [0, 0, 3.9, 3.8] }, { name: 'snout', on: 'head', ellipse: [4, 1.4, 1.9, 1.9] }],
+  paint: [{ name: 'snout', color: 'SNOUT', on: 'head', ellipse: [4, 1.4, 1.9, 1.9] }],
+  dots: [
+    { name: 'nostril', on: 'head', at: [4.3, 1.2] },
+    { name: 'tusk', on: 'head', at: [2.7, 3.4], color: 'BELLY' },
+    { name: 'tusk', on: 'head', at: [3.5, 2.7], color: 'BELLY' },
   ],
-  paint: [{ color: 'SNOUT', on: 'head', ellipse: [4, 1.4, 1.9, 1.9] }],
-  dots: [{ on: 'head', at: [4.3, 1.2] }, { on: 'head', at: [2.7, 3.4], color: 'BELLY' }, { on: 'head', at: [3.5, 2.7], color: 'BELLY' }], // a nostril, the tusks
-  spikes: { on: 'spine', box: [-12, -12, 9, -1.8] }, // bristles along its back
+  spikes: { on: 'spine', box: [-12, -12, 9, -1.8] },
   legs: {
     hindFar: { on: 'hip', at: [1, 4], thigh: 1.45, shin: 1.45, r: 0.9, far: true, bend: 1 },
     frontFar: { on: 'chest', at: [0.5, 3.7], thigh: 1.6, shin: 1.6, r: 0.9, far: true, bend: -1 },
@@ -25,8 +27,14 @@ const rig = {
   },
   face: { eye: [0.5, -1.3] },
 };
+// @end
 
-const low = { joints: { hip: [8, 16.2], chest: [15, 16.2], head: [18.8, 15.7] }, torso: { r: 3, ends: 4.5 },
-  chains: { tail: { at: [-4, -1], angle: 1.6 }, ...earsBack(rig) } };
+// the boar with its moves, from its build
+export const make = (rig) => {
+  const low = { joints: { hip: [8, 16.2], chest: [15, 16.2], head: [18.8, 15.7] }, torso: { r: 3, ends: 4.5 },
+    chains: { tail: { at: [-4, -1], angle: 1.6 }, ...earsBack(rig) } };
 
-export default { ...rig, poses: quadruped(rig, low) };
+  return { ...rig, poses: quadruped(rig, low) };
+};
+
+export default make(build);

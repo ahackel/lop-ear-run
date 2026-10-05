@@ -9,6 +9,7 @@
     "dev": "node tools/serve.mjs",
     "test": "node tools/test.mjs",
     "engine": "node tools/engine.mjs",
-    "icons": "node tools/icons.mjs"
+    "icons": "node tools/icons.mjs",
+    "rigs": "node tools/rig-format.mjs"
   }
 }

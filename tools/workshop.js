@@ -1,0 +1,483 @@
+// The animal workshop (npm run dev, then /tools/workshop.html). It edits an animal's build, the data between the
+// `// @build` and `// @end` lines of animals/<kind>.js: handles on the joints, the shapes, the legs' roots, the chains and
+// the face, drawn over the animal's own pixels; a list of its parts and an inspector for the one picked; a preview in
+// the game's scene. After every change the animal is made again from its build (its make) and drawn by the game's own
+// code; Save writes the build back into its file (POST /save, see serve.mjs and rig-format.js).
+import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strideRate, idleFrame, golden, icy, cactus } from '../art.js';
+
+const { toWorld, toLocal, sdShape, NAMED } = rigParts;
+const KINDS = Object.keys(ANIMALS);
+const COLORS = Object.keys(NAMED);
+const COLOR_KEYS = ['color', 'fur', 'tipColor', 'noseColor', 'socks'];
+const GEOMS = ['ellipse', 'capsule', 'box', 'triangle'];
+const LAYERS = { shapes: 'body', paint: 'paint', top: 'on top' };
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const swatch = (name) => PALETTES.day[NAMED[name]] || 'transparent';
+
+// the stage shows art pixels from (X0, Y0), VW × VH of them (the 26×20 box and room around it), Z screen pixels each
+const X0 = -12, Y0 = -9, VW = 50, VH = 31;
+let Z = 16;
+
+const mods = {}, saved = {}, histories = {};
+let kind, mod, build, made, P, sel = { type: 'rig' }, drag = null;
+const view = { move: 'edit', frame: 0 };
+
+// ------------------------------------------------------------------------------------------------- the animal, edited
+const editable = () => !!build.joints; // (the wolf is the fox, recolored)
+const hist = () => (histories[kind] ||= { past: [], future: [] });
+const snapshot = () => JSON.stringify(build);
+const dirty = (k) => JSON.stringify(mods[k].build) !== saved[k];
+
+// made again from its build: drawn anew, and the frames its parts are placed in (standing: the pose the handles edit)
+function rebuild() {
+  made = mod.make(build);
+  setRig(kind, made);
+  if (kind === 'fox') setRig('wolf', mods.wolf.make(mods.wolf.build));
+  P = rigParts.posed(kind, 'hurt', 0);
+}
+function changed() { rebuild(); draw(); status(); }
+function commit(fn) { remember(); fn(); changed(); }
+function remember() { const h = hist(); h.past.push(snapshot()); if (h.past.length > 300) h.past.shift(); h.future = []; }
+function restore(json) {
+  for (const k of Object.keys(build)) delete build[k];
+  Object.assign(build, JSON.parse(json));
+  changed(); listParts(); inspect();
+}
+function undo() { const h = hist(); if (h.past.length) { h.future.push(snapshot()); restore(h.past.pop()); } }
+function redo() { const h = hist(); if (h.future.length) { h.past.push(snapshot()); restore(h.future.pop()); } }
+
+async function choose(k) {
+  kind = k; mod = mods[k]; build = mod.build; sel = { type: 'rig' };
+  pv.body = {};
+  $('kind').value = k;
+  const url = new URL(location.href); url.searchParams.set('animal', k); window.history.replaceState(null, '', url);
+  rebuild(); fillMoves(); listParts(); inspect(); draw(); status();
+}
+
+function status() {
+  const s = $('status'), others = KINDS.filter((k) => k !== kind && dirty(k));
+  s.className = dirty(kind) || others.length ? 'dirty' : '';
+  s.textContent = (dirty(kind) ? `unsaved changes in animals/${kind}.js` : `animals/${kind}.js`) + (others.length ? ` · also unsaved: ${others.join(', ')}` : '');
+  $('undo').disabled = !hist().past.length; $('redo').disabled = !hist().future.length;
+  $('revert').disabled = $('save').disabled = !dirty(kind);
+}
+
+async function save() {
+  const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, build }) }).catch(() => null);
+  if (res?.ok) { saved[kind] = snapshot(); status(); $('status').textContent = await res.text(); }
+  else { $('status').className = 'dirty'; $('status').textContent = `not saved: ${res ? await res.text() : 'is the dev server running? (npm run dev)'}`; }
+}
+
+// ------------------------------------------------------------------------------------------------------- the parts
+// every part of the build: what picks it (sel), its name in the list, its color, the object the inspector edits, its
+// handles (each: where, and what dragging it there does), its outline and whether a point is on it
+const frameOf = (on) => (on ? P.F[on] : null);
+const local = (f, p) => (f ? toLocal(f, p[0], p[1]) : p);
+const world = (f, p) => toWorld(f, p);
+let step = 0.1;
+const round = (v) => Math.round(v / step) * step;
+const roundAll = (p) => p.map((v) => +round(v).toFixed(3));
+const plus = (a, b) => [a[0] + b[0], a[1] + b[1]], minus = (a, b) => [a[0] - b[0], a[1] - b[1]];
+
+function geomOf(s) { return GEOMS.find((g) => Array.isArray(s[g])); }
+// handles and outline of a shape (in its joint's frame)
+function shapeBits(s) {
+  const f = frameOf(s.on), g = geomOf(s), v = s[g], L = (p) => local(f, p), Wd = (p) => world(f, p);
+  const handles = [], lines = [];
+  const point = (get, put, anchor) => handles.push({ at: Wd(get()), set: (p) => put(roundAll(L(p))), anchor });
+  const mover = (pts) => { // the middle: moves all of it
+    const mid = () => [pts().reduce((a, q) => a + q[0], 0) / pts().length, pts().reduce((a, q) => a + q[1], 0) / pts().length];
+    handles.push({ at: Wd(mid()), anchor: true, move: true, set: (p) => { const d = minus(roundAll(L(p)), mid()); shift(d); } });
+  };
+  const shift = (d) => {
+    if (g === 'ellipse') { v[0] = +(v[0] + d[0]).toFixed(3); v[1] = +(v[1] + d[1]).toFixed(3); }
+    else if (g === 'triangle') for (const q of v) { q[0] = +(q[0] + d[0]).toFixed(3); q[1] = +(q[1] + d[1]).toFixed(3); }
+    else { for (const i of [0, 2]) v[i] = +(v[i] + d[0]).toFixed(3); for (const i of [1, 3]) v[i] = +(v[i] + d[1]).toFixed(3); }
+  };
+  const ring = (n, at) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(Wd(at((i / n) * Math.PI * 2))); return pts; };
+  if (g === 'ellipse') {
+    mover(() => [[v[0], v[1]]]);
+    handles.push({ at: Wd([v[0] + v[2], v[1]]), size: true, set: (p) => { v[2] = Math.max(0.2, +Math.abs(round(L(p)[0] - v[0])).toFixed(3)); } });
+    handles.push({ at: Wd([v[0], v[1] + v[3]]), size: true, set: (p) => { v[3] = Math.max(0.2, +Math.abs(round(L(p)[1] - v[1])).toFixed(3)); } });
+    lines.push(ring(40, (t) => [v[0] + v[2] * Math.cos(t), v[1] + v[3] * Math.sin(t)]));
+  } else if (g === 'capsule') {
+    const a = [v[0], v[1]], b = [v[2], v[3]], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], n = [-d[1], d[0]], r = v[4];
+    point(() => a, (q) => { v[0] = q[0]; v[1] = q[1]; });
+    point(() => b, (q) => { v[2] = q[0]; v[3] = q[1]; });
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    handles.push({ at: Wd(plus(mid, [n[0] * r, n[1] * r])), size: true, set: (p) => { const q = L(p); v[4] = Math.max(0.2, +round(Math.hypot(q[0] - mid[0], q[1] - mid[1])).toFixed(3)); } });
+    mover(() => [[v[0], v[1]], [v[2], v[3]]]);
+    const arc = (c, from) => { const pts = []; for (let i = 0; i <= 16; i++) { const t = from + (i / 16) * Math.PI; pts.push(Wd([c[0] + r * (n[0] * Math.cos(t) + d[0] * Math.sin(t)), c[1] + r * (n[1] * Math.cos(t) + d[1] * Math.sin(t))])); } return pts; };
+    lines.push([...arc(b, 0), ...arc(a, Math.PI), Wd(plus(b, [n[0] * r, n[1] * r]))]);
+  } else if (g === 'box') {
+    point(() => [v[0], v[1]], (q) => { v[0] = q[0]; v[1] = q[1]; });
+    point(() => [v[2], v[3]], (q) => { v[2] = q[0]; v[3] = q[1]; });
+    mover(() => [[v[0], v[1]], [v[2], v[3]]]);
+    lines.push([[v[0], v[1]], [v[2], v[1]], [v[2], v[3]], [v[0], v[3]], [v[0], v[1]]].map(Wd));
+  } else {
+    v.forEach((q, i) => point(() => q, (p) => { v[i] = p; }));
+    mover(() => v);
+    lines.push([...v, v[0]].map(Wd));
+  }
+  return { handles, lines, hit: (p) => { const q = L(p); return sdShape(s, q[0], q[1]) <= 0; } };
+}
+
+function parts() {
+  const out = [];
+  if (!editable()) return out;
+  const list = (name, label, color) => (build[name] || []).forEach((s, i) => {
+    const bits = shapeBits(s);
+    out.push({ sel: { type: 'item', list: name, i }, group: label, label: s.name || geomOf(s), color: color(s), obj: s, ...bits });
+  });
+  out.push({ sel: { type: 'rig' }, group: 'Animal', label: 'the animal', color: swatch(build.fur), obj: build, handles: [], lines: [] });
+  for (const n in build.joints) {
+    out.push({ sel: { type: 'joint', name: n }, group: 'Joints', label: n, obj: build.joints, key: n, lines: [],
+      handles: [{ at: P.J[n], anchor: true, joint: true, set: (p) => { build.joints[n] = roundAll(p); } }] });
+  }
+  list('shapes', 'Body shapes', () => swatch(build.fur));
+  list('paint', 'Paint', (s) => swatch(s.color));
+  (build.top || []).forEach((t, i) => {
+    const bits = t.shapes.map(shapeBits);
+    out.push({ sel: { type: 'item', list: 'top', i }, group: 'On top', label: t.name || 'shapes', color: swatch(t.color || build.fur), obj: t,
+      handles: bits.flatMap((b) => b.handles), lines: bits.flatMap((b) => b.lines), hit: (p) => bits.some((b) => b.hit(p)) });
+  });
+  (build.dots || []).forEach((d, i) => {
+    const f = frameOf(d.on);
+    out.push({ sel: { type: 'item', list: 'dots', i }, group: 'Dots', label: d.name || 'dot', color: swatch(d.color || 'OUT'), obj: d, lines: [],
+      handles: [{ at: world(f, d.at), anchor: true, set: (p) => { d.at = roundAll(local(f, p)); } }] });
+  });
+  if (build.spikes) out.push({ sel: { type: 'spikes' }, group: 'Spikes', label: 'where the spikes are', obj: build.spikes, ...shapeBits(build.spikes), hit: null });
+  for (const n in build.legs) {
+    const L = build.legs[n], f = frameOf(L.on);
+    out.push({ sel: { type: 'leg', name: n }, group: 'Legs', label: n, color: swatch(build.fur), obj: L, lines: [],
+      handles: [{ at: world(f, L.at), anchor: true, set: (p) => { L.at = roundAll(local(f, p)); } }] });
+  }
+  for (const n in build.chains) {
+    const c = build.chains[n], f = frameOf(c.on), handles = [], lines = [];
+    if (c.ear) {
+      c.ear.forEach((q, i) => handles.push({ at: world(f, q), set: (p) => { c.ear[i] = roundAll(local(f, p)); } }));
+      handles.push({ at: world(f, c.tip), anchor: true, set: (p) => { c.tip = roundAll(local(f, p)); } });
+      lines.push([world(f, c.ear[0]), world(f, c.tip), world(f, c.ear[1])]);
+    } else {
+      const root = world(f, c.at), th = f.a - c.angle, tip = plus(root, [Math.sin(th) * c.length, -Math.cos(th) * c.length]);
+      handles.push({ at: root, anchor: true, set: (p) => { c.at = roundAll(local(f, p)); } });
+      handles.push({ at: tip, size: true, set: (p) => {
+        const d = minus(p, world(f, c.at));
+        c.length = Math.max(0.3, +round(Math.hypot(d[0], d[1])).toFixed(3));
+        c.angle = +(f.a - Math.atan2(d[0], -d[1])).toFixed(3);
+      } });
+      lines.push([root, tip]);
+    }
+    out.push({ sel: { type: 'chain', name: n }, group: 'Chains', label: n, color: swatch(c.color || build.fur), obj: c, handles, lines });
+  }
+  if (build.face) {
+    const f = P.F.head, face = build.face;
+    out.push({ sel: { type: 'face' }, group: 'Face', label: 'eye and nose', color: swatch(face.noseColor || 'OUT'), obj: face, lines: [],
+      handles: ['eye', 'nose'].filter((k) => face[k]).map((k) => ({ at: world(f, face[k]), anchor: k === 'eye', set: (p) => { face[k] = roundAll(local(f, p)); } })) });
+  }
+  return out;
+}
+const same = (a, b) => a.type === b.type && a.list === b.list && a.i === b.i && a.name === b.name;
+const current = () => parts().find((p) => same(p.sel, sel));
+
+// --------------------------------------------------------------------------------------------------------- the stage
+const toScreen = ([x, y]) => [(x - X0) * Z, (y - Y0) * Z];
+const toArt = (e) => { const r = $('stage').getBoundingClientRect(), k = $('stage').width / r.width; return [(e.clientX - r.left) * k / Z + X0, (e.clientY - r.top) * k / Z + Y0]; };
+const editing = () => view.move === 'edit' && editable();
+
+function sprite() { return view.move === 'edit' ? animal(kind, 'hurt', 0) : animal(kind, view.move, view.frame); }
+
+function draw() {
+  const c = $('stage'), ctx = c.getContext('2d');
+  Z = Math.max(8, Math.floor(c.clientWidth / VW)) || 16;
+  if (c.width !== VW * Z) { c.width = VW * Z; c.height = VH * Z; }
+  ctx.fillStyle = PALETTES.day.bg; ctx.fillRect(0, 0, c.width, c.height); // (the game's day: its outlines show)
+  ctx.fillStyle = 'rgba(128,128,128,0.08)';
+  for (let x = 1; x < VW; x++) ctx.fillRect(x * Z, 0, 1, c.height);
+  for (let y = 1; y < VH; y++) ctx.fillRect(0, y * Z, c.width, 1);
+  const pal = PALETTES.day;
+  ctx.fillStyle = pal[COLOR.FAINT]; ctx.fillRect(0, (FOOT - Y0) * Z, c.width, Z); // the ground's row
+  const s = sprite();
+  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
+    const k = s.px[y * s.w + x];
+    if (!k) continue;
+    ctx.fillStyle = pal[k]; ctx.fillRect((x + s.ox - X0) * Z, (y + s.oy - Y0) * Z, Z, Z);
+  }
+  // the box every animal is placed by (dashed), the frame's own bounds (dotted)
+  ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.strokeStyle = css('--dim');
+  ctx.strokeRect(-X0 * Z, -Y0 * Z, 26 * Z, 20 * Z);
+  ctx.setLineDash([2, 3]); ctx.strokeStyle = css('--accent');
+  ctx.strokeRect((s.ox - X0) * Z, (s.oy - Y0) * Z, s.w * Z, s.h * Z);
+  ctx.setLineDash([]);
+  if (editing()) drawHandles(ctx);
+  drawSprites(s);
+  $('frameNo').textContent = view.move === 'edit' ? '' : `${view.frame + 1} / ${+$('frame').max + 1}`;
+}
+
+function drawHandles(ctx) {
+  const all = parts(), on = current(), accent = css('--sel');
+  const dot = (p, r, fill, ring) => { const [x, y] = toScreen(p); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = ring; ctx.stroke(); };
+  if (on) {
+    ctx.strokeStyle = accent; ctx.lineWidth = 2;
+    for (const line of on.lines) { ctx.beginPath(); line.forEach((p, i) => { const [x, y] = toScreen(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); }
+  }
+  for (const p of all) {
+    if (p === on) continue;
+    for (const h of p.handles) if (h.anchor && (h.joint || $('allHandles').checked)) dot(h.at, h.joint ? 6 : 4, h.joint ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)', h.joint ? '#333' : 'rgba(60,60,60,0.6)');
+  }
+  if (on) for (const h of on.handles) dot(h.at, h.joint || h.move ? 6 : 5, h.size ? '#fff' : accent, h.size ? accent : '#fff');
+}
+
+// the frame as the game shows it (1×), magnified (3×), and giant (drawn 2×)
+function drawSprites(s) {
+  const box = $('sprites'), pal = PALETTES.day;
+  if (!box.children.length) for (const t of ['1×', '3×', 'giant']) box.append(el('div', {}, el('canvas'), el('div', { className: 'note', textContent: t })));
+  const big = view.move === 'edit' ? animal(kind, 'hurt', 0, 0.4, false, 0, null, 2) : animal(kind, view.move, view.frame, 0.4, false, 0, null, 2);
+  [[s, 1], [s, 3], [big, 1]].forEach(([sp, k], i) => {
+    const c = box.children[i].firstChild;
+    c.width = sp.w; c.height = sp.h; c.style.width = `${sp.w * k}px`; c.style.height = `${sp.h * k}px`;
+    const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height); sp.draw(ctx, -(sp.ox || 0), -(sp.oy || 0), pal);
+  });
+}
+
+// pick and drag: a handle of the picked part, a joint or another part's handle, or (a click) the part under the pointer
+$('stage').addEventListener('pointerdown', (e) => {
+  if (!editing()) return;
+  const p = toArt(e), near = (h) => Math.hypot(...minus(toScreen(h.at), toScreen(p))) < 9;
+  const all = parts(), on = current();
+  let hit = on?.handles.find(near), owner = on;
+  if (!hit) for (const q of all) { const h = q.handles.find((x) => x.anchor && (x.joint || $('allHandles').checked) && near(x)); if (h) { hit = h; owner = q; break; } }
+  if (hit) {
+    if (owner !== on) { sel = owner.sel; listParts(); inspect(); }
+    remember(); drag = { sel: owner.sel, index: owner.handles.indexOf(hit) };
+    $('stage').setPointerCapture(e.pointerId);
+    return;
+  }
+  const picked = [...all].reverse().find((q) => q.hit?.(p)); // (the one drawn last: on top)
+  sel = picked ? picked.sel : { type: 'rig' };
+  listParts(); inspect(); draw();
+});
+$('stage').addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  step = e.shiftKey ? 0.5 : 0.1;
+  const q = parts().find((x) => same(x.sel, drag.sel));
+  q?.handles[drag.index]?.set(toArt(e));
+  changed();
+});
+$('stage').addEventListener('pointerup', () => {
+  if (!drag) return;
+  drag = null; step = 0.1;
+  const h = hist();
+  if (h.past[h.past.length - 1] === snapshot()) h.past.pop(); // (a click, no change)
+  listParts(); inspect(); status();
+});
+
+// --------------------------------------------------------------------------------------------- the list of parts
+function listParts() {
+  const box = $('parts'); box.textContent = '';
+  if (!editable()) { box.append(el('div', { className: 'group', textContent: `the ${kind} is the fox, recolored` })); return; }
+  let group = null;
+  for (const p of parts()) {
+    if (p.group !== group) {
+      group = p.group;
+      const head = el('div', { className: 'group' }, el('span', { textContent: group }));
+      const list = { 'Body shapes': 'shapes', Paint: 'paint', 'On top': 'top', Dots: 'dots' }[group];
+      if (list) head.append(el('button', { textContent: '+ add', title: `Add to ${group.toLowerCase()}`, onclick: () => add(list) }));
+      box.append(head);
+    }
+    const row = el('div', { className: `row${same(p.sel, sel) ? ' on' : ''}` },
+      el('span', { className: 'sw', style: `background:${p.color || 'transparent'}` }), el('span', { textContent: p.label }),
+      el('span', { className: 'what', textContent: p.obj && geomOf(p.obj) ? `${geomOf(p.obj)}${p.obj.on ? ` · ${p.obj.on}` : ''}` : '' }));
+    row.onclick = () => { sel = p.sel; listParts(); inspect(); draw(); };
+    box.append(row);
+  }
+  // (a group with nothing in it yet, to add to)
+  for (const [list, label] of [['paint', 'Paint'], ['top', 'On top'], ['dots', 'Dots']]) {
+    if (build[list]?.length) continue;
+    box.append(el('div', { className: 'group' }, el('span', { textContent: label }), el('button', { textContent: '+ add', onclick: () => add(list) })));
+  }
+}
+
+const fresh = (list) => (list === 'dots' ? { name: 'dot', on: 'head', at: [0, 0], color: 'OUT' }
+  : list === 'top' ? { name: 'shape', color: build.fur, shapes: [{ on: 'head', ellipse: [0, -3, 1, 1] }] }
+    : { name: list === 'paint' ? 'marking' : 'shape', ...(list === 'paint' ? { color: 'BELLY' } : {}), on: 'spine', ellipse: [2, 0, 2, 1.5] });
+function add(list) { commit(() => { (build[list] ||= []).push(fresh(list)); sel = { type: 'item', list, i: build[list].length - 1 }; }); listParts(); inspect(); }
+
+// moves a list item: up or down (d), copied, gone, or to another layer (body shapes, paint, on top)
+function itemDo(what, arg) {
+  const { list, i } = sel, arr = build[list];
+  commit(() => {
+    if (what === 'move') { const j = i + arg; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; sel = { ...sel, i: j }; }
+    else if (what === 'copy') { arr.splice(i + 1, 0, JSON.parse(JSON.stringify(arr[i]))); sel = { ...sel, i: i + 1 }; }
+    else if (what === 'delete') { arr.splice(i, 1); if (!arr.length && list !== 'shapes') delete build[list]; sel = { type: 'rig' }; }
+    else if (what === 'layer' && arg !== list) {
+      const [s] = arr.splice(i, 1);
+      if (!arr.length && list !== 'shapes') delete build[list];
+      const flat = list === 'top' ? s.shapes.map((x) => ({ name: s.name, color: s.color, ...x })) : [s];
+      const into = (build[arg] ||= []);
+      for (const x of flat) {
+        if (arg === 'top') { const g = geomOf(x); into.push({ name: x.name, color: x.color || build.fur, shapes: [{ on: x.on, [g]: x[g] }] }); }
+        else { const y = { ...x }; if (arg === 'shapes') delete y.color; else y.color ||= 'BELLY'; into.push(y); }
+      }
+      sel = { type: 'item', list: arg, i: into.length - 1 };
+    }
+  });
+  listParts(); inspect();
+}
+
+// --------------------------------------------------------------------------------------------------- the inspector
+function inspect() {
+  const box = $('inspector'); box.textContent = '';
+  if (!editable()) { box.append(el('p', { className: 'note', textContent: 'The wolf is made from the fox: its shapes are the fox’s, its colors swapped. Edit the fox.' })); return; }
+  const p = current() || parts()[0], o = p.obj;
+  const title = el('h2', {}, el('span', { className: 'sw', style: `width:12px;height:12px;border-radius:3px;background:${p.color || 'transparent'}` }), el('span', { textContent: p.label }));
+  box.append(title);
+  if (sel.type === 'item') {
+    const acts = el('span', { className: 'acts' });
+    for (const [t, what, arg, tip] of [['↑', 'move', -1, 'Drawn earlier'], ['↓', 'move', 1, 'Drawn later'], ['⧉', 'copy', 0, 'Copy'], ['✕', 'delete', 0, 'Delete']]) acts.append(el('button', { textContent: t, title: tip, onclick: () => itemDo(what, arg) }));
+    title.append(acts);
+    if (sel.list !== 'dots') {
+      const layer = el('select', { onchange: () => itemDo('layer', layer.value) });
+      for (const [k, t] of Object.entries(LAYERS)) layer.append(el('option', { value: k, textContent: t, selected: k === sel.list }));
+      box.append(field('layer', layer, sel.list === 'shapes' ? 'outlined, counts for hits' : sel.list === 'paint' ? 'colors the body' : 'outlined, over the body, no hits'));
+    }
+  }
+  if (sel.type === 'joint') { box.append(field('place', nums(o, sel.name))); return; }
+  if (sel.type === 'rig') { box.append(el('p', { className: 'note', textContent: 'Pick a part in the list or on the stage. The animal itself:' })); }
+  const skip = sel.type === 'rig' ? ['joints', 'shapes', 'paint', 'top', 'dots', 'legs', 'chains', 'face', 'spikes'] : sel.list === 'top' ? ['shapes'] : [];
+  fields(o, box, skip);
+  if (sel.type === 'item' && sel.list === 'top') o.shapes.forEach((s, i) => { box.append(el('div', { className: 'group', textContent: `shape ${i + 1}` })); fields(s, box, []); });
+}
+function field(label, input, note) {
+  const f = el('label', { className: 'field' }, el('span', { textContent: label }), input);
+  if (note) f.append(el('span'), el('span', { className: 'note', textContent: note }));
+  return f;
+}
+// an editor for each of an object's settings, by what it holds
+function fields(o, box, skip) {
+  for (const k of Object.keys(o)) {
+    if (skip.includes(k)) continue;
+    const v = o[k];
+    let input;
+    if (COLOR_KEYS.includes(k)) {
+      input = el('select', { onchange: () => commit(() => { o[k] = input.value; }) });
+      for (const c of COLORS) input.append(el('option', { value: c, textContent: c.toLowerCase().replace(/_/g, ' '), selected: c === v }));
+      input.style.borderLeft = `14px solid ${swatch(v)}`;
+    } else if (k === 'on') {
+      input = el('select', { onchange: () => commit(() => { if (input.value) o.on = input.value; else delete o.on; }) });
+      for (const c of ['', 'spine', 'hip', 'chest', 'head']) input.append(el('option', { value: c, textContent: c || 'the box', selected: c === (v || '') }));
+    } else if (GEOMS.includes(k) && Array.isArray(v)) {
+      const type = el('select', { onchange: () => commit(() => { const g = type.value; delete o[k]; o[g] = convert(v, k, g); }) });
+      for (const g of GEOMS) type.append(el('option', { value: g, textContent: g, selected: g === k }));
+      box.append(field('shape', type));
+      input = k === 'triangle' ? el('div', {}, ...v.map((_, i) => nums(v, i))) : nums(o, k);
+      box.append(field(k === 'triangle' ? 'points' : { ellipse: 'x y rx ry', capsule: 'ax ay bx by r', box: 'x0 y0 x1 y1 r' }[k], input));
+      continue;
+    } else if (typeof v === 'number') input = num(o, k);
+    else if (typeof v === 'boolean') input = el('input', { type: 'checkbox', checked: v, onchange: () => commit(() => { o[k] = input.checked; }) });
+    else if (typeof v === 'string') input = el('input', { type: 'text', value: v, onchange: () => commit(() => { o[k] = input.value; listParts(); }) });
+    else if (Array.isArray(v) && v.every((x) => typeof x === 'number')) input = nums(o, k);
+    else if (Array.isArray(v) && v.every((x) => Array.isArray(x) && x.every((y) => typeof y === 'number'))) input = el('div', {}, ...v.map((_, i) => nums(v, i)));
+    else if (v && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every((x) => typeof x === 'number' || typeof x === 'boolean')) {
+      box.append(el('div', { className: 'group', textContent: k })); fields(v, box, []); continue;
+    } else input = json(o, k);
+    box.append(field(k, input));
+  }
+}
+const num = (o, k) => { const i = el('input', { type: 'number', step: 0.1, value: o[k] }); i.onchange = () => commit(() => { o[k] = +i.value; }); return i; };
+const nums = (o, k) => el('span', { className: 'nums' }, ...o[k].map((_, j) => num(o[k], j)));
+const json = (o, k) => { const i = el('input', { type: 'text', value: JSON.stringify(o[k]) }); i.onchange = () => { try { const v = JSON.parse(i.value); commit(() => { o[k] = v; }); } catch { i.style.borderColor = 'red'; } }; return i; };
+// a shape's numbers, as another kind of shape about the same place
+function convert(v, from, to) {
+  const box = from === 'ellipse' ? [v[0] - v[2], v[1] - v[3], v[0] + v[2], v[1] + v[3]] : from === 'triangle' ? [Math.min(...v.map((q) => q[0])), Math.min(...v.map((q) => q[1])), Math.max(...v.map((q) => q[0])), Math.max(...v.map((q) => q[1]))] : v.slice(0, 4);
+  const [x0, y0, x1, y1] = [Math.min(box[0], box[2]), Math.min(box[1], box[3]), Math.max(box[0], box[2]), Math.max(box[1], box[3])], cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const r = (n) => +n.toFixed(2);
+  if (to === 'ellipse') return [r(cx), r(cy), r(Math.max(0.5, (x1 - x0) / 2)), r(Math.max(0.5, (y1 - y0) / 2))];
+  if (to === 'capsule') return [r(x0), r(cy), r(x1), r(cy), r(Math.max(0.5, (y1 - y0) / 2))];
+  if (to === 'box') return [r(x0), r(y0), r(x1), r(y1), 0.5];
+  return [[r(x0), r(y1)], [r(cx), r(y0)], [r(x1), r(y1)]];
+}
+
+// ------------------------------------------------------------------------------------------------ the pose shown
+function frames(move) {
+  const m = made.poses[move] || made.poses.run;
+  return Array.isArray(m) ? m.length : m.gait ? m.gait.frames : m.frames;
+}
+function fillMoves() {
+  const s = $('move'); s.textContent = '';
+  s.append(el('option', { value: 'edit', textContent: editable() ? 'standing (edit)' : 'standing' }));
+  for (const m of ['run', 'jump', 'duck', 'idle', 'hurt', 'ko']) s.append(el('option', { value: m, textContent: m }));
+  s.value = view.move = 'edit'; view.frame = 0; $('frame').max = 0; $('frame').value = 0;
+}
+$('move').onchange = () => { view.move = $('move').value; view.frame = 0; $('frame').max = view.move === 'edit' ? 0 : frames(view.move) - 1; $('frame').value = 0; draw(); };
+$('frame').oninput = () => { view.frame = +$('frame').value; draw(); };
+$('allHandles').onchange = draw;
+
+// ----------------------------------------------------------------------------------------- the preview: the game's scene
+const pv = { phase: 0, alt: 0, vAlt: 0, body: {}, t: 0, scroll: 0, wait: 0.6, cacti: [] };
+{ let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647); for (let i = 0; i < 3; i++) pv.cacti.push({ x: 140 + i * 110, s: cactus(rnd, i === 1) }); }
+let last = 0;
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+  if (kind) { stepPreview(dt); drawPreview(); }
+  requestAnimationFrame(tick);
+}
+function stepPreview(dt) {
+  const act = $('act').value, t = ANIMALS[kind], moving = ['run', 'jump', 'duck'].includes(act), speed = moving ? +$('speed').value : 0;
+  pv.t += dt; pv.scroll += speed * dt;
+  pv.phase = (pv.phase + dt * (1.6 + speed / 90) * (act === 'duck' ? 1 : strideRate(kind))) % 1;
+  if (act === 'jump') {
+    if (pv.alt > 0 || pv.vAlt > 0) { pv.vAlt -= 1500 * t.gravity * dt; pv.alt = Math.max(0, pv.alt + pv.vAlt * dt); if (!pv.alt) { pv.vAlt = 0; pv.wait = 0.5; } }
+    else if ((pv.wait -= dt) < 0) pv.vAlt = 330 * t.jump;
+  } else { pv.alt = 0; pv.vAlt = 0; }
+  const [pose, frame, lift] = pvPose(act);
+  moveBody(pv.body, kind, pose, frame, 30, GROUND - FOOT - pv.alt - lift, speed, dt);
+}
+function pvPose(act) {
+  if (act === 'jump' && pv.alt > 0) return ['jump', pv.vAlt > 0 ? 0 : 1, 0];
+  if (act === 'run' || act === 'jump') { const s = stride(kind, pv.phase); return ['run', s.frame, s.lift]; }
+  if (act === 'duck') return ['duck', stride(kind, pv.phase, 'duck').frame, 0];
+  if (act === 'idle') return ['idle', idleFrame(kind, pv.t), 0];
+  return [act, 0, 0];
+}
+function drawPreview() {
+  const c = $('preview'), K = 3, ctx = c.getContext('2d');
+  if (c.width !== W * K) { c.width = W * K; c.height = H * K; }
+  ctx.setTransform(K, 0, 0, K, 0, 0); ctx.imageSmoothingEnabled = false;
+  const light = $('light').value, base = PALETTES[light === 'night' ? 'night' : 'day'], pal = light === 'golden' ? golden(base) : light === 'icy' ? icy(base) : base;
+  ctx.fillStyle = base.bg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = base[COLOR.FAINT];
+  const hill = Math.floor(pv.scroll * 0.08);
+  for (let x = 0; x <= W; x++) { const u = x + hill, h = 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3); ctx.fillRect(x, Math.round(GROUND - h), 1, Math.round(h)); }
+  ctx.fillStyle = base[COLOR.INK]; ctx.fillRect(0, GROUND, W, 1);
+  for (const k of pv.cacti) { const x = ((k.x - pv.scroll) % 330 + 330) % 330 - 30; k.s.draw(ctx, Math.round(x), GROUND - k.s.h + 1, base); }
+  const act = $('act').value, [pose, frame, lift] = pvPose(act), s = $('giant').checked ? 2 : 1;
+  const sp = animal(kind, pose, frame, 0.4, pv.t % 3.2 < 0.12, 0, pv.body, s), y = GROUND - FOOT - pv.alt - lift;
+  sp.draw(ctx, 30 - 4 * (s - 1), Math.round(y + FOOT * (1 - s)), pal);
+}
+
+// --------------------------------------------------------------------------------------------------------- start
+$('kind').onchange = () => choose($('kind').value);
+$('undo').onclick = undo; $('redo').onclick = redo; $('save').onclick = save;
+$('revert').onclick = () => { remember(); restore(saved[kind]); };
+document.addEventListener('keydown', (e) => {
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName);
+  const cmd = e.metaKey || e.ctrlKey;
+  if (cmd && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (cmd && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  else if (!typing && (e.key === 'Delete' || e.key === 'Backspace') && sel.type === 'item') { e.preventDefault(); itemDo('delete'); }
+  else if (!typing && e.key === 'Escape') { sel = { type: 'rig' }; listParts(); inspect(); draw(); }
+});
+window.addEventListener('beforeunload', (e) => { if (KINDS.some((k) => mods[k] && dirty(k))) e.preventDefault(); });
+window.addEventListener('resize', draw);
+
+for (const k of KINDS) {
+  mods[k] = await import(`../animals/${k}.js`);
+  saved[k] = JSON.stringify(mods[k].build);
+  $('kind').append(el('option', { value: k, textContent: ANIMALS[k].name.toLowerCase() }));
+}
+const asked = new URLSearchParams(location.search).get('animal');
+await choose(KINDS.includes(asked) ? asked : 'cat');
+requestAnimationFrame(tick);
