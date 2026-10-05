@@ -417,7 +417,7 @@ const ACTS = {
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
-let safeL = 0, safeR = 0; // how much of the game, on the left and right, a phone's notch (or its round corners) may cover (see fit)
+let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
   if (state === 'run' || state === 'paused') return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
   const ids = ['sound', 'scores', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
@@ -426,7 +426,7 @@ function buttons() {
 // on the title, arrows in the bottom corners (pads, see showPad) pick the animal before or after (round the row),
 // whenever there is more than one
 const picking = () => state === 'title' && !board && carousel !== null && playable().length > 1;
-const buttonAt = (x, y) => buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1);
+const buttonAt = (x, y) => (y -= safeT, buttons().find((b) => x >= b.x - 1 && x < b.x + BTN + 1 && y >= b.y - 1 && y < b.y + BTN + 1));
 let pressedBtn = null;
 function drawButtons(pal) {
   for (const b of buttons()) {
@@ -1074,8 +1074,8 @@ function hud(pal) {
     if (FPS) text(ctx, rate.shown, W - safeR - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
   });
 }
-// drawn from the top of the screen, not of the world (see fit: the sky added above it)
-function atTop(draw) { ctx.translate(0, -SKY); draw(); ctx.translate(0, SKY); }
+// drawn from the top of the screen (under a status bar), not of the world (see fit: the sky added above it)
+function atTop(draw) { ctx.translate(0, safeT - SKY); draw(); ctx.translate(0, SKY - safeT); }
 // up to the screen (the world is drawn in its pixels already)
 function present() {
   const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * (view.width / W) : 0; // a quake shakes the screen
@@ -1087,13 +1087,14 @@ function present() {
 const FORCE = +new URLSearchParams(location.search).get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
 // (a probe for how much of the screen's sides a notch or round corners may cover, in CSS pixels)
 const inset = document.createElement('div');
-inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left)';
+inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)';
 document.body.append(inset);
 function fit() {
   // the game fills the screen's width on a phone (see index.html): what is drawn at its sides keeps clear of the notch
   const r = view.getBoundingClientRect(), cs = getComputedStyle(inset), art = W / (r.width || W);
   safeL = Math.max(0, Math.ceil((parseFloat(cs.paddingLeft) - r.left) * art));
   safeR = Math.max(0, Math.ceil((parseFloat(cs.paddingRight) - (document.documentElement.clientWidth - r.right)) * art));
+  safeT = Math.max(0, Math.ceil((parseFloat(cs.paddingTop) - r.top) * art));
   const px = r.width / W || 1; // (CSS pixels an art pixel)
   document.documentElement.style.setProperty('--px', px); // (the pads)
   // a screen taller than the world (a phone, full screen): the world in the middle, as much more sky above it as room
