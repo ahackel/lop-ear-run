@@ -32,7 +32,7 @@ const low = { joints: { hip: [7.5, 16], chest: [12.5, 16], head: [17.5, 15.5] },
 
 // the hop: long and slow (rate: 0.6 of the usual strides), on the ground for the first quarter of it, then 6 high
 const run = { gait: { leap: true, rate: 0.6, frames: 12, land: 0.25, height: 6, stretch: 1.5, gather: 1, crouch: 0.6, pitch: 1.2, ground: 18.4, legs: {
-  hindNear: { down: [0, 0.25], at: [4, 2], air: [-22, -1] }, frontNear: { down: [0.92, 0.25], at: [0.5, -0.5], air: [4.5, -3] },
+  hindNear: { down: [0, 0.25], at: [4, 2], air: [-14, -1.5] }, frontNear: { down: [0.92, 0.25], at: [0.5, -0.5], air: [4.5, -3] },
 } } };
 
 // sitting about, t (0…1) through an 8 s loop: crouched, breathing, its nose twitching now and then; once it sits up tall
