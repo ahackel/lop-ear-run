@@ -1040,12 +1040,15 @@ function fit() {
 new ResizeObserver(fit).observe(view);
 fit();
 
-// fixed steps, so a slow frame never lets the animal pass through a cactus; at most a quarter second caught up
-const STEP = 1 / 120;
-let last = performance.now(), behind = 0;
+// fixed steps, so a slow frame never lets the animal pass through a cactus; at most a quarter second caught up. At most
+// 60 frames a second (a faster screen, 120 Hz: every other one), each due a 60th of a second after the one before
+const STEP = 1 / 120, FRAME = 1000 / 60;
+let last = performance.now(), behind = 0, due = 0;
 // (?fps: each second, the frames drawn in it, the work of a frame on average and at most, in ms)
 const rate = { frames: 0, since: 0, work: 0, worst: 0, shown: '' };
 function frame(now) {
+  if (now < due - 4) { requestAnimationFrame(frame); return; } // (too soon: the screen's next one)
+  due = now - due > FRAME ? now + FRAME : due + FRAME; // (behind: from now on)
   const began = performance.now();
   behind = Math.min(0.25, behind + (now - last) / 1000);
   last = now;
@@ -1055,7 +1058,7 @@ function frame(now) {
     const work = performance.now() - began;
     rate.frames++; rate.work += work; rate.worst = Math.max(rate.worst, work);
     if (now - rate.since >= 1000) {
-      rate.shown = `${Math.round((rate.frames * 1000) / (now - rate.since))} FPS  ${(rate.work / rate.frames).toFixed(1)} MS  MAX ${rate.worst.toFixed(1)}`;
+      rate.shown = `${Math.round((rate.frames * 1000) / (now - rate.since))} FPS  ${(rate.work / rate.frames).toFixed(1)} MS  MAX ${rate.worst.toFixed(1)}  ${view.width}X${view.height}`;
       Object.assign(rate, { frames: 0, since: now, work: 0, worst: 0 });
     }
   }
