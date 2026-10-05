@@ -1,6 +1,6 @@
 // The boar as a rig (see the cat, and kit.js): dark and stocky, bristles along its back, a pink snout, little white
 // tusks, a pointed ear, a thin tail.
-import { quadruped, earsBack } from './kit.js';
+import { quadruped, earsBack, standIdle } from './kit.js';
 
 // @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
 export const build = {
@@ -22,7 +22,19 @@ export const build = {
     frontNear: { on: 'chest', at: [0, 3.7], thigh: 1.6, shin: 1.6, r: 1, bend: -1 },
   },
   chains: {
-    tail: { on: 'hip', at: [-3.6, -1.8], angle: 1.33, links: 2, length: 3.4, r: 0.6, stiffness: 500, damping: 14, weight: 60 },
+    tail: {
+      on: 'hip',
+      at: [-4.2, -1.4],
+      angle: 1.33,
+      links: 2,
+      length: 4,
+      r: 0.45,
+      color: 'OUT',
+      line: true,
+      stiffness: 500,
+      damping: 14,
+      weight: 60,
+    },
     ear: { on: 'head', ear: [[-2.9, -3], [-0.1, -3.7]], tip: [-2.4, -7.8], stiffness: 1400, damping: 22, weight: 60 },
   },
   face: { eye: [0.5, -1.3] },
@@ -34,7 +46,7 @@ export const make = (rig) => {
   const low = { joints: { hip: [8, 16.2], chest: [15, 16.2], head: [18.8, 15.7] }, torso: { r: 3, ends: 4.5 },
     chains: { tail: { at: [-4, -1], angle: 1.6 }, ...earsBack(rig) } };
 
-  return { ...rig, poses: quadruped(rig, low) };
+  return { ...rig, poses: quadruped(rig, low, { idle: standIdle(rig, { tail: 2.5, swish: 0.1 }) }) }; // (resting, the tail hangs down)
 };
 
 export default make(build);

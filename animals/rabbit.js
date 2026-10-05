@@ -19,7 +19,7 @@ export const build = {
     frontNear: { on: 'chest', at: [2.5, 0.5], thigh: 2.3, shin: 2.3, r: 1.2, bend: -1 },
   },
   chains: {
-    tail: { on: 'hip', at: [-4.7, -1], angle: 1.2, links: 1, length: 0.5, r: 2.3, stiffness: 900, damping: 16, weight: 80 },
+    tail: { on: 'hip', at: [-4.7, -1], angle: 1.2, links: 1, length: 0.5, r: 1.9, stiffness: 900, damping: 16, weight: 80 },
     ear: {
       on: 'head',
       at: [-2, -3],

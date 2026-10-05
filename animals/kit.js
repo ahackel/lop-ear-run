@@ -19,7 +19,8 @@
 //                back, -1: forward), foot [rx, ry] (a flat foot)
 //   chains       swung by the body's motion: a tail (on, at, angle from straight up, more: further back; links, length, r
 //                or [r at the root, r at the tip], curl per link, +: forward; color, marks [[t along it, color, r]], end (a
-//                round end), front (drawn over the body)) or a pointed ear (ear: its base [[x, y] × 2] on the head, tip).
+//                round end), front (drawn over the body), joined (in front, grown out of the body: not outlined where it starts), line (a thin line, not outlined: a
+//                rhino's tail)) or a pointed ear (ear: its base [[x, y] × 2] on the head, tip).
 //                stiffness pulls each link to its rest, damping stops it ringing, weight pulls it down
 //   face         eye, nose (in the head's frame), noseColor
 //   recolor      { name: name }: colors swapped everywhere (the wolf: a grey fox)
@@ -92,13 +93,14 @@ export const ko = (rig, low) => ({ ...low, flip: true, paws: paws(rig, (n, L) =>
 }) });
 
 // standing about, t (0…1) through an 8 s loop: it breathes (4 times), swishes its tail, flicks an ear now and then and
-// once looks up. (o: how much of each; more: a pose's own settings over it)
+// once looks up. (o: how much of each, tail: where the tail rests if not where it is in the build (π: hanging down); more: a
+// pose's own settings over it)
 export function standIdle(rig, o = {}, more = () => ({})) {
   const base = standing(rig), tail = rig.chains?.tail, ear = Object.keys(rig.chains || {}).find((n) => rig.chains[n].ear);
   const at = (t) => {
     const b = (o.breath ?? 0.3) * wave(t, 4), look = bump(t, 0.42, 0.66, 0.05), flick = bump(t, 0.15, 0.19, 0.015) + bump(t, 0.79, 0.82, 0.015);
     const J = rig.joints, chains = {};
-    if (tail) chains.tail = { angle: tail.angle + (o.swish ?? 0.2) * wave(t, 2) };
+    if (tail) chains.tail = { angle: (o.tail ?? tail.angle) + (o.swish ?? 0.2) * wave(t, 2) };
     if (ear && flick) { const c = rig.chains[ear]; chains[ear] = { tip: [c.tip[0] - 2 * flick, c.tip[1] + 1.5 * flick] }; }
     const extra = more(t, b, look);
     return { ...base, ...extra, joints: { hip: J.hip, chest: add(J.chest, [0, -0.3 * b]), head: add(J.head, [-0.3 * look, -0.4 * b - 0.4 * look]) },

@@ -1,12 +1,14 @@
-// node tools/icons.mjs — draws the app icons (icons/*.png) from the game's own pixel art: the rabbit, mid-leap, on
-// nothing (transparent). Each icon is the same 32×32 picture, scaled by whole pixels. Where a background is a must (the
+// node tools/icons.mjs — draws the app icons (icons/*.png) from the game's own pixel art: the rabbit running, stretched
+// in a hop over the ground line (with bits of the ground under it, as in the game), on nothing (transparent). Each icon is the same 32×32 picture, scaled by whole pixels. Where a background is a must (the
 // maskable icon, which Android crops to a shape, and the iPhone's, which turns transparency black) it is the sky.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { animal, PALETTES } from '../art.js';
 
-const SKY = '#bfe6f2', OUT = 1;
-const rabbit = animal('rabbit', 'run', 1, 0.45); // the leap, stretched out
+const SKY = '#bfe6f2', OUT = 1, INK = 5;
+const rabbit = animal('rabbit', 'run', 6, 0.45); // its run, high in a hop: stretched out, the hind legs pushing back, the front paws reaching
+const GROUND = 27, GAP = 4; // the ground line's row; how high over it the rabbit hops
+const BITS = [[2, 29, 3], [8, 30, 1], [13, 29, 2], [19, 30, 3], [25, 29, 1], [29, 30, 2]]; // the ground's bits under it: [x, y, length]
 const pal = PALETTES.day;
 const at = (x, y) => (x >= 0 && y >= 0 && x < rabbit.w && y < rabbit.h ? rabbit.px[y * rabbit.w + x] : 0);
 // where it is drawn: its pixels, centered (the hind foot touches the grid's left edge, and loses its outline there:
@@ -15,11 +17,12 @@ let x0 = rabbit.w, x1 = -1, y0 = rabbit.h, y1 = -1;
 for (let y = 0; y < rabbit.h; y++) for (let x = 0; x < rabbit.w; x++) if (at(x, y)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
 const edge = Array.from({ length: rabbit.h }, (_, y) => at(0, y) && at(0, y) !== OUT);
 if (edge.some(Boolean)) x0 -= 1;
-const ox = Math.floor((32 - (x1 - x0 + 1)) / 2) - x0, oy = Math.floor((32 - (y1 - y0 + 1)) / 2) - y0;
+const ox = Math.floor((32 - (x1 - x0 + 1)) / 2) - x0, oy = GROUND - GAP - 1 - y1;
 
 // the picture: a color for each logical pixel (null: transparent)
 function color(x, y, bg) {
   const rx = x - ox, ry = y - oy;
+  if (x >= 0 && x < 32 && (y === GROUND || BITS.some(([bx, by, n]) => y === by && x >= bx && x < bx + n))) return pal[INK];
   if (rx === -1 && edge[ry]) return pal[OUT];
   return at(rx, ry) ? pal[at(rx, ry)] : bg;
 }

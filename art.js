@@ -14,7 +14,7 @@ import boar from './animals/boar.js';
 import bear from './animals/bear.js';
 import cheetah from './animals/cheetah.js';
 import rhino from './animals/rhino.js';
-import sabre from './animals/sabre.js';
+import elephant from './animals/elephant.js';
 import dino from './animals/dino.js';
 
 export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: the y of the ground line
@@ -22,16 +22,17 @@ export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: t
 // palette indices
 const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF = 8, FAINT = 9, LIGHT = 10, FOX = 11, BELLY = 12,
   TAN = 14, BROWN = 15, GINGER = 16, STRIPE = 17, CACTUS = 18, CACTUS_DARK = 19, CACTUS_LIGHT = 20, YELLOW = 21, BARK = 22,
-  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31, SKUNK = 32, CHEETAH = 33, RHINO = 34, RHINO_DARK = 35, DINO = 36, DINO_LIGHT = 37;
+  WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31, SKUNK = 32, CHEETAH = 33, RHINO = 34, RHINO_DARK = 35, DINO = 36, DINO_LIGHT = 37,
+  ELEPHANT = 38, ELEPHANT_DARK = 39;
 export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT, WHITE: BELLY, ICE: FISH };
 
 export const PALETTES = {
   day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ec6f2b', 8: '#62b04f', 9: '#dedbd0',
     10: '#f7f6f0', 11: '#d9682b', 12: '#fdfbf6', 13: '#9a9a94', 14: '#dfa45e', 15: '#8a5a3b', 16: '#f2a65a', 17: '#c46f34', 18: '#6eae4c',
-    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866', 33: '#e2b25a', 34: '#9a968f', 35: '#77736d', 36: '#8f9090', 37: '#cfcfcc' },
+    19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866', 33: '#e2b25a', 34: '#9a968f', 35: '#77736d', 36: '#8f9090', 37: '#cfcfcc', 38: '#a4a9b4', 39: '#7f8590' },
   night: { bg: '#1d2033', 1: '#141625', 2: '#f4f1ea', 3: '#d3c3b3', 4: '#e88aa3', 5: '#c3c6d8', 6: '#e8607e', 7: '#ee8a2a', 8: '#4f9a48', 9: '#2e3350',
     10: '#1d2033', 11: '#d9682b', 12: '#f4f1ea', 13: '#6a7090', 14: '#cf975a', 15: '#7a5038', 16: '#e69a52', 17: '#b06232', 18: '#4f9446',
-    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78', 32: '#6c6c7a', 33: '#d4a650', 34: '#8e8a84', 35: '#6c6862', 36: '#9a9cac', 37: '#c9cad6' },
+    19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78', 32: '#6c6c7a', 33: '#d4a650', 34: '#8e8a84', 35: '#6c6862', 36: '#9a9cac', 37: '#c9cad6', 38: '#979dad', 39: '#717787' },
 };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -150,7 +151,7 @@ export const ANIMALS = {
   bear: { name: 'BEAR', food: 'berries', ...tune(3.14, 1.36, 0.95, 1.2, 1.71, 0.71, 1.43, 250, 2.3, 0.83) },
   cheetah: { name: 'CHEETAH', food: 'drumstick', ...tune(3.36, 1.39, 1.08, 1.1, 1.79, 0.69, 1.47, 300, 2.4, 0.81) },
   rhino: { name: 'RHINO', food: 'leaf', ...tune(3.57, 1.43, 0.95, 1.15, 1.86, 0.66, 1.51, 300, 2.5, 0.79) },
-  sabre: { name: 'SABRE-TOOTH', food: 'ham', ...tune(3.79, 1.46, 1, 1.2, 1.93, 0.63, 1.56, 300, 2.7, 0.78) },
+  elephant: { name: 'ELEPHANT', food: 'peanut', ...tune(3.79, 1.46, 1, 1.2, 1.93, 0.63, 1.56, 300, 2.7, 0.78) },
   dino: { name: 'DINO', food: 'roast', ...tune(4.0, 1.5, 1, 1.25, 2.0, 0.6, 1.6, 300, 2.8, 0.76) }, // the hardest
 };
 
@@ -599,23 +600,6 @@ Object.assign(DRAW, {
       over: [[[triangle(21.4, 10.4, 23.4, 4.2, 24.4, 11), triangle(19, 9, 19.8, 6.6, 21, 9)], EAR]], eye: [18.6, 10], nose: [24.6, 12.6] });
   },
 
-  // the sabre-tooth cat: a tiger's stripes, a big head, the mouth open, two long white fangs reaching below its chin
-  sabre(g, pose, f, soft, blink) {
-    const stripes = (dy) => [7, 10, 13].map((x) => capsule(x, 8 + dy, x - 0.6, 10.2 + dy, 0.6));
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', hy = ko ? 15.6 : 15.2, muzzle = ellipse(22.6, hy + 0.6, 2, 1.2);
-      return render(g, pose, blink, { fur: TAN, body: [ellipse(11.5, 16.4, 8, 2.6), ellipse(19.5, hy, 3.6, 3.2), muzzle, ellipse(17.4, hy - 2.8, 1, 1)],
-        near: ko ? legsUp([8, 14], 1.2) : paws(f, 20.5, 6.5), tail: [capsule(3.4, 15.5, 1.5, 15, 1)],
-        paint: [[[muzzle], BELLY], [stripes(6), BROWN]],
-        over: [[[capsule(22, hy + 1.6, 22.2, hy + 3.8, 0.6)], BELLY]], eye: [20.4, hy - 1.2], nose: [24.2, hy] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [7.5, 13.6], [15.5, 13.6], 1.1), muzzle = ellipse(22.8, 9.4, 2, 1.3), [tx, ty] = swing(3.8, 9.5, 1.15 + 0.6 * lag(soft), 2.1);
-    return render(g, pose, blink, { fur: TAN, body: [ellipse(11, 11.2, 7, 3.4), ellipse(15, 10.8, 3, 3.2), ellipse(19.4, 8.6, 3.8, 3.5), muzzle, ellipse(21.4, 12.4, 1.6, 0.9), ellipse(17, 5.2, 1.2, 1.1)],
-      near, far, tail: [capsule(3.8, 9.5, tx, ty, 1)],
-      paint: [[[muzzle, ellipse(21.4, 12.4, 1.4, 0.7)], BELLY], [stripes(0), BROWN]],
-      over: [[[capsule(22.2, 10.4, 22.5, 14.4, 0.6)], BELLY]], dots: [[23, 11, OUT], [24, 11, OUT]], eye: [20.4, 7.6], nose: [24.6, 8.8] });
-  },
-
   // the dino: the blocky runner of Google's game, drawn like the others (filled, outlined, a lighter belly); its shape
   // pixel by pixel, its legs stepping two by two
   dino(g, pose, f, soft, blink) {
@@ -686,12 +670,12 @@ function withMoves(rig) {
   }
   return { ...rig, poses };
 }
-const RIGS = Object.fromEntries(Object.entries({ rabbit, cat, dog, fox, hedgehog, squirrel, otter, skunk, wolf, boar, bear, cheetah, rhino, sabre, dino })
+const RIGS = Object.fromEntries(Object.entries({ rabbit, cat, dog, fox, hedgehog, squirrel, otter, skunk, wolf, boar, bear, cheetah, rhino, elephant, dino })
   .map(([k, rig]) => [k, withMoves(rig)]));
 const LEGACY = typeof location !== 'undefined' && /[?&]old\b/.test(location.search);
-export const rigged = (kind) => !LEGACY && !!RIGS[kind];
+export const rigged = (kind) => !!RIGS[kind] && (!LEGACY || !DRAW[kind]); // (?old: drawn the old way, where there is one)
 const NAMED = { OUT, FUR, EAR, PINK, INK, BERRY, ORANGE, LEAF, FAINT, LIGHT, FOX, BELLY, TAN, BROWN, GINGER, STRIPE, YELLOW, BARK, WOOD,
-  FISH, LEAF_DARK, GRAPE, WOLF, BOAR, SNOUT, WOLF_DARK, SKUNK, CHEETAH, RHINO, RHINO_DARK, DINO, DINO_LIGHT };
+  FISH, LEAF_DARK, GRAPE, WOLF, BOAR, SNOUT, WOLF_DARK, SKUNK, CHEETAH, RHINO, RHINO_DARK, DINO, DINO_LIGHT, ELEPHANT, ELEPHANT_DARK };
 
 const plus = (a, b) => [a[0] + b[0], a[1] + b[1]], minus = (a, b) => [a[0] - b[0], a[1] - b[1]], times = (a, k) => [a[0] * k, a[1] * k];
 const turn = ([x, y], t) => [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)]; // (+: clockwise on screen)
@@ -891,17 +875,39 @@ function stepChain(pts, c, root, h, wind) {
 // a frame of a rigged animal: its chains where the body has them (in the box: to a quarter pixel), or at rest. Kept for
 // a while (the most recent few hundred).
 const rigFrames = new Map();
-function rigFrame(kind, pose, frame, blink, body, scale = 1) {
+// how much bigger each animal is drawn than its rig: n more rows in its 20-row box (it is drawn (20 + n) / 20 as big), so
+// the bigger ones by nature stand taller, up to about 3 pixels. It grows from its feet, in the middle of its box; ducking,
+// no more than still goes under a branch (see ducked). (The dino's even: drawn half as big again as a giant, still whole)
+const SIZE = { rabbit: 0, cat: 1, dog: 2, fox: 1, hedgehog: 0, squirrel: 0, otter: 1, skunk: 0, wolf: 2, boar: 3, bear: 4, cheetah: 2, rhino: 4, elephant: 3, dino: 2 };
+const ducks = {};
+function ducked(kind) { // (the most it grows by, ducking: tried, every frame of the crawl)
+  if (ducks[kind] !== undefined) return ducks[kind];
+  const m = RIGS[kind].poses.duck, frames = m?.gait ? m.gait.frames : Array.isArray(m) ? m.length : 1;
+  let n = SIZE[kind] || 0;
+  const top = (s) => Math.min(...[...s.mask.keys()].filter((i) => s.mask[i]).map((i) => Math.floor(i / s.w) + s.oy));
+  while (n > 0 && [...Array(frames).keys()].some((f) => FOOT - top(rigFrame(kind, 'duck', f, false, null, 1, n)) + 1 > GROUND - DUCK_UNDER - 1)) n--;
+  return (ducks[kind] = n);
+}
+const grown = (kind, pose) => (pose === 'duck' ? ducked(kind) : SIZE[kind] || 0);
+
+// grown by n rows: how much bigger (k), and moved by how much (from its feet, the row above the ground's, in the middle:
+// moved back, so they stay where they were)
+function growth(n, scale = 1) {
+  const k = (20 + n) / 20;
+  return [k, [Math.round(13 * scale * (1 - k)), Math.round((FOOT - 0.5) * scale * (1 - k))]];
+}
+function rigFrame(kind, pose, frame, blink, body, scale = 1, n = grown(kind, pose)) {
   const rig = RIGS[kind], [P, eased] = bodyPosed(rig, kind, pose, frame, body), chains = {};
   const live = body?.kind === kind && body.chains && body.at;
   for (const name in rig.chains) {
     const pts = live && body.chains[name] ? body.chains[name].map((q) => minus(q.p, body.at)) : restPoints(chainRest(rig, P, name));
     chains[name] = pts.map(([x, y]) => [Math.round(x * 4) / 4, Math.round(y * 4) / 4]);
   }
-  const key = `${kind} ${pose} ${frame} ${eased} ${blink} ${scale} ${JSON.stringify(chains)}`;
+  const key = `${kind} ${pose} ${frame} ${eased} ${blink} ${scale} ${n} ${JSON.stringify(chains)}`;
   let s = rigFrames.get(key);
   if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; } // (the most recent last)
-  s = drawRig(rig, P, pose, blink, chains, scale);
+  const [k, d] = growth(n, scale);
+  s = drawRig(rig, P, pose, blink, chains, scale * k, d, Math.round((FOOT + 1) * scale), n > 0 && pose !== 'jump');
   rigFrames.set(key, s);
   if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
   return s;
@@ -912,7 +918,7 @@ function rigFrame(kind, pose, frame, blink, body, scale = 1) {
 // belly (over: lying low), things on top (top: horns, fangs, a head over a round body, outlined), chains in front (front:
 // lop ears), single pixels (dots), the face. The collision mask: the far legs and the body. (recolor: one palette name
 // for another, everywhere: the wolf is a grey fox)
-function drawRig(rig, P, pose, blink, chains, S = 1) {
+function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = Math.round((FOOT + 1) * S), settle = false) {
   const { p, F, torso } = P, k = rig.smooth ?? 1, fur = NAMED[rig.fur];
   // a shape with its frame (its turn worked out once), its box in the box's coordinates, and how much nearer than its
   // distance that box may be (an ellipse's distance is short of the true one off its long axis): see near
@@ -957,7 +963,7 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
       const n = pts.length - 1, u = clamp(t * n, 0, n), i = Math.min(n - 1, Math.floor(u));
       return mix(pts[i], pts[i + 1], u - i);
     };
-    (c.front ? front : soft).push({ color: NAMED[c.color] || fur, parts, marks: (c.marks || []).map(([t, color, mr]) => [along(t), NAMED[color], mr]) });
+    (c.front ? front : soft).push({ joined: c.joined, line: c.line, color: NAMED[c.color] || fur, parts, marks: (c.marks || []).map(([t, color, mr]) => [along(t), NAMED[color], mr]) });
   }
   const tops = [...(rig.top || []), ...(p.top || [])].map((t) => ({ color: NAMED[t.color] || fur, shapes: t.shapes.map(placed), paint: t.paint || [] }));
   const dots = (p.dots || rig.dots || []).map((d) => [toWorld(d.on ? F[d.on] : null, d.at), NAMED[d.color] || OUT]);
@@ -974,13 +980,14 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
   for (const [q] of dots) fit(q);
   // drawn S times bigger (the giant dino: its shapes finer, its outline still one pixel); nothing below the feet's row
   // (the ground). (ox, oy: in the bigger pixels)
-  const ox = Math.floor(x0 * S) - 1, oy = Math.floor(y0 * S) - 1, g = new Grid(Math.ceil(x1 * S) + 1 - ox, Math.min(Math.ceil(y1 * S) + 1, (FOOT + 1) * S) - oy);
+  const ox = Math.floor(x0 * S) - 1, oy = Math.floor(y0 * S) - 1;
+  let g = new Grid(Math.ceil(x1 * S) + 1 - ox, Math.min(Math.ceil(y1 * S) + 1, floor - dy) - oy); // (floor: the row under its feet, once moved)
   const inside = (d) => [(x, y) => d((x + ox + 0.5) / S, (y + oy + 0.5) / S) <= 0]; // (tested at the pixel's middle)
   const at = (b) => [Math.floor(b[0] * S) - ox - 1, Math.floor(b[1] * S) - oy - 1, Math.ceil(b[2] * S) - ox + 2, Math.ceil(b[3] * S) - oy + 2]; // (a box: its pixels)
   const any = (list, d) => (x, y) => { for (const q of list) if (d(q, x, y) <= 0) return 0; return 1; }; // (inside any of them)
   const n = Math.round(S), pixel = { dot: (x, y, c) => { for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) g.dot(Math.round(x) * S - ox + a, Math.round(y) * S - oy + b, c); } }; // (a dot: S by S)
   const chain = (t) => {
-    const m = g.layer(inside(any(t.parts, (c, x, y) => sdCapsule(x, y, c))), t.color, OUT, at(boxOf(t.parts)));
+    const m = g.layer(inside(any(t.parts, (c, x, y) => sdCapsule(x, y, c))), t.color, t.line ? 0 : OUT, at(boxOf(t.parts))); // (line: a thin one, not outlined)
     for (const [[mx, my], color, r] of t.marks) {
       if (r) g.paint(inside((x, y) => Math.hypot(x - mx, y - my) - r), color, m, at([mx - r, my - r, mx + r, my + r]));
       else pixel.dot(mx, my, color);
@@ -1028,18 +1035,35 @@ function drawRig(rig, P, pose, blink, chains, S = 1) {
     const m = g.layer(inside(any(t.shapes, (b, x, y) => sd(b, x, y))), t.color, OUT, at(join(...t.shapes.map((b) => b.box))));
     for (const q of t.paint.map(placed)) g.paint(inside((x, y) => sd(q, x, y)), NAMED[q.s.color], m, at(q.box));
   }
+  const under = front.length ? g.px.slice() : null;
   front.forEach(chain);
+  // a chain in front that grows out of the body (joined: the elephant's trunk): no outline over the body where it starts
+  for (const t of front.filter((t) => t.joined)) {
+    const [ax, ay, , , r] = t.parts[0], cx = ax * S - ox, cy = ay * S - oy, R = (r + 2) * S;
+    for (let y = Math.max(0, Math.floor(cy - R)); y < Math.min(g.h, cy + R); y++) for (let x = Math.max(0, Math.floor(cx - R)); x < Math.min(g.w, cx + R); x++) {
+      const i = y * g.w + x;
+      if (bodyMask[i] && g.px[i] === OUT && under[i] !== OUT && Math.hypot(x + 0.5 - cx, y + 0.5 - cy) < R) g.px[i] = under[i];
+    }
+  }
   for (const [[x, y], c] of dots) pixel.dot(x, y, c);
   if (rig.recolor) { const to = {}; for (const a in rig.recolor) to[NAMED[a]] = NAMED[rig.recolor[a]]; for (let i = 0; i < g.px.length; i++) g.px[i] = to[g.px[i]] ?? g.px[i]; }
   const face = rig.face, eye = toWorld(F.head, face.eye);
   eyes(pixel, pose, eye, blink);
   if (face.nose) { const nose = toWorld(F.head, face.nose); pixel.dot(nose[0], nose[1], NAMED[face.noseColor] || OUT); }
-  return sprite(g, union(farMask, bodyMask, overMask), { ox, oy, head: [(eye[0] - 1) * S, (eye[1] - 6) * S] });
+  // (dx, dy: moved, grown from where its feet touch the ground: see rigFrame. settle: grown, a row short of the ground
+  // only by rounding, it is set down on it)
+  let mask = union(farMask, bodyMask, overMask), down = 0;
+  if (settle && g.h > 1 && oy + dy + g.h === floor && !g.px.subarray((g.h - 1) * g.w).some(Boolean) && g.px.subarray((g.h - 2) * g.w, (g.h - 1) * g.w).some(Boolean)) {
+    down = 1;
+    const cut = new Grid(g.w, g.h - 1); cut.px.set(g.px.subarray(0, cut.px.length));
+    mask = mask.slice(0, cut.px.length); g = cut;
+  }
+  return sprite(g, mask, { ox: ox + dx, oy: oy + dy + down, head: [(eye[0] - 1) * S + dx, (eye[1] - 6) * S + dy + down] });
 }
 
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
 export function setRig(kind, rig) { RIGS[kind] = withMoves(rig); rigFrames.clear(); worked.clear(); }
-export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), pose: (kind, move, frame) => poseOf(RIGS[kind], move, frame), move: (kind, name) => RIGS[kind].poses[name], chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), restPoints, toWorld, toLocal, sdShape, NAMED };
+export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), pose: (kind, move, frame) => poseOf(RIGS[kind], move, frame), move: (kind, name) => RIGS[kind].poses[name], chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), growth: (kind, pose) => growth(grown(kind, pose)), restPoints, toWorld, toLocal, sdShape, NAMED };
 
 // the birds that circle a knocked-out head: two frames
 const birds = [0, 1].map((f) => {
@@ -1153,24 +1177,23 @@ export const crow = (f) => crows[f];
 // the lowest row of a crow's mask, in either frame
 export const CROW_BOTTOM = Math.max(...crows.map((c) => Math.max(...[...c.mask.keys()].filter((i) => c.mask[i]).map((i) => Math.floor(i / c.w)))));
 
-// each animal's face, for the high scores
-export const FACE = {
-  rabbit: fromRows(['.ooooo.', 'oewwweo', 'oekwkeo', 'oewpweo', '.owwwo.', '..ooo..'], { o: OUT, e: EAR, w: FUR, k: OUT, p: PINK }),
-  cat: fromRows(['oo...oo', 'ogooogo', 'ogkgkgo', 'oggpggo', '.owwwo.', '..ooo..'], { o: OUT, g: GINGER, w: BELLY, k: OUT, p: PINK }),
-  dog: fromRows(['.ooooo.', 'obtttbo', 'obktkbo', 'obwkwbo', '.owwwo.', '..ooo..'], { o: OUT, b: BROWN, t: TAN, w: FUR, k: OUT }),
-  fox: fromRows(['oo...oo', 'ofooofo', 'ofkfkfo', 'owfkfwo', '.owwwo.', '..ooo..'], { o: OUT, f: FOX, w: BELLY, k: OUT }),
-  hedgehog: fromRows(['o.o.o.o', 'obbbbbo', 'obkekbo', 'obeeebo', '.oeneo.', '..ooo..'], { o: OUT, b: BROWN, e: EAR, k: OUT, n: OUT }),
-  squirrel: fromRows(['o.....o', 'oro.oro', 'orkrkro', 'orrwrro', '.owwwo.', '..ooo..'], { o: OUT, r: STRIPE, w: BELLY, k: OUT }),
-  otter: fromRows(['.ooooo.', 'obbbbbo', 'obkbkbo', 'obenebo', '.oeeeo.', '..ooo..'], { o: OUT, b: BROWN, e: EAR, k: OUT, n: OUT }),
-  skunk: fromRows(['oo...oo', 'osowoso', 'oswwwso', 'osswsso', '.ospso.', '..ooo..'], { o: OUT, s: SKUNK, w: BELLY, p: PINK }),
-  wolf: fromRows(['oo...oo', 'ogooogo', 'ogkgkgo', 'owgngwo', '.owwwo.', '..ooo..'], { o: OUT, g: WOLF, w: BELLY, k: OUT, n: OUT }),
-  boar: fromRows(['oo...oo', 'obooobo', 'obkbkbo', 'obsssbo', 'wosnsow', '..ooo..'], { o: OUT, b: BOAR, s: SNOUT, n: OUT, k: OUT, w: BELLY }),
-  bear: fromRows(['oo...oo', 'obbbbbo', 'obkbkbo', 'obwnwbo', '.owwwo.', '..ooo..'], { o: OUT, b: BARK, w: WOOD, k: OUT, n: OUT }),
-  cheetah: fromRows(['oo...oo', 'oyyyyyo', 'oykykyo', 'okynyko', '.owwwo.', '..ooo..'], { o: OUT, y: CHEETAH, w: BELLY, k: OUT, n: OUT }),
-  rhino: fromRows(['...e...', '..oeo..', 'orrerro', 'orkrkro', 'orrrrro', '.ooooo.'], { o: OUT, r: RHINO, e: EAR, k: OUT }),
-  sabre: fromRows(['oo...oo', 'ottttto', 'otktkto', 'ottntto', '.wowow.', '..ooo..'], { o: OUT, t: TAN, w: BELLY, k: OUT, n: OUT }),
-  dino: fromRows(['..ooooo', '.oddddo', '.okdddo', '.oddooo', 'oddddo.', 'oooooo.'], { o: OUT, d: DINO, k: OUT }),
-};
+// each animal's face, for the high scores: its whole head as it runs (the ears too), cut out of the animal drawn smaller
+// (FACE_S: from its shapes, outlined as ever); FACE_W × FACE_H, its eye at EYE_AT (FACE_AT moves one's cut by [dx, dy]),
+// cut round (no body behind it) and outlined where it is cut
+export const FACE_W = 10, FACE_H = 9;
+const FACE_S = 0.6, EYE_AT = [5, 5], FACE_AT = {}, faces = {};
+export function face(kind) {
+  if (faces[kind] || !ANIMALS[kind]) return faces[kind];
+  const s = rigFrame(kind, 'run', 0, false, null, FACE_S, 0), [dx, dy] = FACE_AT[kind] || [0, 0]; // (s.head: the eye, less [1, 6], drawn bigger by FACE_S)
+  const x0 = Math.round(s.head[0] + FACE_S - (s.ox || 0)) - EYE_AT[0] + dx, y0 = Math.round(s.head[1] + 6 * FACE_S - (s.oy || 0)) - EYE_AT[1] + dy;
+  const g = new Grid(FACE_W, FACE_H), round = ellipse(FACE_W / 2, FACE_H / 2, FACE_W / 2 + 0.3, FACE_H / 2 + 0.3);
+  const src = (x, y) => (x0 + x >= 0 && y0 + y >= 0 && x0 + x < s.w && y0 + y < s.h ? s.px[(y0 + y) * s.w + x0 + x] : 0); // (the animal, in the face's place)
+  for (let y = 0; y < FACE_H; y++) for (let x = 0; x < FACE_W; x++) {
+    const v = round(x, y) ? src(x, y) : 0, cut = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([u, w]) => !round(x + u, y + w) && src(x + u, y + w));
+    g.px[y * FACE_W + x] = v && cut ? OUT : v; // (outlined where the round cut goes through it)
+  }
+  return (faces[kind] = sprite(g, new Uint8Array(FACE_W * FACE_H)));
+}
 
 // ------------------------------------------------------------------------------------------------------------- food
 function bone() {
@@ -1232,10 +1255,6 @@ const berries = food(10, 8, (g) => {
 const leaf = food(10, 7, (g) => {
   const m = g.layer([ellipse(5.5, 3.5, 4.2, 2.4)], LEAF, OUT); g.paint([capsule(1.5, 3.5, 9, 3.5, 0.45)], LEAF_DARK, m); g.layer([capsule(0, 4.5, 1.5, 3.5, 0.4)], LEAF_DARK);
 });
-const ham = food(12, 9, (g) => {
-  g.layer([capsule(1.5, 2, 3.5, 3.5, 0.7), ellipse(1, 1.4, 1, 1)], BELLY, OUT);
-  g.layer([ellipse(7, 5, 4.2, 3.4)], BERRY, OUT); g.layer([ellipse(7.6, 5.4, 2.2, 1.6)], PINK); g.dot(6, 3, LIGHT);
-});
 const drumstick = food(11, 8, (g) => {
   g.layer([capsule(1.5, 6, 4, 4, 0.7), ellipse(1.2, 6.8, 1, 1)], BELLY, OUT);
   g.layer([ellipse(6.8, 3.5, 3.6, 2.8)], FOX, OUT); g.dot(6, 2, LIGHT);
@@ -1245,7 +1264,13 @@ const roast = food(16, 12, (g) => {
   g.layer([capsule(3.2, 9.2, 8, 5.5, 0.8), ellipse(2.4, 8.2, 1.2, 1.2), ellipse(4, 10.3, 1.2, 1.2)], BELLY, OUT);
   g.layer([ellipse(10.5, 4.6, 4.6, 3.6)], BROWN, OUT); g.layer([ellipse(10.2, 3.5, 2.6, 1.5)], TAN); g.dot(9, 2, LIGHT);
 });
-export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, ham, roast };
+// the elephant's: a peanut in its shell, pinched in the middle, its pits in a darker brown
+const peanut = food(11, 7, (g) => {
+  const m = g.layer([ellipse(3.2, 3.6, 2.6, 2.4), ellipse(7.6, 3.4, 2.7, 2.5), capsule(3.5, 3.6, 7.3, 3.4, 1.7)], TAN, OUT);
+  g.paint([ellipse(2.6, 3, 0.5, 0.5), ellipse(4, 4.6, 0.5, 0.5), ellipse(7, 2.6, 0.5, 0.5), ellipse(8.4, 4.2, 0.5, 0.5), ellipse(6.2, 4.4, 0.5, 0.5)], BROWN, m);
+  g.dot(7, 1, LIGHT);
+});
+export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, peanut, roast };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
 export const cloud = fromRows([
@@ -1276,15 +1301,6 @@ export function golden(pal) {
   })), bg: `${pal.bg} gold` });
 }
 
-// the ice age (the sabre-tooth's power): obstacles turned to ice
-// (bg: the background a whole world palette needs, or none: a palette for sprites only, its key made from the original's)
-const recolor = (map, bg) => { const made = {}; return (pal) => (made[pal.bg] ||= { ...Object.fromEntries(Object.entries(pal).map(([k, hex]) => {
-  if (k === 'bg') return [k, hex];
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  return [k, map(+k, 0.3 * r + 0.59 * g + 0.11 * b)];
-})), bg: bg || `${pal.bg} ${Object.keys(made).length}${map.name}` }); };
-export const icy = recolor(function ice(k, l) { return k === OUT ? '#3a5f7a' : l > 0.75 ? '#e8f6ff' : l > 0.45 ? '#a9dcf2' : '#6fb4d6'; });
-
 export const star = fromRows([
   '..y..',
   '.yyy.',
@@ -1310,15 +1326,15 @@ const GLYPHS = {
 };
 export const textWidth = (s) => s.length * 4 - 1;
 // text at (x, y), its top left; align 'center' or 'right' moves x
-export function text(ctx, s, x, y, color, align = 'left') {
+export function text(ctx, s, x, y, color, align = 'left', size = 1, glyphs = GLYPHS) { // (size: each pixel of the font that many; glyphs: some of its letters drawn otherwise)
   s = String(s).toUpperCase();
-  if (align === 'center') x -= textWidth(s) / 2;
-  if (align === 'right') x -= textWidth(s);
+  if (align === 'center') x -= (textWidth(s) * size) / 2;
+  if (align === 'right') x -= textWidth(s) * size;
   x = Math.round(x);
   ctx.fillStyle = color;
   [...s].forEach((ch, i) => {
-    const gl = GLYPHS[ch] || GLYPHS[' '];
-    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (+gl[r] & (4 >> c)) ctx.fillRect(x + i * 4 + c, y + r, 1, 1);
+    const gl = glyphs[ch] || GLYPHS[ch] || GLYPHS[' '];
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (+gl[r] & (4 >> c)) ctx.fillRect(x + (i * 4 + c) * size, y + r * size, size, size);
   });
 }
 

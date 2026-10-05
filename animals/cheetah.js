@@ -1,6 +1,6 @@
 // The cheetah as a rig (see the cat, and kit.js): slim and long-legged, golden with black spots, black tear lines from
 // its eyes, a long tail with dark rings and a white tip.
-import { quadruped } from './kit.js';
+import { quadruped, standIdle } from './kit.js';
 
 // @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
 export const build = {
@@ -59,7 +59,7 @@ export const make = (rig) => {
   const low = { joints: { hip: [8, 16.5], chest: [15, 16.5], head: [19.8, 15.6] }, torso: { r: 2.6, ends: 4.5 },
     chains: { tail: { at: [-4, -0.5], angle: 1.75, curl: 0 } } };
 
-  return { ...rig, poses: quadruped(rig, low) };
+  return { ...rig, poses: quadruped(rig, low, { idle: standIdle(rig, { tail: 2.2, swish: 0.15 }) }) }; // (resting, the tail hangs a bit down)
 };
 
 export default make(build);

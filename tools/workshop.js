@@ -5,7 +5,7 @@
 // a frame), a gait's settings, a loop to look at; the frames before and after faded (onion skin). After every change the
 // animal is made again from its build (its make) and drawn by the game's own code; Save writes the build back into its
 // file (POST /save, see serve.mjs and rig-format.js).
-import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strideRate, idleFrame, jumpFrame, golden, icy, cactus } from '../art.js';
+import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strideRate, idleFrame, jumpFrame, golden, cactus } from '../art.js';
 
 const { toWorld, toLocal, sdShape, NAMED } = rigParts;
 const KINDS = Object.keys(ANIMALS);
@@ -23,7 +23,7 @@ const X0 = -12, Y0 = -9, VW = 50, VH = 31;
 let Z = 16;
 
 const mods = {}, saved = {}, histories = {};
-let kind, mod, build, made, P, sel = { type: 'rig' }, drag = null;
+let kind, mod, build, made, P, G = [1, [0, 0]], sel = { type: 'rig' }, drag = null;
 const view = { move: 'edit', frame: 0, play: false, t: 0 };
 
 // ------------------------------------------------------------------------------------------------- the animal, edited
@@ -43,6 +43,7 @@ function rebuild() {
 function place() {
   if (view.move !== 'edit') view.frame = Math.min(view.frame, frames(view.move) - 1);
   P = view.move === 'edit' ? rigParts.posed(kind, 'hurt', 0) : rigParts.posed(kind, view.move, view.frame);
+  G = rigParts.growth(kind, view.move === 'edit' ? 'hurt' : view.move); // (the bigger animals: drawn grown, their handles with them)
 }
 function changed() { rebuild(); draw(); status(); }
 function refresh() { listParts(); inspect(); timeline(); draw(); }
@@ -215,8 +216,8 @@ const same = (a, b) => a.type === b.type && a.list === b.list && a.i === b.i && 
 const current = () => parts().find((p) => same(p.sel, sel));
 
 // --------------------------------------------------------------------------------------------------------- the stage
-const toScreen = ([x, y]) => [(x - X0) * Z, (y - Y0) * Z];
-const toArt = (e) => { const r = $('stage').getBoundingClientRect(), k = $('stage').width / r.width; return [(e.clientX - r.left) * k / Z + X0, (e.clientY - r.top) * k / Z + Y0]; };
+const toScreen = ([x, y]) => { const [g, [dx, dy]] = G; return [(x * g + dx - X0) * Z, (y * g + dy - Y0) * Z]; };
+const toArt = (e) => { const r = $('stage').getBoundingClientRect(), k = $('stage').width / r.width, [g, [dx, dy]] = G; return [((e.clientX - r.left) * k / Z + X0 - dx) / g, ((e.clientY - r.top) * k / Z + Y0 - dy) / g]; };
 const editing = () => editable() && (view.move === 'edit' || kindOf(view.move) === 'keys'); // (handles: the build's, or a keyframe's)
 
 function sprite() { return view.move === 'edit' ? animal(kind, 'hurt', 0) : animal(kind, view.move, view.frame); }
@@ -661,7 +662,7 @@ function drawPreview() {
   const c = $('preview'), K = 3, ctx = c.getContext('2d');
   if (c.width !== W * K) { c.width = W * K; c.height = H * K; }
   ctx.setTransform(K, 0, 0, K, 0, 0); ctx.imageSmoothingEnabled = false;
-  const light = $('light').value, base = PALETTES[light === 'night' ? 'night' : 'day'], pal = light === 'golden' ? golden(base) : light === 'icy' ? icy(base) : base;
+  const light = $('light').value, base = PALETTES[light === 'night' ? 'night' : 'day'], pal = light === 'golden' ? golden(base) : base;
   ctx.fillStyle = base.bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = base[COLOR.FAINT];
   const hill = Math.floor(pv.scroll * 0.08);

@@ -27,7 +27,7 @@
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
   h1 { font-size: 16px; margin: 0; letter-spacing: 0.04em; }
   [hidden] { display: none !important; }
-  canvas { display: block; width: 100%; aspect-ratio: 300 / 90; image-rendering: pixelated; border-radius: 6px; touch-action: none; cursor: pointer; outline: 1px solid var(--line);
+  canvas { display: block; width: 100%; aspect-ratio: 300 / 126; /* (the world, 300 × 90, with sky above it and room below it: see fit) */ image-rendering: pixelated; border-radius: 6px; touch-action: none; cursor: pointer; outline: 1px solid var(--line);
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   #stage { position: relative; }
   /* the name for a high score: typed here, drawn by the game (the field lies, invisible, over the name) */
@@ -62,14 +62,11 @@
     #stage canvas { width: min(100%, calc(100vh * 300 / 90)); /* (Safari before 15.4: no dvh) */
       width: min(100%, calc(100dvh * 300 / 90)); height: 100%; aspect-ratio: auto; border-radius: 0; outline: none; }
   }
-  /* in the game's bottom corners: the animal before and after; on a phone, duck and jump (where to tap) (see showPad in game.js) */
-  .pad { position: absolute; z-index: 1; bottom: max(10px, env(safe-area-inset-bottom)); width: calc(var(--px, 3) * 17px); height: calc(var(--px, 3) * 17px);
+  /* under the ground, at the sides: the animal before and after; on a phone, duck and jump (where to tap) (see showPad, fit in game.js) */
+  .pad { position: absolute; z-index: 1; top: var(--pad-top, 0); width: calc(var(--px, 3) * 17px); height: calc(var(--px, 3) * 17px);
     opacity: 0.5; pointer-events: none; }
   #leftPad { left: max(10px, env(safe-area-inset-left)); }
   #rightPad { right: max(10px, env(safe-area-inset-right)); }
-  #leftPad.small, #rightPad.small { width: calc(var(--px, 3) * 11px); height: calc(var(--px, 3) * 11px); bottom: 0; left: auto; right: auto; }
-  #leftPad.small { left: calc(var(--px, 3) * 4px); }
-  #rightPad.small { right: calc(var(--px, 3) * 4px); }
   .pad svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
   .pad .ring, .pad .icon, .pad.on .fill { fill: var(--game-ink, #3a3a3a); }
   .pad .fill, .pad.on .icon { fill: var(--game-bg, #f7f6f0); }
@@ -91,7 +88,7 @@
     <canvas id="game" aria-label="Lop Hop: an animal runs, jumps and ducks"></canvas>
     <input id="name" hidden maxlength="10" autocomplete="nickname" autocapitalize="characters" autocorrect="off" enterkeyhint="done" spellcheck="false" aria-label="Your name for the high scores">
   </div>
-  <p class="help"><kbd>Space</kbd> / <kbd>↑</kbd> jump (hold to jump higher) · <kbd>↓</kbd> duck · <kbd>←</kbd> <kbd>→</kbd> pick an animal · <kbd>M</kbd> sound · <kbd>H</kbd> high scores · <kbd>F</kbd> full screen (or the buttons at the top left of the game). On a phone: tap the right half of the screen to jump, hold the left half to duck.<br>
+  <p class="help"><kbd>Space</kbd> / <kbd>↑</kbd> jump (hold to jump higher) · <kbd>↓</kbd> duck · <kbd>←</kbd> <kbd>→</kbd> pick an animal · <kbd>M</kbd> sound · <kbd>H</kbd> high scores · <kbd>C</kbd> credits · <kbd>F</kbd> full screen (or the buttons at the top left of the game). On a phone: tap the right half of the screen to jump, hold the left half to duck.<br>
   Jump the cacti, rocks and logs, duck under the branches. Running tires: eat to keep the energy up. Every bump costs energy; with none left, the animal is knocked out. Golden food, now and then high over an obstacle, gives a super power for 8 seconds: each animal its own. At night the next animal gives chase: a second bump while it is close lets it catch you. Get away till dawn to unlock it; every new day is harder.</p>
 
   <section aria-label="Music">

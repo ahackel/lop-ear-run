@@ -1,6 +1,6 @@
 // The rhino as a rig (see the cat, and kit.js): big and grey, a great horn on its nose and a small one behind it (drawn
 // on top), skin folds, thick short legs, a pointed ear, a thin tail.
-import { quadruped, earsBack } from './kit.js';
+import { quadruped, earsBack, standIdle } from './kit.js';
 
 // @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
 export const build = {
@@ -26,7 +26,20 @@ export const build = {
     frontNear: { on: 'chest', at: [0, 3.5], thigh: 1.75, shin: 1.75, r: 1.5, bend: -1 },
   },
   chains: {
-    tail: { on: 'hip', at: [-3.9, -2], angle: 1.45, links: 2, length: 2.8, r: 0.5, stiffness: 500, damping: 14, weight: 60 },
+    tail: {
+      on: 'hip',
+      at: [-4.6, -1.6],
+      angle: 1.45,
+      links: 2,
+      length: 4.4,
+      r: 0.45,
+      color: 'OUT',
+      line: true,
+      marks: [[1, 'OUT', 0.8]],
+      stiffness: 500,
+      damping: 14,
+      weight: 60,
+    },
     ear: { on: 'head', ear: [[-3.6, -3.4], [-1.2, -3.8]], tip: [-3.1, -7.4], stiffness: 1400, damping: 22, weight: 60 },
   },
   face: { eye: [-0.4, -1], nose: [5.6, 1.6] },
@@ -42,7 +55,7 @@ export const make = (rig) => {
   // (lying low, its horns smaller)
   low.top = [{ color: 'EAR', shapes: [{ on: 'head', triangle: [[1.7, -0.6], [3.2, -5], [4.4, 0]] }, { on: 'head', triangle: [[-0.4, -1.2], [0.2, -3.2], [1.2, -1.2]] }] }];
 
-  return { ...rig, poses: quadruped(rig, low) };
+  return { ...rig, poses: quadruped(rig, low, { idle: standIdle(rig, { tail: 2.5, swish: 0.1 }) }) }; // (resting, the tail hangs down)
 };
 
 export default make(build);

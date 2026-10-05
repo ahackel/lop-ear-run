@@ -17,7 +17,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | bear (×3.14) | blueberries | berry rush: double points, food fills it twice as much |
 | cheetah (×3.36) | drumstick | sprint: very fast, and untouchable |
 | rhino (×3.57) | leaf | quake: stomps, everything on the screen flies off |
-| sabre-tooth (×3.79) | ham | ice age: obstacles freeze and shatter |
+| elephant (×3.79) | peanut | splash: sprays water from its raised trunk, what is just ahead is washed away |
 | dino (×4) | roast leg | giant dino: twice as big, it tramples everything in its way, for double points (the rabbit chases it) |
 
 **Play: https://andreashackel.de/lop-hop/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
@@ -27,7 +27,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | jump (hold to jump higher) | <kbd>Space</kbd> / <kbd>↑</kbd> | tap the right half |
 | duck | <kbd>↓</kbd> | hold the left half |
 | pick an animal | <kbd>←</kbd> <kbd>→</kbd> on the title | tap it on the title |
-| sound, high scores, full screen | <kbd>M</kbd>, <kbd>H</kbd>, <kbd>F</kbd> | the buttons at the top left of the game |
+| sound, high scores, credits, full screen | <kbd>M</kbd>, <kbd>H</kbd>, <kbd>C</kbd>, <kbd>F</kbd> | the buttons at the top left of the game |
 
 The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`) has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (`?auto` lets the animal run by itself, to hear the moods come and go):
 
