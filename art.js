@@ -126,8 +126,10 @@ export const ANIMALS = {
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
 // as it rises, gathered as it falls), the others gallop
-export function stride(kind, phase) {
-  if (rigged(kind) && RIGS[kind].gait) { const n = RIGS[kind].gait.frames; return { frame: Math.floor(phase * n) % n, lift: 0 }; } // (its body bobs itself)
+export function stride(kind, phase, move = 'run') {
+  const g = rigged(kind) && RIGS[kind].poses[move]?.gait;
+  if (g) return { frame: Math.floor(phase * g.frames) % g.frames, lift: 0 }; // (its body bobs itself)
+  if (move === 'duck') return { frame: Math.floor(phase * 4) % 2, lift: 0 }; // shuffling
   if (kind === 'rabbit') {
     if (phase < 0.3) return { frame: 0, lift: 0 };
     const q = (phase - 0.3) / 0.7;
@@ -135,6 +137,12 @@ export function stride(kind, phase) {
   }
   const frame = Math.floor(phase * 4) % 4;
   return { frame, lift: frame === 0 ? 1 : 0 };
+}
+
+// sitting (on the title), t seconds in → its frame: a rig's own loop (breathing, looking about), or two frames
+export function idleFrame(kind, t) {
+  const m = rigged(kind) && RIGS[kind].poses.idle;
+  return m?.at ? Math.floor(t * m.fps) % m.frames : Math.floor(t * 5) % 2;
 }
 
 const animals = new Map();
@@ -666,25 +674,34 @@ function reach(root, target, a, b, bend) {
   return [knee, plus(knee, times(unit(minus(target, knee)), b))];
 }
 
-// a frame of a rig's gait (its run): where the stride is (frame / frames) → the joints bobbing, each paw on the ground
-// pushing back (the stance) or swinging forward in an arc
-function gaitPose(rig, f) {
-  const g = rig.gait, p = f / g.frames, J = rig.joints, bob = (o) => [0, g.bob * Math.sin(Math.PI * 2 * (p + o))];
+// a frame of a gait (a move worked out from the stride: the run, the crawl): where the stride is (frame / frames) → the
+// joints bobbing (beat times a stride; the head following the chest), each paw on the ground pushing back (the stance)
+// or swinging forward in an arc. m: the move, its settings over the rig's
+function gaitPose(rig, m, f) {
+  const g = m.gait, p = f / g.frames, J = { ...rig.joints, ...m.joints }, bob = (o) => [0, g.bob * Math.sin(Math.PI * 2 * ((g.beat || 1) * p + o))];
   const chest = bob(-0.15), paws = {};
   for (const name in g.legs) {
     const [o, ahead] = g.legs[name], L = rig.legs[name], x = toWorld(jointFrame(J[L.on], 0), L.at)[0] + ahead, q = (((p - o) % 1) + 1) % 1;
     if (q < g.stance) paws[name] = [x + g.reach * (0.5 - q / g.stance), g.ground];
     else { const u = (q - g.stance) / (1 - g.stance); paws[name] = [x - g.reach / 2 + g.reach * u * u * (3 - 2 * u), g.ground - g.lift * Math.sin(Math.PI * u)]; }
   }
-  return { joints: { hip: plus(J.hip, bob(0.1)), chest: plus(J.chest, chest), head: plus(J.head, times(chest, 0.7)) }, paws };
+  return { ...m, joints: { hip: plus(J.hip, bob(0.1)), chest: plus(J.chest, chest), head: plus(J.head, times(chest, g.head ?? 0.7)) }, paws };
 }
-const gaits = new Map();
-const gaitFrame = (rig, f) => { let list = gaits.get(rig); if (!list) gaits.set(rig, (list = [])); return list[f] || (list[f] = gaitPose(rig, f)); };
 
-// a rig in a pose (move and frame): the pose's settings over the rig's, the joints' frames. The run (and any move it has
-// no pose for): its gait
+// a rig's pose for a move and a frame. A move is keyframes (a list), a gait, or a loop worked out by its own function
+// (at: 0…1 → a pose, in frames at fps); one it has none for: the run. (Worked-out poses are kept.)
+const worked = new Map();
+function poseOf(rig, name, frame) {
+  const m = rig.poses[name] || rig.poses.run;
+  if (Array.isArray(m)) return m[frame % m.length];
+  let list = worked.get(m);
+  if (!list) worked.set(m, (list = []));
+  const n = m.gait ? m.gait.frames : m.frames, i = frame % n;
+  return list[i] || (list[i] = m.gait ? gaitPose(rig, m, i) : m.at(i / n));
+}
+// a rig in a pose: the pose's settings over the rig's, the joints' frames
 function posed(rig, name, frame) {
-  const list = rig.poses[name], p = list ? list[frame % list.length] : gaitFrame(rig, frame % rig.gait.frames);
+  const p = poseOf(rig, name, frame);
   const J = { ...rig.joints, ...p.joints }, a = Math.atan2(J.chest[1] - J.hip[1], J.chest[0] - J.hip[0]);
   const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0) };
   return { p, J, F, a, torso: { ...rig.torso, ...p.torso } };
@@ -759,7 +776,7 @@ function rigFrame(kind, pose, frame, blink, body) {
 }
 
 // draw a rig in a pose, back to front as DRAW does: soft chains (the tail), the far legs, the body (torso, shapes, ears,
-// near legs, joined smoothly), the markings on it, the face. The collision mask: the far legs and the body.
+// near legs, joined smoothly), the markings on it (over: the near paws, outlined on top), the face. The collision mask: the far legs and the body.
 function drawRig(rig, P, pose, blink, chains) {
   const { p, F, torso } = P, k = rig.smooth ?? 1, fur = NAMED[rig.fur];
   const placed = (s) => ({ s, f: s.on ? F[s.on] : null }); // a shape with its frame
@@ -771,9 +788,11 @@ function drawRig(rig, P, pose, blink, chains) {
   }
   const legs = Object.entries(rig.legs).map(([name, L]) => {
     const root = p.roots?.[name] || toWorld(F[L.on], L.at), [knee, paw] = reach(root, p.paws[name], L.thigh, L.shin, L.bend);
-    return { far: L.far, r: L.r, parts: [[...root, ...knee, L.r], [...knee, ...paw, L.r]] };
+    const pad = p.pad && !L.far ? [paw[0], paw[1] + 0.3, ...p.pad] : null; // a paw flat on the ground
+    return { far: L.far, r: L.r, parts: [[...root, ...knee, L.r], [...knee, ...paw, L.r]], pad };
   });
-  const legSd = (L, x, y) => Math.min(sdCapsule(x, y, L.parts[0]), sdCapsule(x, y, L.parts[1]));
+  const legSd = (L, x, y) => Math.min(sdCapsule(x, y, L.parts[0]), sdCapsule(x, y, L.parts[1]), L.pad ? sdEllipse(x, y, L.pad) : Infinity);
+  const over = legs.filter((L) => L.pad && p.over); // (near paws drawn over the body, outlined: where they would hide in it)
   const soft = [], ears = [];
   for (const name in rig.chains) {
     const c = rig.chains[name], pts = chains[name];
@@ -786,6 +805,7 @@ function drawRig(rig, P, pose, blink, chains) {
   const fit = ([x, y], r = 0) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
   for (const { s, f } of body) { const [a, b, c, d] = extent(s); for (const q of [[a, b], [c, b], [a, d], [c, d]]) fit(toWorld(f, q)); }
   for (const L of [...legs, ...soft]) for (const [ax, ay, bx, by, r] of L.parts) { fit([ax, ay], r); fit([bx, by], r); }
+  for (const L of legs) if (L.pad) { fit([L.pad[0] - L.pad[2], L.pad[1] - L.pad[3]]); fit([L.pad[0] + L.pad[2], L.pad[1] + L.pad[3]]); }
   for (const e of ears) for (const q of e) fit(q);
   // (nothing below the feet's row: the ground)
   const ox = Math.floor(x0) - 1, oy = Math.floor(y0) - 1, g = new Grid(Math.ceil(x1) + 1 - ox, Math.min(Math.ceil(y1) + 1, FOOT + 1) - oy);
@@ -800,10 +820,11 @@ function drawRig(rig, P, pose, blink, chains) {
     return d;
   }), fur, OUT);
   for (const m of p.paint || rig.paint || []) g.paint(inside((x, y) => sd(placed(m), x, y)), NAMED[m.color], bodyMask);
+  const overMask = over.length ? g.layer(inside((x, y) => over.reduce((d, L) => Math.min(d, sdEllipse(x, y, L.pad)), Infinity)), fur, OUT) : farMask.map(() => 0);
   const face = rig.face, eye = minus(toWorld(F.head, face.eye), [ox, oy]), nose = minus(toWorld(F.head, face.nose), [ox, oy]);
   eyes(g, pose, eye, blink);
   g.dot(nose[0], nose[1], NAMED[face.noseColor] || OUT);
-  return sprite(g, union(farMask, bodyMask), { ox, oy, head: [eye[0] + ox - 1, eye[1] + oy - 6] });
+  return sprite(g, union(farMask, bodyMask, overMask), { ox, oy, head: [eye[0] + ox - 1, eye[1] + oy - 6] });
 }
 
 // the birds that circle a knocked-out head: two frames

@@ -15,7 +15,7 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale } from './art.js';
+  FOOD, FACE, cloud, moon, heart, star, golden, icy, text, textWidth, hits, snap, setScale, idleFrame } from './art.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 const world = document.createElement('canvas'); // (screen-sized: art pixels scaled up, see fit)
@@ -552,7 +552,7 @@ function drawBoard(pal) {
     if (e) text(ctx, e.score, x + 91, y, c, 'right');
     if (mark && board.typing && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 22 + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
   }
-  animal(kind, 'idle', Math.floor(blinkT * 5) % 2, 0.15, blinkT % 3.2 < 0.12).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
+  animal(kind, 'idle', idleFrame(kind, blinkT), 0.15, blinkT % 3.2 < 0.12).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
   const [l1, l2, r1, r2] = board.typing
     ? ['NEW HIGH SCORE!', 'TYPE YOUR NAME', TOUCH ? 'TAP HERE' : 'ENTER', 'WHEN DONE']
     : ['', '', TOUCH ? 'TAP HERE' : 'SPACE: RUN', TOUCH ? 'TO RUN' : 'ESC: BACK'];
@@ -620,11 +620,11 @@ function wiggle() {
 function animalPose() {
   const blink = (blinkT % 3.2) < 0.12, w = wiggle();
   if (state === 'ko') return [alt > 0 ? 'hurt' : 'ko', 0, false, w];
-  if (state === 'title') return ['idle', Math.floor(blinkT * 5) % 2, blink, w];
+  if (state === 'title') return ['idle', idleFrame(kind, blinkT), blink, w];
   if (hurtT > 0) return ['hurt', 0, false, 0];
   if (power && kind === 'hedgehog') return ['ball', Math.floor(phase * 8) % 4, false, 0]; // spike ball
   if (alt > 0) return ['jump', vAlt > 0 ? 0 : 1, blink, 0];
-  if (ducking) return ['duck', Math.floor(phase * 4) % 2, blink, w];
+  if (ducking) return ['duck', stride(kind, phase, 'duck').frame, blink, w];
   return ['run', stride(kind, phase).frame, blink, w];
 }
 const animalSprite = () => { const [pose, f, blink, w] = animalPose(); return animal(kind, pose, f, soft, blink, w, body); };
@@ -717,7 +717,7 @@ function update(dt) {
     chase.softVel += ((aim - chase.soft) * 170 - chase.softVel * 11) * dt;
     chase.soft += chase.softVel * dt;
     const st = stride(c, chase.phase);
-    moveBody(chase.body, c, chase.caught ? 'idle' : 'run', chase.caught ? Math.floor(blinkT * 5) % 2 : st.frame, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), speed, dt);
+    moveBody(chase.body, c, chase.caught ? 'idle' : 'run', chase.caught ? idleFrame(c, blinkT) : st.frame, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), speed, dt);
     if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
@@ -825,7 +825,7 @@ function standing(k, i, on, pal) {
   const x = titleX(i), blink = (blinkT % 3.2) < 0.12;
   if (x < -26 || x > W) return;
   ctx.globalAlpha = on ? 1 : 0.4;
-  (on && !board ? animalSprite() : animal(k, 'idle', on ? Math.floor(blinkT * 5) % 2 : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
+  (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
   if (!on) return;
@@ -966,7 +966,7 @@ function scene(pal) {
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
     const st = stride(c, chase.phase), blink = (blinkT + 1.3) % 3.2 < 0.12, hop = c === 'rabbit' && chase.phase % 0.5 < 0.25 ? 1 : 0;
-    (chase.caught ? animal(c, 'idle', Math.floor(blinkT * 5) % 2, chase.soft, blink, 0, chase.body) : animal(c, 'run', st.frame, chase.soft, blink, hop, chase.body))
+    (chase.caught ? animal(c, 'idle', idleFrame(c, blinkT), chase.soft, blink, 0, chase.body) : animal(c, 'run', st.frame, chase.soft, blink, hop, chase.body))
       .draw(ctx, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
   }
 

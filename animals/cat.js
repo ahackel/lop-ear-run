@@ -3,7 +3,7 @@
 // joint is placed in that joint's frame: the spine's (hip and chest: from the hip toward the chest, turning with it) or
 // the head's. Colors are palette names.
 
-// (the run is a gait, worked out from the stride: see gait below) standing, all four paws down: hurt
+// (the run and the crawl are gaits, worked out from the stride: see the poses below) standing, all four paws down: hurt
 const standing = { paws: { hindNear: [7, 18.4], hindFar: [8.5, 18.4], frontNear: [14.5, 18.4], frontFar: [16.5, 18.4] } };
 
 // jumping: rising, the nose up, the hind legs trailing and the front ones reaching forward; falling, the nose down, the
@@ -16,21 +16,31 @@ const jump = [
 // lying low (ducking, and knocked out on its back): the body long and flat, the ears laid back
 const low = { joints: { hip: [7, 16.3], chest: [14, 16.3], head: [19.5, 15.3] }, torso: { r: 2.9, ends: 4.5 },
   chains: { tail: { at: [-3.5, -0.3], angle: 1.55 }, earA: { tip: [-4.2, -5] }, earB: { tip: [1.5, -5.2] } } };
-const duck = (f) => ({ ...low, paws: { hindNear: [5.5, 18.6], hindFar: [8, 18.6], frontNear: [f ? 21.5 : 20.5, 18.6], frontFar: [16, 18.6] },
-  shapes: [{ ellipse: [f ? 21.5 : 20.5, 18.9, 2.3, 1] }, { ellipse: [f ? 5 : 7, 18.9, 2.6, 1] }] }); // the paws flat on the ground (shuffling)
 
-// sitting: a round body on its haunch, the front legs straight, the tail along the ground (its tip wagging)
-const sit = (f) => ({
-  joints: { hip: [9.5, 14], chest: [13, 13], head: [14.5, 7.5] }, torso: { r: 0 },
-  shapes: [{ ellipse: [9.5, 14, 5.5, 5] }, { ellipse: [13, 13, 3, 4.5] }, { ellipse: [10, 18.6, 3.5, 1.2] }],
-  roots: { hindNear: [8, 16], hindFar: [10, 16], frontNear: [13, 15], frontFar: [15, 15] },
-  paws: { hindNear: [8, 18.4], hindFar: [10, 18.4], frontNear: [13, 18.4], frontFar: [15.2, 18.4] },
-  paint: [
-    { color: 'STRIPE', capsule: [5.5, 10, 5, 12.5, 0.6] }, { color: 'STRIPE', capsule: [8.5, 10, 8, 12.5, 0.6] },
-    { color: 'BELLY', ellipse: [14, 12, 2, 2.5] }, { color: 'BELLY', on: 'head', ellipse: [2.8, 1.5, 2, 1.6] },
-  ],
-  chains: { tail: { root: [4.5, 17], angle: 1.25 + (f ? 0.2 : 0) } },
-});
+// eased in from a to a + e and out from b - e to b: 0…1…0
+const ease = (u) => u * u * (3 - 2 * u), clamp01 = (u) => Math.min(1, Math.max(0, u));
+const bump = (t, a, b, e) => ease(clamp01((t - a) / e)) * ease(clamp01((b - t) / e));
+const wave = (t, n, o = 0) => Math.sin(Math.PI * 2 * (n * t + o));
+
+// sitting, t (0…1) through an 8 s loop: a round body on its haunch, the front legs straight, the tail along the ground.
+// It breathes (4 times), swishes its tail (its tip flicking), flicks an ear now and then, and once glances up.
+const sit = (t) => {
+  const b = 0.25 * wave(t, 4), look = bump(t, 0.42, 0.66, 0.05), flick = bump(t, 0.15, 0.19, 0.015) + bump(t, 0.79, 0.82, 0.015);
+  return {
+    joints: { hip: [9.5, 14], chest: [13, 13 - b * 0.5], head: [14.5 - look * 0.4, 7.5 - b * 0.6 - look * 0.4] }, torso: { r: 0 }, headAngle: -0.35 * look,
+    shapes: [{ ellipse: [9.5, 14 - b, 5.5, 5 + b] }, { ellipse: [13, 13 - b * 0.5, 3 + b * 0.3, 4.5 + b * 0.5] }, { ellipse: [10, 18.6, 3.5, 1.2] }],
+    roots: { hindNear: [8, 16], hindFar: [10, 16], frontNear: [13, 15], frontFar: [15, 15] },
+    paws: { hindNear: [8, 18.4], hindFar: [10, 18.4], frontNear: [13, 18.4], frontFar: [15.2, 18.4] },
+    paint: [
+      { color: 'STRIPE', capsule: [5.5, 10 - b, 5, 12.5 - b, 0.6] }, { color: 'STRIPE', capsule: [8.5, 10 - b, 8, 12.5 - b, 0.6] },
+      { color: 'BELLY', ellipse: [14, 12 - b * 0.5, 2, 2.5] }, { color: 'BELLY', on: 'head', ellipse: [2.8, 1.5, 2, 1.6] },
+    ],
+    chains: {
+      tail: { root: [4.5, 17], angle: 1.3 + 0.15 * wave(t, 2), curl: 0.3 + 0.3 * wave(t, 2, -0.2) },
+      earA: { tip: flick ? [-2.5 - 2.5 * flick, -6.9 + 1.8 * flick] : [-2.5, -6.9] },
+    },
+  };
+};
 
 export default {
   fur: 'GINGER',
@@ -63,16 +73,20 @@ export default {
     earB: { on: 'head', ear: [[0.5, -3.7], [3.5, -1.9]], tip: [2.5, -7.1], stiffness: 1400, damping: 22, weight: 60 },
   },
   face: { eye: [1, -1], nose: [3.5, 1], noseColor: 'PINK' }, // in the head's frame
-  // the run: a rotary gallop worked out from where the cat is in its stride, in `frames` poses. Each paw pushes back
-  // along the ground (reach) for `stance` of the stride, then swings forward in an arc (lift); legs: each one's place in
-  // the stride and where its paw's sweep is centred (from its root). The body bobs, the hip and the chest out of step.
-  gait: { frames: 8, stance: 0.4, reach: 6, lift: 2.6, bob: 0.6, ground: 18.4,
-    legs: { hindNear: [0, -0.5], hindFar: [0.1, -0.5], frontNear: [0.5, 0.8], frontFar: [0.6, 0.8] } },
   poses: {
+    // the run: a rotary gallop worked out from where the cat is in its stride, in `frames` poses. Each paw pushes back
+    // along the ground (reach) for `stance` of the stride, then swings forward in an arc (lift); legs: each one's place
+    // in the stride and where its paw's sweep is centred (from its root). The body bobs, the hip and the chest out of step.
+    run: { gait: { frames: 8, stance: 0.4, reach: 6, lift: 2.6, bob: 0.6, ground: 18.4,
+      legs: { hindNear: [0, -0.5], hindFar: [0.1, -0.5], frontNear: [0.5, 0.8], frontFar: [0.6, 0.8] } } },
+    // ducking: a slinking crawl, low and flat, the head held level, the shoulders and the haunch rolling (bob twice a
+    // stride, the head still). Diagonal paws step together, slow and low, the near ones flat (pad) and outlined over the
+    // belly (over), or they would hide in it
+    duck: { ...low, pad: [1.8, 1], over: true, gait: { frames: 8, stance: 0.6, reach: 4, lift: 0.8, bob: 0.6, beat: 2, head: 0, ground: 18.4,
+      legs: { hindNear: [0, -1], frontFar: [0.05, 1.5], hindFar: [0.5, 1.5], frontNear: [0.55, 3] } } },
     jump, // rising, falling
     hurt: [standing],
-    duck: [duck(0), duck(1)],
     ko: [{ ...low, flip: true, paws: { hindNear: [6, 11], hindFar: [10, 11], frontNear: [14, 11], frontFar: [17, 11] } }], // on its back, legs up
-    idle: [sit(0), sit(1)],
+    idle: { frames: 80, fps: 10, at: sit }, // sitting: an 8 s loop
   },
 };

@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/src/engine/engine.js';
 import { diskSamples } from '../engine/src/disk-samples.js';
-import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, rigged, moveBody } from '../art.js';
+import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, rigged, moveBody, stride, idleFrame } from '../art.js';
 
 let failed = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) failed++; };
@@ -61,14 +61,16 @@ const maskRows = (s) => [...s.mask.keys()].filter((i) => s.mask[i]).map((i) => M
 const rows = (s) => FOOT - Math.min(...maskRows(s)) + 1;
 const branchBottom = Math.max(...[...branch(Math.random).mask.entries()].filter(([, v]) => v).map(([i]) => Math.floor(i / 26)));
 for (const k of Object.keys(ANIMALS)) {
-  const stand = [0, 1, 2, 3].map((f) => rows(animal(k, 'run', f))), duck = [0, 1].map((f) => rows(animal(k, 'duck', f)));
+  const frames = (move) => [...new Set([...Array(64).keys()].map((i) => stride(k, i / 64, move).frame))]; // (every frame of its stride)
+  const stand = frames('run').map((f) => rows(animal(k, 'run', f))), duck = frames('duck').map((f) => rows(animal(k, 'duck', f)));
   ok(Math.min(...stand) >= GROUND - DUCK_UNDER + 4 && Math.max(...duck) <= GROUND - DUCK_UNDER - 1,
     `the ${k} runs into what hangs low (${Math.min(...stand)} rows tall) and ducks under it (${Math.max(...duck)} rows)`);
 }
 // a rigged animal stands on the ground in every pose (its frames end on the feet's row, none below it), and its chains
 // stay whole as its body runs, jumps, ducks and falls
 for (const k of Object.keys(ANIMALS).filter(rigged)) {
-  const poses = [['run', 0], ['run', 1], ['run', 2], ['run', 3], ['jump', 0], ['jump', 1], ['duck', 0], ['duck', 1], ['idle', 0], ['idle', 1], ['hurt', 0], ['ko', 0]];
+  const every = (move, n) => [...new Set([...Array(n).keys()].map((i) => (move === 'idle' ? idleFrame(k, i / 10) : stride(k, i / n, move).frame)))].map((f) => [move, f]);
+  const poses = [...every('run', 64), ['jump', 0], ['jump', 1], ...every('duck', 64), ...every('idle', 200), ['hurt', 0], ['ko', 0]];
   const low = poses.filter(([p]) => p !== 'jump' && p !== 'ko').map(([p, f]) => { const s = animal(k, p, f); return s.oy + s.h - 1 === FOOT && s.px.slice(-s.w).some(Boolean); }); // (its last row: the feet's, drawn)
   const body = {}, moves = [['run', 0, 0], ['jump', 0, -20], ['jump', 1, -10], ['run', 1, 0], ['duck', 0, 0], ['ko', 0, 0], ['idle', 1, 0]];
   let whole = true;
