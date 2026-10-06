@@ -319,7 +319,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH' && !inRun()) return ACTS.scores();
   if (e.code === 'KeyC' && !inRun()) return ACTS.credits();
   if (scoresOpen()) { // the high scores: Space or Enter runs (again), Esc goes back
-    if (e.code === 'Escape') closeScores();
+    if (e.code === 'Escape') leaveScores();
     else if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); closeScores(); press(); }
     return;
   }
@@ -443,14 +443,14 @@ const ICONS = {
 };
 const ACTS = {
   sound: toggleMute,
-  scores: () => { if (board && !board.credits) closeScores(); else { closeScores(); showScores(fresh); fresh = null; } },
-  credits: () => { if (board?.credits) closeScores(); else { closeScores(); board = { credits: true }; updateMood(); } },
+  scores: () => { if (board && !board.credits) leaveScores(); else { closeScores(); showScores(fresh); fresh = null; } },
+  credits: () => { if (board?.credits) leaveScores(); else { closeScores(); board = { credits: true }; updateMood(); } },
   full: toggleFull,
   home: goHome,
   prev: () => chooseNext(-1),
   next: () => chooseNext(1),
   start: press,
-  back: closeScores,
+  back: () => leaveScores(),
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
@@ -600,6 +600,8 @@ function showScores(entry = null) {
     nameEl.focus({ preventScroll: true });
   }
 }
+// back from the high scores (or the credits): to the title, if the run is over (not to its knock-out)
+const leaveScores = () => (state === 'ko' ? goHome() : closeScores());
 function closeScores() {
   if (board?.typing) doneTyping();
   board = null;
