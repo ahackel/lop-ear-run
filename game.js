@@ -169,11 +169,25 @@ function choose(k) {
   if (state === 'ko') { gained = null; reset(); state = 'title'; }
 }
 const pick = (k) => { kind = k; keep('animal', k); songOf(k); }; // (kept for the next visit)
-// the animal's own song, from where the music is (the same song, played its way: music.js)
+// the animal's own song (the same song, played its way: music.js), never abruptly: the one playing fades out over
+// SONG_FADE seconds, then the new one starts from its beginning, in the mood the game is in. Picked again meanwhile:
+// the last one picked (the one playing: it comes back)
+const SONG_FADE = 2;
+let wanted = null, switching = false;
 function songOf(k) {
-  if (!tunes || playing === k) return;
-  playing = k;
-  music.load(songFor(tunes.base, k), { read: tunes.read });
+  wanted = k;
+  if (!tunes || switching || playing === k) return;
+  switching = true;
+  if (!muted) music.setVolume(0, SONG_FADE * 0.7); // (a curve: all but silent by the end)
+  setTimeout(() => {
+    switching = false;
+    if (wanted !== playing) {
+      playing = wanted;
+      music.load(songFor(tunes.base, playing), { read: tunes.read, restart: true });
+      if (mood) music.setMood(mood, { within: 0 });
+    }
+    music.setVolume(muted ? 0 : 1, 0.05);
+  }, muted ? 0 : SONG_FADE * 1000);
 }
 const inRun = () => state === 'run' || state === 'paused';
 const KINDS = Object.keys(ANIMALS);
@@ -425,7 +439,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 function toggleMute() {
   muted = !muted;
   keep('muted', muted ? '1' : '0');
-  if (audio === 'on') music.setVolume(muted ? 0 : 1, 0.1);
+  if (audio === 'on' && !switching) music.setVolume(muted ? 0 : 1, 0.1); // (while a song fades out: the next comes in so)
 }
 
 // full screen: only the game (Esc, F or its button leaves), sideways on a phone. Where the browser has none (iPhone), or
