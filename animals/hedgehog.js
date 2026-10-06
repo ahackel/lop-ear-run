@@ -1,5 +1,5 @@
 // The hedgehog as a rig (see the cat, and kit.js): a round spiky back, a cream face and belly, a pointed snout, a little
-// round ear; short legs. (Its power, rolled up in a ball: still drawn, see DRAW in art.js.)
+// round ear; short legs. (Its power, rolled up in a ball: drawn on its own, see balls in art.js.)
 import { quadruped } from './kit.js';
 
 // @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines

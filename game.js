@@ -15,15 +15,16 @@
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, TRUNK, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
-  FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, rigged, strideRate } from './art.js';
+  FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
+  JUMP, GRAVITY, jumpHeight, hill, strides, rgb, luma } from './art.js';
+import { ease } from './animals/kit.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
-const world = document.createElement('canvas'); // (screen-sized: art pixels scaled up, see fit)
-let ctx = world.getContext('2d'); // (the world; for a moment the second palette's canvas, see draw)
+let ctx = vctx; // (the screen, in art pixels scaled up, see fit; for a moment the second palette's canvas, see draw)
 
 // ------------------------------------------------------------------------------------------------------------- tuning
 const START_SPEED = 110, MAX_SPEED = 270, ACCEL = 3; // art pixels per second (per second)
-const GRAVITY = 1500, JUMP = 330, JUMP_CUT = 140; // a held jump rises to about 36 px, a tap to about 12
+const JUMP_CUT = 140; // a held jump rises to about 36 px (see JUMP in art.js), a tap to about 12
 let RUN_X = 30; const SCORE_PER_PX = 0.1; // (where the animal runs: right of a notch, see fit)
 const BRANCHES_FROM = 150, CROWS_FROM = 300, FAST_FROM = 700; // the scores where branches, crows (tension) and speed (action) begin
 // A run is days and nights. Night falls after a day's run (DAY points), getting dark over TWILIGHT seconds (and light
@@ -35,36 +36,42 @@ const DAY = 1000, NIGHT_SECS = 21, TWILIGHT = 10, HUNT_FROM = 6, CRUISE_X = -8, 
 const DAY_SPEED = 30, DAY_TIGHT = 0.05, DAY_PACKS = 0.25, DAY_DRAIN = 0.15, DAY_CROWS = 0.03, DAY_RECOVER = 2, ESCAPE = 100;
 const hard = () => Math.min(day - 1, HARDEST); // how much harder than the first day
 const DRAIN = 2, BUMP = 30, MEAL = 12, SAFE_SECS = 1.5; // energy (of 100): lost per second, per bump; won per food; blinking after a bump
-// golden food (the first after 250, then one in every 400-700 points) gives a super power for 8 seconds, each animal its own
+// golden food (the first after 250, then one in every 400-700 points) gives a super power for 8 seconds, each animal its
+// own: its name, and what it does (smashes: what it runs into tumbles away; bounces: off it; passes: through it; clears:
+// what is ahead is blown away; boost: runs that much faster; doubles: scores double; shakes off the chaser, saying so).
+// The rest, where it happens (the kind's own checks)
 const POWER_SECS = 8, GOLD_FIRST = 250, GOLD_GAP = [400, 700];
 const POWERS = {
-  rabbit: 'SUPER HOP!', // jumps higher, and once more in the air
-  cat: 'NINE LIVES!', // bumps cost nothing: it bounces off
-  dog: 'ZOOMIES!', // runs faster and bowls everything over
-  fox: 'SLY FOX!', // food comes to it, the chaser loses its trail
-  hedgehog: 'SPIKE BALL!', // rolls up and plows through everything
-  squirrel: 'GLIDE!', // falls slowly, and jumps again in the air
-  otter: 'BELLY SLIDE!', // slides under what hangs low and through the rest
-  skunk: 'STINK!', // obstacles fade (it runs right through them), crows and the chaser flee
-  wolf: 'HOWL!', // what is just ahead is blown away
-  boar: 'TUSK CHARGE!', // faster, and smashes everything (worth double)
-  bear: 'BERRY RUSH!', // double points, and food fills it twice as much
-  cheetah: 'SPRINT!', // very fast, and untouchable
-  rhino: 'QUAKE!', // stomps: everything on the screen flies off
-  elephant: 'SPLASH!', // sprays water from its trunk: what is just ahead is washed away
-  dino: 'GIANT DINO!', // twice as big: it tramples everything in its way, for double points
+  rabbit: { name: 'SUPER HOP!' }, // jumps higher, and once more in the air
+  cat: { name: 'NINE LIVES!', bounces: true }, // bumps cost nothing
+  dog: { name: 'ZOOMIES!', boost: 1.3, smashes: true },
+  fox: { name: 'SLY FOX!', shakes: 'LOST YOU!' }, // food comes to it
+  hedgehog: { name: 'SPIKE BALL!', smashes: true }, // rolled up
+  squirrel: { name: 'GLIDE!' }, // falls slowly, and jumps again in the air
+  otter: { name: 'BELLY SLIDE!', smashes: true }, // slides under what hangs low
+  skunk: { name: 'STINK!', passes: true, shakes: 'PHEW!' }, // obstacles fade, crows flee
+  wolf: { name: 'HOWL!', clears: true },
+  boar: { name: 'TUSK CHARGE!', boost: 1.35, smashes: true }, // (worth double)
+  bear: { name: 'BERRY RUSH!', doubles: true }, // and food fills it twice as much
+  cheetah: { name: 'SPRINT!', boost: 1.6, passes: true },
+  rhino: { name: 'QUAKE!', clears: true }, // stomps: everything on the screen flies off
+  elephant: { name: 'SPLASH!', clears: true }, // sprays water from its trunk
+  dino: { name: 'GIANT DINO!', passes: true, doubles: true }, // twice as big: it tramples everything
 };
-const SMASHES = ['dog', 'hedgehog', 'otter', 'boar']; // what these run into while their power lasts tumbles away
-const passes = () => power > 0 && ['skunk', 'cheetah', 'dino'].includes(kind); // these run through everything
-const doubles = () => power > 0 && ['bear', 'dino'].includes(kind); // these score double
+const powered = () => (power > 0 ? POWERS[kind] : {}); // the super power on now (none: {})
 const T = () => ANIMALS[kind]; // the animal's dials (see art.js)
+const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?scale)
+
+// what this browser keeps (localStorage, lop.<name>; in a private window perhaps nothing): get, set (null: removed)
+const kept = (k) => { try { return localStorage.getItem(`lop.${k}`); } catch { return null; } };
+const keptJSON = (k) => { try { return JSON.parse(kept(k)); } catch { return null; } };
+const keep = (k, v) => { try { if (v === null) localStorage.removeItem(`lop.${k}`); else localStorage.setItem(`lop.${k}`, v); } catch { /* no storage */ } };
 
 // --------------------------------------------------------------------------------------------------------- the music
 const music = new StardriftPlayer();
 const song = fetch('song.json').then((r) => r.json());
 let audio = 'off'; // off | starting | on
-let muted = false;
-try { muted = localStorage.getItem('lop.muted') === '1'; } catch { /* no storage: sound on */ }
+let muted = kept('muted') === '1';
 let mood = null;
 const calls = []; // the last calls to the music, newest first, as game code would write them
 
@@ -72,12 +79,12 @@ function call(name, ...args) {
   calls.unshift(`music.${name}(${args.map((a) => JSON.stringify(a).replace(/"/g, "'").replace(/'(\w+)':/g, '$1: ')).join(', ')})`);
   calls.length = Math.min(calls.length, 5);
   if (audio === 'on') music[name](...args);
-  showCalls();
+  callsShown = false;
 }
 
 // the first key or tap starts the audio (browsers need a user gesture for it)
 async function startAudio() {
-  if (audio !== 'off') return;
+  if (audio !== 'off' || state === 'run') return; // (not from a jump or a duck: a start that failed is tried again after the run)
   audio = 'starting';
   try {
     await music.init();
@@ -113,17 +120,17 @@ function updateMood(options) {
 // ----------------------------------------------------------------------------------------------------------- state
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
-let speed, dist, bonus, t, alt, vAlt, held, ducking, soft, softVel, phase, obstacles, food, parts, floats;
+let speed, dist, bonus, t, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
 let spawnIn, chase, night, dark, nextNight, day, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
 let fresh = null; // a knock-out's new entry in the high scores, to name
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
 const score = () => Math.floor(dist * SCORE_PER_PX * T().mult + bonus); // what it scores: harder animals count more
 const rnd = Math.random;
-const AUTO = new URLSearchParams(location.search).has('auto'); // ?auto: the animal runs by itself (to hear the moods)
+const AUTO = Q.has('auto'); // ?auto: the animal runs by itself (to hear the moods)
 
 function reset() {
-  speed = START_SPEED; dist = 0; bonus = 0; t = 0; alt = 0; vAlt = 0; held = false; ducking = false; soft = 0.2; softVel = 0; phase = 0;
+  speed = START_SPEED; dist = 0; bonus = 0; t = 0; alt = 0; vAlt = 0; ducking = false; phase = 0;
   obstacles = []; food = []; parts = []; floats = [];
   spawnIn = 120; chase = null; night = 0; dark = 0; nextNight = DAY; day = 1; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
@@ -133,10 +140,10 @@ reset();
 blinkT = 0;
 
 function start() {
-  if (gained && unlocked(gained)) { kind = gained; try { localStorage.setItem('lop.animal', kind); } catch { /* no storage */ } } // the one just unlocked runs next
+  if (gained && unlocked(gained)) pick(gained); // the one just unlocked runs next
   gained = null;
   beat = best(); // the best so far: passing it plays a fanfare
-  if (kind === newKind) { newKind = null; try { localStorage.removeItem('lop.new'); } catch { /* no storage */ } } // (no longer new)
+  if (kind === newKind) { newKind = null; keep('new', null); } // (no longer new)
   reset();
   state = 'run';
   updateMood();
@@ -144,13 +151,12 @@ function start() {
 }
 
 function choose(k) {
-  if (state === 'run' || state === 'paused' || !ANIMALS[k]) return;
-  if (!unlocked(k)) return;
-  kind = k;
-  try { localStorage.setItem('lop.animal', k); } catch { /* no storage */ }
+  if (inRun() || !ANIMALS[k] || !unlocked(k)) return;
+  pick(k);
   if (state === 'ko') { gained = null; reset(); state = 'title'; }
-  softVel -= 6; // a little bounce for the one picked
 }
+const pick = (k) => { kind = k; keep('animal', k); }; // (kept for the next visit)
+const inRun = () => state === 'run' || state === 'paused';
 const KINDS = Object.keys(ANIMALS);
 const renamed = (k) => (k === 'sabre' ? 'elephant' : k); // (kept in this browser under an animal's old name: the sabre-tooth became the elephant)
 // the next animal one way or the other, from k, among those that can be played
@@ -162,23 +168,25 @@ const playable = () => KINDS.filter(unlocked); // the ones on the title (the oth
 // unlocks it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
 const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
 let open = ['rabbit'];
-try { const u = JSON.parse(localStorage.getItem('lop.unlocked')); if (Array.isArray(u)) open = ['rabbit', ...u.map(renamed).filter((k) => ANIMALS[k] && k !== 'rabbit')]; } catch { /* no storage */ }
-const FPS = new URLSearchParams(location.search).has('fps'); // ?fps: frames a second, and the work of a frame (to check a device)
-const ALL = new URLSearchParams(location.search).has('all'); // ?all: every animal open, for this visit (nothing saved)
+{ const u = keptJSON('unlocked'); if (Array.isArray(u)) open = ['rabbit', ...u.map(renamed).filter((k) => ANIMALS[k] && k !== 'rabbit')]; }
+const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device)
+const ALL = Q.has('all'); // ?all: every animal open, for this visit (nothing saved)
 function unlocked(k) { return ALL || open.includes(k); }
 // the one unlocked last: in this run (gained, played next, from the knock-out or the title) and until played (newKind,
 // marked NEW on the title)
 let gained = null, newKind = null;
-try { const k = renamed(localStorage.getItem('lop.new')); if (ANIMALS[k] && unlocked(k)) newKind = k; } catch { /* no storage */ }
-try { const k = renamed(localStorage.getItem('lop.animal')); if (ANIMALS[k] && unlocked(k)) kind = k; } catch { /* no storage */ }
+const keptKind = (name) => { const k = renamed(kept(name)); return ANIMALS[k] && unlocked(k) ? k : null; };
+newKind = keptKind('new');
+kind = keptKind('animal') || kind;
 function unlock(k) {
   open.push(k);
   gained = newKind = k;
-  try { localStorage.setItem('lop.unlocked', JSON.stringify(open)); localStorage.setItem('lop.new', k); } catch { /* no storage */ }
+  keep('unlocked', JSON.stringify(open)); keep('new', k);
   call('sting', 'discovery');
-  const t = `${ANIMALS[k].name} UNLOCKED!`;
-  floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2.5, rise: 0 });
+  banner(`${ANIMALS[k].name} UNLOCKED!`, 30, 2.5);
 }
+// words in the middle of the screen for a while, standing (rise: or rising)
+const banner = (text, y, life = 2, rise = 0) => floats.push({ text, x: W / 2 - textWidth(text) / 2, y, life, rise });
 
 // home: back to the title, from wherever (a run is given up)
 function goHome() {
@@ -186,7 +194,7 @@ function goHome() {
   if (state === 'title') return;
   if (state === 'paused' && audio === 'on') music.play();
   fresh = null;
-  if (gained) { kind = gained; gained = null; try { localStorage.setItem('lop.animal', kind); } catch { /* no storage */ } } // the new one, picked
+  if (gained) { pick(gained); gained = null; } // the new one, picked
   reset();
   state = 'title';
   fingers.clear();
@@ -195,9 +203,9 @@ function goHome() {
 
 // a bump costs energy and leaves the animal blinking (safe) for a moment; with none left it is knocked out
 function bump(o) {
-  if (power && SMASHES.includes(kind)) return smash(o);
-  if (power && kind === 'cat') { // nine lives: it bounces off, no harm done
-    safe = 0.4; vAlt = Math.max(vAlt, 220); softVel -= 10;
+  if (powered().smashes) return smash(o);
+  if (powered().bounces) { // nine lives: it bounces off, no harm done
+    safe = 0.4; vAlt = Math.max(vAlt, 220);
     floats.push({ text: 'BOING!', x: RUN_X, y: animalY() - 6, life: 0.6 });
     call('sting', 'jump');
     return;
@@ -206,7 +214,6 @@ function bump(o) {
   safe = SAFE_SECS; hurtT = 0.35; slow = 1;
   if (chase && !chase.leaving) { if (chase.heat > 0.05) chase.catching = true; chase.heat = 1; } // the chaser closes in
   if (alt === 0) vAlt = 150; // knocked up a little
-  softVel -= 14;
   const [hx, hy] = headAt();
   for (let i = 0; i < 7; i++) parts.push({ x: hx, y: hy, vx: (rnd() - 0.3) * 120, vy: -40 - rnd() * 80, life: 0.5, color: COLOR.YELLOW });
   if (energy <= 0) { speed = -70; return knockOut('KNOCKED OUT!'); } // thrown back from what it ran into
@@ -229,9 +236,9 @@ function startPower() {
   power = POWER_SECS; airJumps = 0;
   call('sting', 'power');
   updateMood({ within: 0 });
-  floats.push({ text: POWERS[kind], x: W / 2 - textWidth(POWERS[kind]) / 2, y: 28, life: 1.6 });
+  banner(POWERS[kind].name, 28, 1.6, 12);
   sparkle(16, 140);
-  if ((kind === 'fox' || kind === 'skunk') && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: kind === 'fox' ? 'LOST YOU!' : 'PHEW!', x: safeL + 4, y: GROUND - 32, life: 1.2 }); }
+  if (powered().shakes && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: powered().shakes, x: safeL + 4, y: GROUND - 32, life: 1.2 }); }
 }
 // golden sparks around the animal
 function sparkle(n, v = 40) {
@@ -250,7 +257,7 @@ function dawn() {
   if (joins) unlock(c);
   else call('sting', away ? 'escape' : 'dawn');
   day++; nextNight = far() + DAY;
-  floats.push({ text: `DAY ${day}`, x: W / 2 - textWidth(`DAY ${day}`) / 2, y: joins ? 40 : 30, life: 2, rise: 0 }); // (under the unlock)
+  banner(`DAY ${day}`, joins ? 40 : 30); // (under the unlock)
 }
 
 function knockOut(why) {
@@ -268,15 +275,12 @@ function press() {
   if (state === 'title') return start();
   if (state === 'ko') { if (koT > 0.8 && !fresh) start(); return; } // (a new high score is named first)
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
-  held = true;
   if (alt === 0 && !ducking) {
     vAlt = JUMP * T().jump * (superHop() ? 1.25 : 1);
-    softVel -= 9; // the ear flicks down as it takes off
     call('sting', 'jump');
   } else if (alt > 0 && ((superHop() && airJumps < 1) || (power && kind === 'squirrel'))) { // once more in the air (gliding: again and again)
     airJumps++;
     vAlt = JUMP * (kind === 'squirrel' ? 0.6 : 1);
-    softVel -= 9;
     sparkle(8, 60);
     call('sting', 'jump');
   }
@@ -284,7 +288,6 @@ function press() {
 const superHop = () => power > 0 && kind === 'rabbit';
 const stinks = () => power > 0 && kind === 'skunk';
 function release() {
-  held = false;
   if (vAlt > JUMP_CUT) vAlt = JUMP_CUT;
 }
 
@@ -294,8 +297,8 @@ addEventListener('keydown', (e) => {
   if (e.target.closest?.('button') && (e.code === 'Space' || e.code === 'Enter')) return; // the buttons take their own keys
   if (e.code === 'KeyM') return toggleMute();
   if (e.code === 'KeyF') return toggleFull();
-  if (e.code === 'KeyH' && state !== 'run' && state !== 'paused') return ACTS.scores();
-  if (e.code === 'KeyC' && state !== 'run' && state !== 'paused') return ACTS.credits();
+  if (e.code === 'KeyH' && !inRun()) return ACTS.scores();
+  if (e.code === 'KeyC' && !inRun()) return ACTS.credits();
   if (scoresOpen()) { // the high scores: Space or Enter runs (again), Esc goes back
     if (e.code === 'Escape') closeScores();
     else if (['Space', 'Enter'].includes(e.code)) { e.preventDefault(); closeScores(); press(); }
@@ -318,7 +321,9 @@ const TOUCH = matchMedia('(pointer: coarse)').matches;
 const fingers = new Map(); // pointer id → 'duck' | 'jump'
 const stage = document.getElementById('stage');
 // where a pointer is, in the game's pixels from the top left of the screen (outside it: below 0 or past W, VH)
-const artAt = (e) => { const r = view.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * VH]; };
+let viewRect = view.getBoundingClientRect(); // (kept: see fit, and scrolling; reading it in a press could make the browser lay the page out)
+addEventListener('scroll', () => { viewRect = view.getBoundingClientRect(); }, { passive: true });
+const artAt = (e) => { const r = viewRect; return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * VH]; };
 stage.addEventListener('pointerdown', (e) => {
   if (e.target === nameEl) return; // (typing a name)
   e.preventDefault();
@@ -370,14 +375,14 @@ upright.addEventListener('change', () => { if (upright.matches) pause(); });
 function pause() {
   if (state !== 'run') return;
   state = 'paused';
-  fingers.clear(); ducking = false; held = false;
+  fingers.clear(); ducking = false;
   if (audio === 'on') music.pause(0.2);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 function toggleMute() {
   muted = !muted;
-  try { localStorage.setItem('lop.muted', muted ? '1' : '0'); } catch { /* no storage */ }
+  keep('muted', muted ? '1' : '0');
   if (audio === 'on') music.setVolume(muted ? 0 : 1, 0.1);
 }
 
@@ -427,7 +432,7 @@ const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
-  if (state === 'run' || state === 'paused') return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
+  if (inRun()) return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
   const ids = ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
   // on the title, the button that runs (under the writing, over the animals: in the world, from the top of the screen)
@@ -449,7 +454,7 @@ function drawButtons(pal) {
     if (b.text) drawButton(b.x, b.y, null, b.id === pressedBtn, pal, b);
     else drawButton(b.x, b.y, icon, b.id === pressedBtn || (board && b.id === (board.credits ? 'credits' : 'scores')), pal);
   }
-  if (TOUCH && !board && (state === 'run' || state === 'paused')) {
+  if (TOUCH && !board && inRun()) {
     showPad(pads.left, 'duck', ducking);
     showPad(pads.right, 'jump', [...fingers.values()].includes('jump'));
   } else if (picking()) {
@@ -473,7 +478,9 @@ function padSvg(icon) {
     const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
     paths[edge ? 'ring' : icon[y - o]?.[x - o] === 'x' ? 'icon' : 'fill'] += `M${x} ${y}h1v1h-1z`;
   }
-  return `<svg viewBox="0 0 ${PAD} ${PAD}">${Object.entries(paths).map(([k, d]) => `<path class="${k}" d="${d}"/>`).join('')}</svg>`;
+  // (twice: as it is, and pressed over it, shown by its opacity alone, so a press never has the pad painted again)
+  const svg = (as) => `<svg class="${as}" viewBox="0 0 ${PAD} ${PAD}">${Object.entries(paths).map(([k, d]) => `<path class="${k}" d="${d}"/>`).join('')}</svg>`;
+  return svg('up') + svg('down');
 }
 const PAD_SVGS = Object.fromEntries(Object.entries(PAD_ICONS).map(([k, icon]) => [k, padSvg(icon)]));
 const pads = Object.fromEntries(['left', 'right'].map((side) => {
@@ -508,7 +515,9 @@ function drawButton(x, y, icon, on, pal, { w = BTN, h = BTN, text: words } = {})
   ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
   ctx.fillStyle = on ? pal.bg : ink;
   if (words) return text(ctx, words, x + w / 2, y + (h - 5) / 2, on ? pal.bg : ink, 'center');
-  ICONS[icon]?.forEach((r, dy) => [...r].forEach((c, dx) => { if (c === 'x') ctx.fillRect(x + 2 + dx, y + 2 + dy, 1, 1); }));
+  ctx.beginPath();
+  ICONS[icon]?.forEach((r, dy) => { for (let dx = 0; dx < r.length; dx++) if (r[dx] === 'x') ctx.rect(x + 2 + dx, y + 2 + dy, 1, 1); });
+  ctx.fill();
 }
 
 // ------------------------------------------------------------------------------------------------- the music panel
@@ -520,7 +529,8 @@ function showMood() {
   for (const el of moodsEl.children) el.classList.toggle('on', el.dataset.mood === mood);
   status.textContent = audio === 'on' ? `section: ${section}` : 'press a key or tap the game to start the music';
 }
-function showCalls() { callsEl.textContent = calls.join('\n'); }
+let callsShown = true; // (the calls written out: once a frame at most, see draw)
+function showCalls() { if (!callsShown) { callsShown = true; callsEl.textContent = calls.join('\n'); } }
 
 // ------------------------------------------------------------------------------------------------------ high scores
 // one table of ten, every animal in it, kept in this browser (localStorage lop.scores: [{ name, score, kind, date }]). A
@@ -528,13 +538,13 @@ function showCalls() { callsEl.textContent = calls.join('\n'); }
 const TOP = 10;
 let scores = [], lastName = '';
 try {
-  const s = JSON.parse(localStorage.getItem('lop.scores'));
+  const s = keptJSON('scores');
   if (Array.isArray(s)) scores = s.map((e) => ({ ...e, kind: renamed(e.kind) }));
   else if (s) scores = Object.entries(s).flatMap(([k, t]) => t.map((e) => ({ ...e, kind: k }))).sort((a, b) => b.score - a.score).slice(0, TOP); // one table per animal, before
-  lastName = localStorage.getItem('lop.name') || '';
-} catch { /* no storage */ }
+} catch { /* a table spoilt: none */ }
+lastName = kept('name') || '';
 const best = () => scores[0]?.score || 0;
-const saveScores = () => { try { localStorage.setItem('lop.scores', JSON.stringify(scores)); } catch { /* no storage */ } };
+const saveScores = () => keep('scores', JSON.stringify(scores));
 
 // → the new entry, if the score makes the table (below those it ties with)
 function record(k, s) {
@@ -573,7 +583,7 @@ function closeScores() {
 function doneTyping() {
   board.typing = false;
   lastName = board.entry.name === '???' ? '' : board.entry.name;
-  try { localStorage.setItem('lop.name', lastName); } catch { /* no storage */ }
+  keep('name', lastName);
   nameEl.blur();
   nameEl.hidden = true;
 }
@@ -608,8 +618,14 @@ function tapScores() {
   else { closeScores(); press(); }
 }
 
+// the high scores (or the credits), the animal sitting under them, and what to do
 function drawBoard(pal) {
-  if (board.credits) return drawCredits(pal);
+  (board.credits ? drawCredits : drawScores)(pal);
+  animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
+  if (board.typing) help(TOUCH ? 'NEW HIGH SCORE! TYPE YOUR NAME - TAP WHEN DONE' : 'NEW HIGH SCORE! TYPE YOUR NAME - ENTER WHEN DONE', pal, pal[7]);
+  else help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
+}
+function drawScores(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
   text(ctx, 'HIGH SCORES', W / 2, 4, ink, 'center');
   for (let i = 0; i < TOP; i++) {
@@ -622,9 +638,6 @@ function drawBoard(pal) {
     if (e) text(ctx, e.score, x + 93, y, c, 'right');
     if (mark && board.typing && !TOUCH && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 15 + FACE_W + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
   }
-  animal(kind, 'idle', idleFrame(kind, blinkT), 0.15, blinkT % 3.2 < 0.12).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
-  if (board.typing) help(TOUCH ? 'NEW HIGH SCORE! TYPE YOUR NAME - TAP WHEN DONE' : 'NEW HIGH SCORE! TYPE YOUR NAME - ENTER WHEN DONE', pal, pal[7]);
-  else help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
 }
 
 // the credits: who made what (what, dim, on the left; who on the right), on the high scores' screen (board.credits)
@@ -638,8 +651,6 @@ function drawCredits(pal) {
   text(ctx, 'CREDITS', W / 2, 4, ink, 'center');
   CREDITS.forEach(([what, who], i) => { text(ctx, what, W / 2 - 4, 16 + i * ROW, dim, 'right'); text(ctx, who, W / 2 + 4, 16 + i * ROW, ink); });
   text(ctx, 'THANKS FOR PLAYING!', W / 2, 16 + (CREDITS.length + 1) * ROW, pal[7], 'center');
-  animal(kind, 'idle', idleFrame(kind, blinkT), 0.15, blinkT % 3.2 < 0.12).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
-  help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
 }
 const LOGO = { O: '75557', P: '75744' }; // (the title's letters: square)
 // what to do, in a line of its own at the bottom of the screen (dim, or in a color)
@@ -673,7 +684,7 @@ function spawn() {
   spawnIn = o.sprite.w + (o.extra || 0) + gap;
   // golden food, now and then: high over a ground obstacle (jump it at the right moment)
   if (o.kind === 'ground' && !gold && !power && s >= nextGold) {
-    const reach = (JUMP * T().jump) ** 2 / (2 * GRAVITY * T().gravity) + 15; // how high this animal gets, its head
+    const reach = jumpHeight(kind) + 15; // how high this animal gets, its head
     gold = { x: o.x + (o.sprite.w + (o.extra || 0)) / 2 - 6, y: GROUND - Math.min(reach - 6, o.sprite.h + 26) };
     nextGold = s + GOLD_GAP[0] + rnd() * (GOLD_GAP[1] - GOLD_GAP[0]);
   }
@@ -687,7 +698,8 @@ function spawn() {
 function autopilot() {
   const ahead = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
   ducking = false;
-  if (power && [...SMASHES, 'cat', 'wolf', 'skunk', 'cheetah', 'rhino', 'elephant', 'dino'].includes(kind)) return; // straight through (the otter slides by itself)
+  const p = powered();
+  if (p.smashes || p.bounces || p.passes || p.clears) return; // straight through (the otter slides by itself)
   const gap = ahead ? ahead.x - (RUN_X + 22) : Infinity;
   if (ahead?.duck) { ducking = alt === 0 && gap < 30; return; }
   if (alt === 0 && gap < speed * 0.1 && gap > -8) return press();
@@ -695,30 +707,30 @@ function autopilot() {
   if (snack && alt === 0 && gap > 90 && snack.x - (RUN_X + 12) < speed * 0.12) press();
 }
 
-// the rabbit's tail: it bobs with every hop, and wiggles in quick bursts when the rabbit is not hopping
-function wiggle() {
-  if (kind !== 'rabbit') return 0;
-  if (hopping()) return phase % 0.5 < 0.25 ? 1 : 0; // up a pixel, down again: twice a hop
-  return blinkT % 1.7 < 0.45 && Math.floor(blinkT * 12) % 2 ? 1 : 0;
-}
-// the animal's pose now → [pose, frame, blink, wiggle]
+// blinking, now and then (t: the time; a little later for another animal)
+const blinking = (t = blinkT) => t % 3.2 < 0.12;
+// the animal's pose now → [pose, frame, blink]
 function animalPose() {
-  const blink = (blinkT % 3.2) < 0.12, w = wiggle();
-  if (state === 'ko') return [alt > 0 ? 'hurt' : 'ko', 0, false, w];
-  if (state === 'title') return ['idle', idleFrame(kind, blinkT), blink, w];
-  if (hurtT > 0) return ['hurt', 0, false, 0];
-  if (power && kind === 'hedgehog') return ['ball', Math.floor(phase * 8) % 4, false, 0]; // spike ball
-  if (alt > 0) return ['jump', jumpFrame(kind, vAlt / (JUMP * T().jump)), blink, 0];
-  if (ducking) return ['duck', stride(kind, phase, 'duck').frame, blink, w];
-  return [power && kind === 'elephant' ? 'spray' : 'run', stride(kind, phase).frame, blink, w]; // (splash: the trunk up)
+  if (state === 'ko') return [alt > 0 ? 'hurt' : 'ko', 0, false];
+  if (state === 'title') return ['idle', idleFrame(kind, blinkT), blinking()];
+  if (hurtT > 0) return ['hurt', 0, false];
+  if (power && kind === 'hedgehog') return ['ball', Math.floor(phase * 8) % 4, false]; // spike ball
+  if (alt > 0) return ['jump', jumpFrame(kind, vAlt / (JUMP * T().jump)), blinking()];
+  if (ducking) return ['duck', stride(kind, phase, 'duck').frame, blinking()];
+  return [power && kind === 'elephant' ? 'spray' : 'run', stride(kind, phase).frame, blinking()]; // (splash: the trunk up)
 }
-const animalSprite = (scale = 1) => { const [pose, f, blink, w] = animalPose(); return animal(kind, pose, f, soft, blink, w, body, scale); };
-// a rigged animal's moving parts (its tail, its ears: see the rigs in art.js), swung by how it moves on the screen
+// the animal as it is drawn now (scale: the giant dino's); the same until it moves on (see update), however often drawn
+let drawn = {};
+const animalSprite = (scale = 1) => {
+  if (drawn.scale !== scale) { const [pose, f, blink] = animalPose(); drawn = { scale, sprite: animal(kind, pose, f, { blink, body, scale }) }; }
+  return drawn.sprite;
+};
+// the animal's moving parts (its tail, its ears: see the rigs in art.js), swung by how it moves on the screen
 const body = {};
 // the giant dino's size (it grows and shrinks in a quarter second) and where it is drawn: its feet stay on the ground,
 // it grows forward a little. → x, y, w, h, scale (1 for anyone else)
 function giantBox() {
-  const s = power && kind === 'dino' ? (POWER_SECS - power < 0.25 || power < 0.25 ? 1.5 : 2) : 1;
+  const s = power && kind === 'dino' ? (POWER_SECS - power < 0.25 || power < 0.25 ? 1.5 : 2) : 1; // (as POWERS has it: twice as big)
   return [RUN_X - 4 * (s - 1), animalY() + FOOT * (1 - s), 26 * s, 20 * s, s];
 }
 const hopping = () => state === 'run' && alt === 0 && !ducking && hurtT <= 0;
@@ -726,18 +738,10 @@ const animalY = () => GROUND - FOOT - alt - (hopping() ? stride(kind, phase).lif
 const headAt = () => { const sp = animalSprite(); return [RUN_X + sp.head[0], animalY() + sp.head[1]]; };
 
 function update(dt) {
+  drawn = {};
   blinkT += dt;
   const sel = playable().indexOf(kind);
   carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
-  // the ear (the cat's tail) swings on a spring toward where the run, the wind and the jump would put it
-  const target = state === 'title' ? 0.15 + 0.05 * Math.sin(blinkT * 2)
-    : state === 'ko' ? (kind === 'rabbit' ? -0.3 : 1.2)
-    : state !== 'run' ? 0.9
-    : ducking && alt === 0 ? 1.5
-    : alt > 0 ? 0.5 + Math.max(-0.4, Math.min(1.9, -vAlt / 220))
-    : 0.45 + 0.12 * Math.sin(phase * Math.PI * 2);
-  softVel += ((target - soft) * 170 - softVel * 11) * dt;
-  soft += softVel * dt;
   { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? W / 2 - 13 : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); } // (on the title: where it settles, so sliding there does not fling its ears)
   if (state === 'ko') koT += dt;
   if (state === 'ko' && fresh && !TOUCH && koT > 1.2) { showScores(fresh); fresh = null; } // a new high score: its name (on a phone: on a tap)
@@ -748,18 +752,16 @@ function update(dt) {
     if (AUTO) autopilot();
     t += dt;
     slow = Math.max(0, slow - dt / 1.2);
-    const boost = power ? { dog: 1.3, boar: 1.35, cheetah: 1.6 }[kind] || 1 : 1;
-    speed = Math.min(MAX_SPEED + DAY_SPEED * hard(), START_SPEED + ACCEL * t) * T().speed * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * boost;
+    speed = Math.min(MAX_SPEED + DAY_SPEED * hard(), START_SPEED + ACCEL * t) * T().speed * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
   } else speed *= Math.exp(-5 * dt); // knocked out: the world rolls to a stop (back a little, after a bump)
   const dx = speed * dt;
   dist += state === 'run' ? dx : 0;
-  if (doubles() && state === 'run') bonus += dx * SCORE_PER_PX * T().mult; // double points
+  if (powered().doubles && state === 'run') bonus += dx * SCORE_PER_PX * T().mult; // double points
   const was = phase;
-  phase = (phase + dt * (1.6 + speed / 90) * strideRate(kind)) % 1;
-  if (phase < was && hopping() && (kind === 'rabbit' || kind === 'squirrel')) { // a hop (a leap) lands: the ear flops, a puff of dust
-    softVel += 4;
+  phase = (phase + dt * strides(kind, speed)) % 1;
+  if (phase < was && hopping() && leaps(kind)) { // a leap lands: a puff of dust
     for (let i = 0; i < 2; i++) parts.push({ x: RUN_X + 6 + i * 4, y: GROUND - 1, vx: -20 - rnd() * 20, vy: -10 - rnd() * 15, life: 0.25, color: COLOR.FAINT });
-  } else if (phase < was && hopping()) softVel -= 3; // a gallop pushes off: the tail (the dog's ear) bounces
+  }
   flash = Math.max(0, flash - dt);
   shake = Math.max(0, shake - dt);
   safe = Math.max(0, safe - dt);
@@ -773,7 +775,6 @@ function update(dt) {
     if (alt > 56) { alt = 56; vAlt = Math.min(vAlt, 0); } // (a super hop stays on the screen)
     if (alt <= 0) {
       alt = 0; vAlt = 0; airJumps = 0;
-      softVel += 7; // flop
       for (let i = 0; i < 3; i++) parts.push({ x: RUN_X + 8 + i * 3, y: GROUND - 1, vx: -30 - rnd() * 30, vy: -20 - rnd() * 20, life: 0.35, color: COLOR.INK });
     }
   }
@@ -793,14 +794,9 @@ function update(dt) {
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
-    chase.t += dt;
-    // it runs like the animal: its own stride, its ear or tail on a spring kicked by every stride (a hop: the rabbit)
-    const c = chaserOf(kind), went = chase.phase;
-    chase.phase = (chase.phase + dt * (1.6 + Math.max(speed, 60) / 90) * strideRate(c)) % 1;
-    if (chase.phase < went && !chase.caught) chase.softVel += c === 'rabbit' ? 4 : -3;
-    const aim = chase.caught ? 0.15 + 0.05 * Math.sin(blinkT * 2) : 0.45 + 0.12 * Math.sin(chase.phase * Math.PI * 2);
-    chase.softVel += ((aim - chase.soft) * 170 - chase.softVel * 11) * dt;
-    chase.soft += chase.softVel * dt;
+    // it runs like the animal: its own stride, its tail and ears swung by it
+    const c = chaserOf(kind);
+    chase.phase = (chase.phase + dt * strides(c, Math.max(speed, 60))) % 1;
     const st = stride(c, chase.phase);
     moveBody(chase.body, c, chase.caught ? 'idle' : 'run', chase.caught ? idleFrame(c, blinkT) : st.frame, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), speed, dt);
     if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
@@ -840,21 +836,22 @@ function update(dt) {
       if (rnd() < dt * 40) parts.push({ x: RUN_X + 2, y: animalY() + 6 + rnd() * 8, vx: -30 - rnd() * 40, vy: -10 - rnd() * 20, life: 0.6, color: COLOR.LEAF });
       for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
     }
-    if ((kind === 'fox' || kind === 'skunk') && chase) chase.leaving = true; // (it comes, and turns away)
+    if (powered().shakes && chase) chase.leaving = true; // (it comes, and turns away)
     if (!power) { call('sting', 'powerdown'); updateMood({ within: 0 }); }
   }
 
   // what the animal runs into (the frame of its move as it is, not eased into: it ducks as quickly as ever), what it eats
-  const [pose, f, blink, w] = animalPose(), sp = animal(kind, pose, f, soft, blink, w), ay = animalY();
-  if (!safe && !passes()) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
+  const [pose, f] = animalPose(), sp = hitbox(kind, pose, f), ay = animalY();
+  if (!safe && !powered().passes) for (const o of obstacles) if (!o.smashed && hits(sp, RUN_X, ay, o.sprite, o.x, o.y)) { bump(o); if (state !== 'run') return; break; }
   const meal = FOOD[ANIMALS[kind].food];
   if (power && kind === 'fox') for (const f of food) { // sly: the food comes to the fox
     const tx = RUN_X + 10 - f.x, ty = ay + 8 - f.y, d = Math.hypot(tx, ty);
     if (d < 120 && d > 1) { f.x += (tx / d) * 160 * dt; f.y += (ty / d) * 160 * dt; }
   }
-  if (gold && gold.x + meal.w > RUN_X + 3 && gold.x < RUN_X + 22 && gold.y + meal.h > ay + 3 && gold.y < ay + FOOT) { gold = null; startPower(); }
+  const reaches = (f) => f.x + meal.w > RUN_X + 3 && f.x < RUN_X + 22 && f.y + meal.h > ay + 3 && f.y < ay + FOOT; // (its mouth: food comes to it)
+  if (gold && reaches(gold)) { gold = null; startPower(); }
   food = food.filter((f) => {
-    if (!(f.x + meal.w > RUN_X + 3 && f.x < RUN_X + 22 && f.y + meal.h > ay + 3 && f.y < ay + FOOT)) return true;
+    if (!reaches(f)) return true;
     energy = Math.min(100, energy + MEAL * (power && kind === 'bear' ? 2 : 1));
     bonus += 25;
     call('sting', 'reward');
@@ -874,17 +871,16 @@ function update(dt) {
     const was = night;
     night = Math.max(0, night - dt);
     if (was > NIGHT_SECS - HUNT_FROM && night <= NIGHT_SECS - HUNT_FROM) { // the chaser comes
-      chase = { t: 0, x: -40, heat: 0, catching: false, phase: 0, soft: 0.45, softVel: 0, body: {} };
+      chase = { x: -40, heat: 0, catching: false, phase: 0, body: {} };
       call('sting', 'chased');
-      const t = `THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`;
-      floats.push({ text: t, x: W / 2 - textWidth(t) / 2, y: 30, life: 2, rise: 0 });
+      banner(`THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`, 30);
     }
     if (!night) dawn();
   } else if (s >= nextNight) { night = NIGHT_SECS; call('sting', 'dusk'); }
   if (beat && score() > beat && !AUTO) { // past the best score so far
     beat = 0;
     call('sting', 'record');
-    floats.push({ text: 'NEW BEST!', x: W / 2 - textWidth('NEW BEST!') / 2, y: 30, life: 2, rise: 0 });
+    banner('NEW BEST!', 30);
   }
   if (Math.floor(score() / 100) > hundreds) { hundreds = Math.floor(score() / 100); flash = 1; } // the score blinks every 100
   updateMood();
@@ -911,10 +907,10 @@ const titleX = (i) => Math.round(W / 2 - 13 + (i - carousel) * 34);
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
 // faded behind
 function standing(k, i, on, pal) {
-  const x = titleX(i), blink = (blinkT % 3.2) < 0.12;
+  const x = titleX(i);
   if (x < -26 || x > W) return;
   ctx.globalAlpha = on ? 1 : 0.4;
-  (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, 0.15, on && blink)).draw(ctx, x, GROUND - FOOT, pal);
+  (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
   if (!on) return;
@@ -923,31 +919,25 @@ function standing(k, i, on, pal) {
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
 }
 
-// the energy bar, top left: a heart and a bar that turns red (and blinks) when it runs low
+// a bar at the top left, at y: an icon, a frame, filled that much (0…1) in a color
+function bar(pal, icon, y, full, color) {
+  const x = safeL;
+  icon.draw(ctx, x + 6, y, pal);
+  ctx.fillStyle = pal[COLOR.INK];
+  ctx.fillRect(x + 13, y, 42, 5);
+  ctx.fillStyle = pal.bg;
+  ctx.fillRect(x + 14, y + 1, 40, 3);
+  ctx.fillStyle = pal[color];
+  ctx.fillRect(x + 14, y + 1, Math.ceil(40 * full), 3);
+}
+// the energy: a heart and a bar that turns red (and blinks) when it runs low
 function energyBar(pal) {
   const low = energy < 30;
-  if (low && state === 'run' && Math.floor(blinkT * 4) % 2) return;
-  const x = safeL;
-  heart.draw(ctx, x + 6, 5, pal);
-  ctx.fillStyle = pal[COLOR.INK];
-  ctx.fillRect(x + 13, 5, 42, 5);
-  ctx.fillStyle = pal.bg;
-  ctx.fillRect(x + 14, 6, 40, 3);
-  ctx.fillStyle = pal[low ? COLOR.BERRY : COLOR.ENERGY];
-  ctx.fillRect(x + 14, 6, Math.ceil((40 * energy) / 100), 3);
+  if (!(low && state === 'run' && Math.floor(blinkT * 4) % 2)) bar(pal, heart, 5, energy / 100, low ? COLOR.BERRY : COLOR.ENERGY);
 }
-
 // what is left of a super power, under the energy: a star and a golden bar (blinking in its last two seconds)
 function powerBar(pal) {
-  if (!power || (power < 2 && Math.floor(power * 6) % 2)) return;
-  const x = safeL;
-  star.draw(ctx, x + 6, 12, pal);
-  ctx.fillStyle = pal[COLOR.INK];
-  ctx.fillRect(x + 13, 12, 42, 5);
-  ctx.fillStyle = pal.bg;
-  ctx.fillRect(x + 14, 13, 40, 3);
-  ctx.fillStyle = pal[COLOR.YELLOW];
-  ctx.fillRect(x + 14, 13, Math.ceil((40 * power) / POWER_SECS), 3);
+  if (power && !(power < 2 && Math.floor(power * 6) % 2)) bar(pal, star, 12, power / POWER_SECS, COLOR.YELLOW);
 }
 
 // birds circling a knocked-out head; the ones behind it are drawn first
@@ -963,10 +953,9 @@ function dizzyBirds(pal, behind) {
 // dusk and dawn: day turns to a sunset, a purple dusk, then night; night to a morning, then day. Each pass on the way
 // is a crossfade: the world drawn in both palettes, the second over the first (a pixel's colours blend smoothly). Sunset
 // and morning are the day tinted, dusk the night; each with a sky of its own (one colour: no gradient).
-const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-const blend = (a, b, f) => `#${hex(a).map((v, i) => Math.round(v * (1 - f) + hex(b)[i] * f).toString(16).padStart(2, '0')).join('')}`;
+const blend = (a, b, f) => `#${rgb(a).map((v, i) => Math.round(v * (1 - f) + rgb(b)[i] * f).toString(16).padStart(2, '0')).join('')}`;
 const tint = (pal, by, f, more) => ({ ...Object.fromEntries(Object.entries(pal).map(([k, c]) =>
-  [k, blend(c, `#${hex(c).map((v, i) => Math.round((v * hex(by)[i]) / 255).toString(16).padStart(2, '0')).join('')}`, f)])), ...more });
+  [k, blend(c, `#${rgb(c).map((v, i) => Math.round((v * rgb(by)[i]) / 255).toString(16).padStart(2, '0')).join('')}`, f)])), ...more });
 const SKIES = {
   day: PALETTES.day,
   sunset: tint(PALETTES.day, '#ff8c5a', 0.6, { bg: '#f7a76c' }),
@@ -974,52 +963,56 @@ const SKIES = {
   night: PALETTES.night,
   morning: tint(PALETTES.day, '#ffb4c4', 0.45, { bg: '#ffdcbc' }),
 };
-const ease = (f) => f * f * (3 - 2 * f);
 // the two palettes to draw in and how much of the second, from how dark it is and which way it is going
 function skies() {
   const way = night ? ['day', 'sunset', 'dusk', 'night'] : ['night', 'morning', 'day'], f = (night ? dark : 1 - dark) * (way.length - 1);
   const i = Math.min(Math.floor(f), way.length - 1);
   return i < way.length - 1 ? [SKIES[way[i]], SKIES[way[i + 1]], ease(f - i)] : [SKIES[way[i]], null, 0];
 }
-const second = document.createElement('canvas');
-const worldCtx = ctx, secondCtx = second.getContext('2d');
+const second = document.createElement('canvas'), secondCtx = second.getContext('2d');
+const themeColor = document.querySelector('meta[name=theme-color]');
 
 function draw() {
+  drawn = {};
+  showCalls();
   const [a, b, f] = board ? [PALETTES.day, null, 0] : skies(); // (the high scores: always by day)
   const bg = f ? blend(a.bg, b.bg, f) : a.bg;
   if (stageBg !== bg) { // around the game in full screen, and the phone's bars
     document.documentElement.style.setProperty('--game-bg', stageBg = bg);
-    document.querySelector('meta[name=theme-color]').content = bg;
+    themeColor.content = bg;
   }
+  // a quake shakes the screen (by a screen pixel)
+  const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * SCALE : 0;
+  vctx.setTransform(SCALE, 0, 0, SCALE, q, (SKY * SCALE) + (q && (rnd() < 0.5 ? -q : q)));
   if (f < 1) scene(a);
   if (f > 0) {
     ctx = secondCtx;
     scene(b);
-    ctx = worldCtx;
+    ctx = vctx;
     ctx.globalAlpha = f; ctx.drawImage(second, 0, -SKY, W, VH); ctx.globalAlpha = 1;
   }
   // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
-  const lum = (c) => { const [r, g, b] = hex(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
-  const stands = (p) => Math.abs(lum(p[COLOR.INK]) - lum(bg));
+  const stands = (p) => Math.abs(luma(p[COLOR.INK]) - luma(bg));
   const hp = f && stands(b) > stands(a) ? b : a;
   if (stageInk !== hp[COLOR.INK]) document.documentElement.style.setProperty('--game-ink', stageInk = hp[COLOR.INK]); // (the pads)
   hud(hp);
-  present();
 }
 
 // the ground: its line, the bits on it and under it (→ where it has scrolled to, in screen pixels)
 function ground(pal) {
   ctx.fillStyle = pal[COLOR.INK];
-  ctx.fillRect(0, GROUND, W, 1);
+  ctx.beginPath();
+  ctx.rect(0, GROUND, W, 1);
   const scroll = snap(groundX);
   for (const b of groundBits) {
     let x = snap(((b.x - scroll) % GROUND_LOOP + GROUND_LOOP) % GROUND_LOOP);
     if (x > GROUND_LOOP - 6) x -= GROUND_LOOP; // (going off on the left)
     if (x >= W) continue;
-    if (b.kind === 'dot') ctx.fillRect(x, GROUND + b.y, 1, 1);
-    else if (b.kind === 'dash') ctx.fillRect(x, GROUND + b.y, 3, 1);
-    else { ctx.fillRect(x, GROUND - 1, 1, 1); ctx.fillRect(x + 2, GROUND - 2, 1, 2); ctx.fillRect(x + 4, GROUND - 1, 1, 1); }
+    if (b.kind === 'dot') ctx.rect(x, GROUND + b.y, 1, 1);
+    else if (b.kind === 'dash') ctx.rect(x, GROUND + b.y, 3, 1);
+    else { ctx.rect(x, GROUND - 1, 1, 1); ctx.rect(x + 2, GROUND - 2, 1, 2); ctx.rect(x + 4, GROUND - 1, 1, 1); }
   }
+  ctx.fill();
   return scroll;
 }
 
@@ -1029,16 +1022,21 @@ function scene(pal) {
   ctx.fillRect(0, -SKY, W, VH);
   if (board) return ground(pal); // (the high scores: on the plain sky and the ground, see hud)
   if (pal === PALETTES.night) { // the stars and the moon
-    for (const s of stars) if (s.y >= -SKY && Math.sin(blinkT * 2 + s.p) > -0.6) { ctx.fillStyle = pal[COLOR.INK]; ctx.fillRect(s.x, s.y, 1, 1); }
+    ctx.fillStyle = pal[COLOR.INK];
+    ctx.beginPath();
+    for (const s of stars) if (s.y >= -SKY && Math.sin(blinkT * 2 + s.p) > -0.6) ctx.rect(s.x, s.y, 1, 1);
+    ctx.fill();
     moon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
   }
   // far hills
   ctx.fillStyle = pal[COLOR.FAINT];
   const hills = snap(hillX), from = Math.floor(hills);
+  ctx.beginPath();
   for (let x = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
-    const u = x + from, h = 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3);
-    ctx.fillRect(x - (hills - from), Math.round(GROUND - h), 1, Math.round(h));
+    const h = hill(x + from);
+    ctx.rect(x - (hills - from), Math.round(GROUND - h), 1, Math.round(h));
   }
+  ctx.fill(); // (one path: one fill, not a fill a column)
   for (const c of clouds) cloud.draw(ctx, c.x, c.y, pal);
 
   const scroll = ground(pal);
@@ -1062,8 +1060,8 @@ function scene(pal) {
   ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear)
     const c = chaserOf(kind);
-    const st = stride(c, chase.phase), blink = (blinkT + 1.3) % 3.2 < 0.12, hop = c === 'rabbit' && chase.phase % 0.5 < 0.25 ? 1 : 0;
-    (chase.caught ? animal(c, 'idle', idleFrame(c, blinkT), chase.soft, blink, 0, chase.body) : animal(c, 'run', st.frame, chase.soft, blink, hop, chase.body))
+    const st = stride(c, chase.phase), blink = blinking(blinkT + 1.3);
+    (chase.caught ? animal(c, 'idle', idleFrame(c, blinkT), { blink, body: chase.body }) : animal(c, 'run', st.frame, { blink, body: chase.body }))
       .draw(ctx, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
   }
 
@@ -1079,12 +1077,12 @@ function scene(pal) {
       ctx.globalAlpha = 1;
     }
     const [gx, gy, , , s] = giantBox();
-    if (rigged(kind)) animalSprite(s).draw(ctx, gx, gy, flashing ? golden(pal) : pal); // (a rig: drawn bigger, still smooth)
-    else animalSprite().draw(ctx, gx, gy, flashing ? golden(pal) : pal, s);
+    animalSprite(s).draw(ctx, gx, gy, flashing ? golden(pal) : pal); // (the giant: drawn bigger, still smooth)
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
   }
-  for (const p of parts) { ctx.fillStyle = pal[p.color]; ctx.fillRect(snap(p.x), snap(p.y), 1, 1); }
+  let color = null;
+  for (const p of parts) { if (p.color !== color) ctx.fillStyle = pal[color = p.color]; ctx.fillRect(snap(p.x), snap(p.y), 1, 1); }
   for (const f of floats) {
     if (f.sprite) f.sprite.draw(ctx, f.x, Math.round(f.y), pal);
     else text(ctx, f.text, f.x, Math.round(f.y), pal[COLOR.INK]);
@@ -1123,22 +1121,17 @@ function hud(pal) {
 }
 // drawn from the top of the screen (under a status bar), not of the world (see fit: the sky added above it)
 function atTop(draw) { ctx.translate(0, safeT - SKY); draw(); ctx.translate(0, SKY - safeT); }
-// up to the screen (the world is drawn in its pixels already)
-function present() {
-  const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * (view.width / W) : 0; // a quake shakes the screen
-  vctx.drawImage(world, q, q && (rnd() < 0.5 ? -q : q));
-}
 
 // the canvases in screen pixels, a whole number per art pixel: the art is drawn in art pixels, scaled up (not blurred),
 // and what moves is placed to the screen pixel (see snap), so it glides instead of stepping a big pixel at a time
-const FORCE = +new URLSearchParams(location.search).get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
+const FORCE = +Q.get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
 // (a probe for how much of the screen's sides a notch or round corners may cover, in CSS pixels)
 const inset = document.createElement('div');
 inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
 document.body.append(inset);
 function fit() {
   // the game fills the screen's width on a phone (see index.html): what is drawn at its sides keeps clear of the notch
-  const r = view.getBoundingClientRect(), cs = getComputedStyle(inset), art = W / (r.width || W);
+  const r = (viewRect = view.getBoundingClientRect()), cs = getComputedStyle(inset), art = W / (r.width || W);
   safeL = Math.max(0, Math.ceil((parseFloat(cs.paddingLeft) - r.left) * art));
   safeR = Math.max(0, Math.ceil((parseFloat(cs.paddingRight) - (document.documentElement.clientWidth - r.right)) * art));
   const top = parseFloat(cs.paddingTop) - r.top; // (and a little more: the status bar fades out below its edge)
@@ -1155,11 +1148,13 @@ function fit() {
   padRow = Math.max(GROUND + 2, Math.round((GROUND + 1 + helpY - 2 - PAD) / 2));
   stage.style.setProperty('--pad-top', `${view.offsetTop + (SKY + padRow) * px}px`);
   const scale = FORCE || Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
-  if (world.width === W * scale && world.height === VH * scale && worldCtx.getTransform?.().f === SKY * scale) return;
-  setScale(scale);
-  for (const c of [view, world, second]) { c.width = W * scale; c.height = VH * scale; }
-  for (const cx of [worldCtx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, SKY * scale); cx.imageSmoothingEnabled = false; }
+  if (fitted === `${scale} ${VH} ${SKY}`) return;
+  fitted = `${scale} ${VH} ${SKY}`;
+  setScale(SCALE = scale);
+  for (const c of [view, second]) { c.width = W * scale; c.height = VH * scale; }
+  for (const cx of [vctx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, SKY * scale); cx.imageSmoothingEnabled = false; }
 }
+let SCALE = 1, fitted = ''; // (screen pixels an art pixel; the size fitted to)
 new ResizeObserver(fit).observe(view);
 addEventListener('resize', fit); // (turned the other way round: the notch on the other side)
 fit();
@@ -1167,7 +1162,7 @@ fit();
 // fixed steps, so a slow frame never lets the animal pass through a cactus; at most a quarter second caught up. At most
 // 60 frames a second (a faster screen, 120 Hz: every other one), each due a 60th of a second after the one before
 const STEP = 1 / 120, FRAME = 1000 / 60;
-let last = performance.now(), behind = 0, due = 0;
+let last = performance.now(), behind = 0, due = 0, readied = null, ready = null;
 // (?fps: each second, the frames drawn in it, the work of a frame on average and at most, in ms)
 const rate = { frames: 0, since: 0, work: 0, worst: 0, shown: '' };
 function frame(now) {
@@ -1177,6 +1172,8 @@ function frame(now) {
   behind = Math.min(0.25, behind + (now - last) / 1000);
   last = now;
   for (; behind >= STEP; behind -= STEP) if (state !== 'paused') { update(STEP); updateBits(STEP); }
+  if (readied !== kind) { readied = kind; ready = readying(kind); }
+  if (ready?.next().done) ready = null; // (the animal made ready to run, a piece a frame: see readying)
   draw();
   if (FPS) {
     const work = performance.now() - began;

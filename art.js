@@ -1,6 +1,6 @@
 // Pixel art for Lop Hop. Sprites are small grids of palette indices, filled from shapes (ellipses, capsules,
-// triangles) and outlined, so ears and tails can swing to any angle. Each sprite comes with a collision mask (ears and
-// tails are soft: they never count). Some animals are rigs instead (animals/*.js; see the rigs below).
+// triangles) and outlined. Each sprite comes with a collision mask. The animals are rigs (animals/*.js; see the rigs
+// below): their tails and ears swing to any angle, and never count in a collision.
 import rabbit from './animals/rabbit.js';
 import cat from './animals/cat.js';
 import dog from './animals/dog.js';
@@ -18,6 +18,10 @@ import elephant from './animals/elephant.js';
 import dino from './animals/dino.js';
 
 export const W = 300, H = 90, GROUND = 78; // the world in art pixels; GROUND: the y of the ground line
+
+// a color's red, green, blue (0-255), from '#rrggbb'; how light it looks (0-255)
+export const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+export const luma = (hex) => { const [r, g, b] = rgb(hex); return 0.3 * r + 0.59 * g + 0.11 * b; };
 
 // palette indices
 const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF = 8, FAINT = 9, LIGHT = 10, FOX = 11, BELLY = 12,
@@ -102,7 +106,7 @@ function sprite(g, mask, extra) {
   return {
     w: g.w, h: g.h, px: g.px, mask, ...extra,
     free() { for (const k in canvases) if (spare.length < 64) spare.push(canvases[k]); canvases = {}; },
-    draw(ctx, x, y, pal, scale = 1) { // (scale: whole pixels made bigger, for the giant dino)
+    draw(ctx, x, y, pal) {
       let c = canvases[pal.bg];
       if (!c) {
         c = canvases[pal.bg] = spare.pop() || (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(g.w, g.h) : document.createElement('canvas')); // (Safari before 16.4: none)
@@ -111,9 +115,7 @@ function sprite(g, mask, extra) {
         for (let i = 0; i < g.px.length; i++) if (g.px[i]) out[i] = word[g.px[i]];
         cx.putImageData(img, 0, 0);
       }
-      x += ox * scale; y += oy * scale;
-      if (scale === 1) ctx.drawImage(c, snap(x), snap(y), g.w, g.h);
-      else ctx.drawImage(c, snap(x), snap(y), Math.round(g.w * scale), Math.round(g.h * scale));
+      ctx.drawImage(c, snap(x + ox), snap(y + oy), g.w, g.h);
     },
   };
 }
@@ -126,9 +128,8 @@ function fromRows(rows, keys) {
 }
 
 // ----------------------------------------------------------------------------------------------------------- animals
-// Every animal faces right in a 26×20 grid, its feet on row FOOT. Poses: run (frames 0-3, see stride), jump (0 rising,
-// 1 falling), duck (0/1), idle (0/1: the tail wags), hurt, ko (and the hedgehog's ball, 0-3). soft: the angle of the
-// ear or the tail in radians, swung by a spring in the game: 0 hangs down, more swings it back and up.
+// Every animal faces right in a 26×20 box, its feet on row FOOT, and is a rig (see the rigs below). Moves: run (see
+// stride), jump (see jumpFrame), duck, idle (see idleFrame), hurt, ko; the hedgehog's ball (0-3), drawn on its own.
 export const FOOT = 19;
 // In the order they are unlocked: each is chased by the next, and reaching night with one unlocks
 // the next (the dino, last, is chased by the rabbit). The rabbit is the easy start; each after it is clearly harder than the
@@ -137,6 +138,10 @@ export const FOOT = 19;
 // gravity, drain (energy), meals (how often food comes), bump (what a bump costs), early (crows and branches come that
 // many points sooner), packs (obstacles in groups), tight (the gaps between obstacles).
 const tune = (mult, speed, jump, gravity, drain, meals, bump, early, packs, tight) => ({ mult, speed, jump, gravity, drain, meals, bump, early, packs, tight });
+// a jump: how fast it leaves the ground, how fast it falls back (art pixels per second, per second), for every animal
+// (times its dials); → how high it gets (its feet)
+export const JUMP = 330, GRAVITY = 1500;
+export const jumpHeight = (kind) => (JUMP * ANIMALS[kind].jump) ** 2 / (2 * GRAVITY * ANIMALS[kind].gravity);
 export const ANIMALS = {
   rabbit: { name: 'RABBIT', food: 'carrot', ...tune(1.0, 1.0, 1.08, 1, 1, 1, 1, 0, 1, 1) },
   cat: { name: 'CAT', food: 'fish', ...tune(1.21, 1.04, 1, 1, 1.07, 0.97, 1.04, 0, 1.1, 0.98) },
@@ -155,281 +160,47 @@ export const ANIMALS = {
   dino: { name: 'DINO', food: 'roast', ...tune(4.0, 1.5, 1, 1.25, 2.0, 0.6, 1.6, 300, 2.8, 0.76) }, // the hardest
 };
 
-// where a run is in its stride (phase 0…1) → { frame, lift }: the rabbit hops (crouched on the ground, stretched out
-// as it rises, gathered as it falls), the others gallop
+// where a run is in its stride (phase 0…1) → { frame, lift }: a gait's frame, and how high a leap has the body (a
+// gallop bobs itself); a move of keyframes, four to a stride
 export function stride(kind, phase, move = 'run') {
-  const g = rigged(kind) && RIGS[kind].poses[move]?.gait;
-  if (g) return { frame: Math.floor(phase * g.frames) % g.frames, lift: g.leap ? leapLift(g, phase) : 0 }; // (a gallop: its body bobs itself; a leap: up it goes)
-  if (move === 'duck') return { frame: Math.floor(phase * 4) % 2, lift: 0 }; // shuffling
-  if (kind === 'rabbit') {
-    if (phase < 0.3) return { frame: 0, lift: 0 };
-    const q = (phase - 0.3) / 0.7;
-    return { frame: q < 0.5 ? 1 : 2, lift: Math.round(Math.sin(Math.PI * q) * 4) };
-  }
-  const frame = Math.floor(phase * 4) % 4;
-  return { frame, lift: frame === 0 ? 1 : 0 };
+  const g = RIGS[kind].poses[move]?.gait;
+  return g ? { frame: Math.floor(phase * g.frames) % g.frames, lift: g.leap ? leapLift(g, phase) : 0 } : { frame: Math.floor(phase * 4) % 4, lift: 0 };
 }
 
 // how fast a run's strides go, for an animal (1: the usual; less: longer strides, as a rig's gait says)
-export const strideRate = (kind) => (rigged(kind) && RIGS[kind].poses.run?.gait?.rate) || 1;
+export const strideRate = (kind) => RIGS[kind].poses.run?.gait?.rate || 1;
+// how many strides a second, running at a speed (art pixels a second); rate: its own (see strideRate)
+export const strides = (kind, speed, rate = strideRate(kind)) => (1.6 + speed / 90) * rate;
+// does it run in leaps (the rabbit, the squirrel: landing with a puff of dust)?
+export const leaps = (kind) => !!RIGS[kind].poses.run?.gait?.leap;
 
 // sitting (on the title), t seconds in → its frame: a rig's own loop (breathing, looking about), or two frames
 export function idleFrame(kind, t) {
-  const m = rigged(kind) && RIGS[kind].poses.idle;
+  const m = RIGS[kind].poses.idle;
   return m?.at ? Math.floor(t * m.fps) % m.frames : Math.floor(t * 5) % 2;
 }
 
 // jumping, rise: how fast it goes up (1: as it takes off, 0: at the top, -1: falling as fast) → its frame: a rig's jump
 // keyframes, spread over the arc (two: rising, falling)
 export function jumpFrame(kind, rise) {
-  const m = rigged(kind) && RIGS[kind].poses.jump, n = Array.isArray(m) ? m.length : 2;
+  const m = RIGS[kind].poses.jump, n = Array.isArray(m) ? m.length : 2;
   return clamp(Math.floor(((1 - rise) / 2) * n), 0, n - 1);
 }
 
-const animals = new Map();
-// body: a rig's moving parts (its chains), as moveBody left them; none: at rest
-export function animal(kind, pose, frame = 0, soft = 0.4, blink = false, wiggle = 0, body = null, scale = 1) {
-  if (rigged(kind) && pose !== 'ball') return rigFrame(kind, pose, frame, blink, body, scale); // (scale: drawn bigger, see drawRig) // (the hedgehog's ball: still drawn)
-  const a = Math.round(clamp(soft, -0.4, 2.6) * 8) / 8, key = `${kind}${pose}${frame}${a}${blink}${wiggle}`;
-  if (!animals.has(key)) {
-    const g = new Grid(26, 20), { mask, head } = DRAW[kind](g, pose, frame, a, blink, wiggle);
-    animals.set(key, sprite(g, mask, { head }));
-  }
-  return animals.get(key);
+// an animal in a move's frame: blinking or not; body: its moving parts (its chains), as moveBody left them (none: at
+// rest); scale: drawn bigger (the giant dino, see drawRig)
+export function animal(kind, pose, frame = 0, { blink = false, body = null, scale = 1 } = {}) {
+  return pose === 'ball' ? balls[frame % 4] : rigFrame(kind, pose, frame, blink, body, scale);
 }
+
 
 function eyes(g, pose, [x, y], blink) {
   if (pose === 'ko') for (const [dx, dy] of [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]]) g.dot(x + dx, y + dy, OUT);
   else if (pose === 'hurt') { g.dot(x - 1, y - 1, OUT); g.dot(x, y, OUT); g.dot(x - 1, y + 1, OUT); } // >
   else { g.dot(x, y + 1, OUT); if (!blink) g.dot(x, y, OUT); }
 }
-// a tail on the spring: soft is about 0.45 while running; less (taking off) and the tail lags, drooping; more (falling)
-// and it floats up. → how far to swing it, for a tail's angle (more: back and down)
-const lag = (soft) => clamp(0.45 - soft, -0.9, 0.6);
-// a lop ear hanging from (x, y) at angle a: length L, spoon-shaped (wider at the tip)
-const lopEar = (x, y, a, L, r, tip) => {
-  const dx = -Math.sin(a), dy = Math.cos(a);
-  return [capsule(x, y, x + dx * L * 0.75, y + dy * L * 0.75, r), ellipse(x + dx * L * 0.8, y + dy * L * 0.8, tip, tip)];
-};
-// legs from hip/shoulder to feet: [[x1, y1, x2, y2], …]
-const legs = (list, r) => list.map(([x1, y1, x2, y2]) => capsule(x1, y1, x2, y2, r));
 
-const DRAW = {
-  // the rabbit: round and compact, one lop ear, a cotton tail that wiggles (wiggle: 1 flicks it up a pixel)
-  rabbit(g, pose, f, ear, blink, wiggle) {
-    const crouch = pose === 'idle' || pose === 'hurt' || (pose === 'run' && f === 0);
-    const stretch = (pose === 'run' && f === 1) || (pose === 'jump' && f === 0);
-    let body, tail, earAt, eye, nose;
-    if (crouch) {
-      tail = [2.5, 12.5, 2];
-      body = [ellipse(9.5, 13.5, 7, 5), ellipse(7.5, 15, 5, 4), ellipse(15.5, 9, 4.5, 4.5), ellipse(19, 10.8, 2.5, 2.2),
-        ellipse(8.5, 18.4, 4.5, 1.4), capsule(14.5, 14, 15, 18.3, 1.2)];
-      earAt = [13.5, 6]; eye = [17, 8]; nose = [20, 10];
-    } else if (stretch) {
-      tail = [2, 10.5, 2];
-      body = [capsule(6.5, 12.5, 12, 10.5, 4.3), ellipse(16.5, 7.5, 4.5, 4.3), ellipse(20, 9.3, 2.5, 2.2),
-        capsule(5, 14.5, 1.5, 17.5, 1.5), capsule(15, 12, 19, 15, 1.1)];
-      earAt = [14.5, 4.5]; eye = [18, 6.5]; nose = [21, 8.5];
-    } else if (pose === 'run' || pose === 'jump') { // gathered
-      tail = [2.5, 11, 2];
-      body = [ellipse(10, 12.5, 7, 5), ellipse(16, 8, 4.5, 4.3), ellipse(19.5, 9.8, 2.5, 2.2),
-        capsule(8, 16, 12.5, 17.5, 1.5), capsule(15, 12.5, 16.5, 17.3, 1.1)];
-      earAt = [14, 5]; eye = [17.5, 7]; nose = [21, 9];
-    } else if (pose === 'duck') {
-      tail = [1.8, 15, 1.8];
-      body = [ellipse(10, 16, 8.5, 3.3), ellipse(18, 15.5, 4, 3.4), ellipse(21.3, 16.6, 2, 1.7),
-        ellipse(f ? 6 : 8.5, 18.8, 3.5, 1.1), capsule(17, 18, f ? 20.5 : 19.5, 18.8, 1)];
-      earAt = [16, 13]; eye = [19, 14.5]; nose = [22, 16];
-    } else { // ko: on its back, feet up
-      tail = [2.5, 16, 1.8];
-      body = [ellipse(11, 16.5, 8, 3.2), ellipse(19, 15.8, 4.2, 3.4), ellipse(22.3, 17, 2, 1.6),
-        capsule(8, 14, 6, 10.5, 1.3), capsule(13.5, 14, 14.5, 11, 1.1)];
-      earAt = [17, 13.5]; eye = [20, 15.5]; nose = [23, 17];
-    }
-    g.layer([ellipse(tail[0] - 0.3, tail[1] - wiggle, tail[2] + 0.3, tail[2] + 0.3)], FUR, OUT); // soft, like the ear
-    const mask = g.layer(body, FUR, OUT);
-    g.layer(lopEar(earAt[0], earAt[1], ear, 7, 1.4, 2.1), EAR, OUT);
-    eyes(g, pose, eye, blink);
-    g.dot(nose[0], nose[1], PINK);
-    if (pose !== 'ko') g.dot(eye[0] + 1, eye[1] + 3, PINK); // a blush
-    return { mask, head: [earAt[0] + 1, earAt[1] - 3] };
-  },
-
-  // the dog: a beagle puppy, a floppy ear, a wagging tail
-  dog(g, pose, f, ear, blink) {
-    let body, far = [], near, tail, earAt, eye, nose, tongue = false, head, muzzle, saddle;
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko';
-      head = ellipse(19.5, ko ? 15.5 : 14.8, 4.2, ko ? 3.6 : 3.8); muzzle = ellipse(23, ko ? 16.8 : 16.3, 2.5, 1.8);
-      body = [ellipse(10.5, 16, 8, 3.2), head, muzzle];
-      saddle = ellipse(10, 13.5, 6.5, 2.5);
-      near = ko ? legs([[7, 14, 6, 10.5], [13.5, 14, 13, 10.5]], 1.2) : [ellipse(f ? 21 : 20, 18.9, 2.6, 1), ellipse(f ? 5 : 7, 18.9, 3, 1)];
-      far = ko ? legs([[9.5, 14, 10, 10.5], [15.5, 14, 16.5, 10.5]], 1.2) : [];
-      tail = [3, 15, 1.45];
-      earAt = [18, ko ? 12.5 : 11.5]; eye = [21, ko ? 14.5 : 13.5]; nose = [25, ko ? 16 : 15.5]; tongue = ko;
-    } else if (pose === 'idle') { // sitting
-      head = ellipse(17, 6.5, 4.4, 4.2); muzzle = ellipse(20.5, 8.3, 2.6, 2);
-      body = [ellipse(9, 14.5, 5.5, 4.5), ellipse(13.5, 12, 3.8, 5), head, muzzle, ellipse(9.5, 18.6, 3.5, 1.2)];
-      saddle = ellipse(8, 12, 5, 3);
-      near = legs([[13.5, 14, 13.5, 18.4]], 1.2); far = legs([[15.5, 14, 15.8, 18.4]], 1.2);
-      tail = [4, 16.5, f ? 1.0 : 1.6];
-      earAt = [15.5, 3]; eye = [18.5, 5]; nose = [22.5, 7.5];
-    } else { // run, jump, hurt
-      const k = pose === 'jump' ? (f ? 2 : 0) : pose === 'hurt' ? 1 : f;
-      head = ellipse(19.5, 7, 4.4, 4.2); muzzle = ellipse(23, 8.8, 2.6, 2);
-      body = [ellipse(10.5, 11.5, 7, 4.2), ellipse(15, 11.5, 3.8, 4.4), head, muzzle];
-      saddle = ellipse(9.5, 8.5, 6.5, 3.2);
-      const feet = [ // hind near, hind far, front near, front far
-        [[3, 17.5], [4.5, 18.2], [19.5, 16.8], [18, 17.8]],
-        [[7.5, 18.4], [9, 18.4], [14.5, 18.4], [16.5, 18.4]],
-        [[10.5, 17.8], [9, 18.2], [12.5, 17.5], [14, 18]],
-        [[6, 18.4], [7.5, 18.4], [16.5, 18.4], [15, 18.4]],
-      ][k];
-      near = legs([[7, 13.5, ...feet[0]], [15.5, 13.5, ...feet[2]]], 1.2);
-      far = legs([[8, 13.5, ...feet[1]], [16, 13.5, ...feet[3]]], 1.1);
-      tail = [4, 9.5, 0.75 + (pose === 'run' ? [0.18, 0, -0.18, 0][k] : 0) + 0.6 * lag(ear)]; // swinging with the stride, on the spring
-      earAt = [18, 3.5]; eye = [21, 5.5]; nose = [25, 8]; tongue = pose === 'run';
-    }
-    const [tx, ty, ta] = tail, tdx = -Math.sin(ta), tdy = -Math.cos(ta);
-    g.layer([capsule(tx, ty, tx + tdx * 5, ty + tdy * 5, 1.1)], TAN, OUT);
-    g.dot(tx + tdx * 5.5, ty + tdy * 5.5, FUR);
-    const farMask = g.layer(far, FUR, OUT);
-    const bodyMask = g.layer([...body, ...near], FUR, OUT);
-    g.paint([saddle, head], TAN, bodyMask);
-    g.paint([muzzle], FUR, bodyMask);
-    if (tongue) g.layer([ellipse(nose[0] - 2.5, nose[1] + 3.3, 1, 1.2)], PINK, OUT);
-    g.layer(lopEar(earAt[0], earAt[1], ear, 5.5, 1.6, 2.2), BROWN, OUT);
-    eyes(g, pose, eye, blink);
-    g.dot(nose[0], nose[1], OUT);
-    return { mask: union(farMask, bodyMask), head: [earAt[0] + 1, earAt[1] - 3] };
-  },
-
-  // the cat: a ginger kitten, pointed ears, the tail up
-  cat(g, pose, f, tailA, blink) {
-    let body, far = [], near, tailAt, eye, nose, ears, muzzle, chest, stripes;
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', hy = ko ? 15.6 : 15.3;
-      muzzle = ellipse(22.2, hy + 1.3, 1.9, 1.4);
-      body = [ellipse(10.5, 16.3, 8, 2.9), ellipse(19.5, hy, 3.8, 3.3), muzzle];
-      ears = [triangle(16.5, hy - 2.3, 15.3, hy - 5, 18.5, hy - 3), triangle(19.8, hy - 3, 21, hy - 5.2, 22, hy - 2.6)];
-      near = ko ? legs([[7, 14.5, 6, 11], [13.5, 14.5, 13, 11]], 1) : [ellipse(f ? 21.5 : 20.5, 18.9, 2.3, 1), ellipse(f ? 5 : 7, 18.9, 2.6, 1)];
-      far = ko ? legs([[9.5, 14.5, 10, 11], [15.5, 14.5, 16.5, 11]], 1) : [];
-      chest = ellipse(16, 18, 2, 1.5);
-      stripes = [7, 10, 13].map((x) => capsule(x, 13, x - 0.5, 15, 0.6));
-      tailAt = [3.5, 16, 1.55];
-      eye = [20.5, hy - 1]; nose = [23, hy + 0.5];
-    } else if (pose === 'idle') { // sitting
-      muzzle = ellipse(17.3, 9, 2, 1.6);
-      body = [ellipse(9.5, 14, 5.5, 5), ellipse(13, 13, 3, 4.5), ellipse(14.5, 7.5, 4, 3.7), muzzle, ellipse(10, 18.6, 3.5, 1.2)];
-      ears = [triangle(11.3, 5.5, 11.8, 0.8, 14.5, 4.2), triangle(15, 4, 17, 0.6, 18, 5.6)];
-      near = legs([[13, 15, 13, 18.5]], 1); far = legs([[15, 15, 15.2, 18.5]], 1);
-      chest = ellipse(14, 12, 2, 2.5);
-      stripes = [5.5, 8.5].map((x) => capsule(x, 10, x - 0.5, 12.5, 0.6));
-      tailAt = [4.5, 17, 1.25 + (f ? 0.2 : 0)];
-      eye = [15.5, 7]; nose = [18.5, 8.5];
-    } else { // run, jump, hurt
-      const k = pose === 'jump' ? (f ? 2 : 0) : pose === 'hurt' ? 1 : f;
-      muzzle = ellipse(22.3, 10, 2, 1.6);
-      body = [ellipse(10.5, 12, 7, 3.8), ellipse(19.5, 8.5, 4, 3.7), muzzle];
-      ears = [triangle(16.4, 6.2, 17, 1.6, 19.5, 5), triangle(20, 4.8, 22, 1.4, 23, 6.6)];
-      const feet = [
-        [[3, 17.3], [4.5, 18], [19.5, 16.5], [18, 17.6]],
-        [[7, 18.4], [8.5, 18.4], [14.5, 18.4], [16.5, 18.4]],
-        [[10.5, 17.6], [9, 18], [12.5, 17.3], [14, 17.8]],
-        [[5.5, 18.4], [7, 18.4], [16.5, 18.4], [15, 18.4]],
-      ][k];
-      near = legs([[6.5, 13.5, ...feet[0]], [15, 13.5, ...feet[2]]], 1);
-      far = legs([[7.5, 13.5, ...feet[1]], [15.5, 13.5, ...feet[3]]], 0.9);
-      chest = ellipse(16, 13, 2.5, 2.2);
-      stripes = [6.5, 9.5, 12.5].map((x) => capsule(x, 8, x - 0.5, 10.3, 0.6));
-      tailAt = [4, 10.5, 0.6 + 0.8 * lag(tailA)];
-      eye = [20.5, 7.5]; nose = [23, 9.5];
-    }
-    // the tail: up and back from the rump, its tip curling forward
-    const [tx, ty, ta] = tailAt, d1 = [-Math.sin(ta), -Math.cos(ta)], d2 = [-Math.sin(ta - 0.9), -Math.cos(ta - 0.9)];
-    const mx = tx + d1[0] * 4.5, my = ty + d1[1] * 4.5;
-    g.layer([capsule(tx, ty, mx, my, 1.1), capsule(mx, my, mx + d2[0] * 3.5, my + d2[1] * 3.5, 1.1)], GINGER, OUT);
-    const farMask = g.layer(far, GINGER, OUT);
-    const bodyMask = g.layer([...body, ...ears, ...near], GINGER, OUT);
-    g.paint(stripes, STRIPE, bodyMask);
-    g.paint([muzzle, chest], BELLY, bodyMask);
-    eyes(g, pose, eye, blink);
-    g.dot(nose[0], nose[1], PINK);
-    return { mask: union(farMask, bodyMask), head: [eye[0] - 1, eye[1] - 6] };
-  },
-
-  // the fox: slim, a long snout, ears with dark tips, dark socks, a bushy tail with a white tip (on the spring)
-  fox(g, pose, f, tailA, blink) {
-    let body, far = [], near, tail, eye, nose, ears, tipsAbove = -1, white, socks;
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', hy = ko ? 15.6 : 15.3;
-      body = [ellipse(11.5, 16.3, 7.5, 2.9), ellipse(19.5, hy, 3.4, 3.1), capsule(21, hy + 1, 24.6, hy + 1.6, 1.2)];
-      ears = [triangle(16.8, hy - 1.9, 15.3, hy - 4.4, 18.6, hy - 2.7), triangle(19.5, hy - 2.9, 20.3, hy - 4.8, 21.6, hy - 2.7)];
-      near = ko ? legs([[8, 14.5, 7, 11], [14.5, 14.5, 14, 11]], 0.9) : [ellipse(f ? 22 : 21, 18.9, 2.3, 1), ellipse(f ? 6 : 8, 18.9, 2.6, 1)];
-      far = ko ? legs([[10.5, 14.5, 11, 11], [16.5, 14.5, 17.5, 11]], 0.9) : [];
-      white = [ellipse(13, 18.3, 5, 1), ellipse(22.5, hy + 2, 2, 0.9)];
-      socks = ko ? (x, y) => y < 12.5 : (x, y) => y >= 18;
-      tail = [5.5, 15.5, 1.5];
-      eye = [20.5, hy - 1]; nose = [25, hy + 1];
-    } else if (pose === 'idle') { // sitting, the tail around its feet
-      body = [ellipse(10.5, 14, 5, 4.6), ellipse(14, 12.5, 2.8, 4.2), ellipse(16, 7.5, 3.5, 3.2), capsule(17, 9, 20.8, 9.6, 1.3), ellipse(11, 18.6, 3.2, 1.1)];
-      ears = [triangle(13.6, 5.3, 14.1, 0.8, 16.2, 4.3), triangle(16.4, 4.3, 18, 0.6, 18.8, 5.4)];
-      near = legs([[14, 15, 14, 18.5]], 0.9); far = legs([[16, 15, 16.2, 18.5]], 0.9);
-      white = [ellipse(14.5, 12.5, 1.8, 3), ellipse(18.5, 10.2, 2.2, 0.9)];
-      socks = (x, y) => y >= 17;
-      tipsAbove = 2.6;
-      tail = [6, 17, 1.5 + (f ? 0.12 : 0)];
-      eye = [16.5, 7]; nose = [21, 9];
-    } else { // run, jump, hurt
-      const k = pose === 'jump' ? (f ? 2 : 0) : pose === 'hurt' ? 1 : f;
-      body = [ellipse(12, 11.8, 6.5, 3.5), ellipse(16.5, 12, 2.6, 3), ellipse(19.8, 8.6, 3.5, 3.2), capsule(21, 10, 24.6, 10.6, 1.3)];
-      ears = [triangle(17.4, 6.3, 17.9, 1.6, 20, 5.2), triangle(20.2, 5.3, 21.8, 1.5, 22.6, 6.4)];
-      const feet = [
-        [[4.5, 17.3], [6, 18], [21, 16.5], [19.5, 17.6]],
-        [[8.5, 18.4], [10, 18.4], [16, 18.4], [18, 18.4]],
-        [[12, 17.6], [10.5, 18], [14, 17.3], [15.5, 17.8]],
-        [[7, 18.4], [8.5, 18.4], [18, 18.4], [16.5, 18.4]],
-      ][k];
-      near = legs([[8.5, 13.5, ...feet[0]], [16, 13.5, ...feet[2]]], 0.9);
-      far = legs([[9.5, 13.5, ...feet[1]], [16.5, 13.5, ...feet[3]]], 0.8);
-      white = [ellipse(13, 14.6, 5, 1.1), ellipse(17.6, 13, 1.8, 2), ellipse(22.6, 11.1, 2.2, 0.9)];
-      socks = (x, y) => y >= 16.5;
-      tipsAbove = 3.4;
-      tail = [6, 10.5, 0.75 + 0.7 * lag(tailA)];
-      eye = [20.5, 7.5]; nose = [25, 10];
-    }
-    // the tail: bushy, from the rump back and up, its tip white
-    const [tx, ty, ta] = tail, dx = -Math.sin(ta), dy = -Math.cos(ta), L = 5.5;
-    g.layer([capsule(tx, ty, tx + dx * L * 0.5, ty + dy * L * 0.5, 1.6), capsule(tx + dx * L * 0.5, ty + dy * L * 0.5, tx + dx * L, ty + dy * L, 2.1)], FOX, OUT);
-    g.paint([ellipse(tx + dx * (L + 0.8), ty + dy * (L + 0.8), 1.8, 1.8)], BELLY, g.px.map((c) => +(c === FOX)));
-    const farMask = g.layer(far, FOX, OUT);
-    const bodyMask = g.layer([...body, ...ears, ...near], FOX, OUT);
-    g.paint(white, BELLY, bodyMask);
-    g.paint([...near, ...far].map((l) => (x, y) => socks(x, y) && l(x, y)), BROWN, union(farMask, bodyMask));
-    if (tipsAbove > 0) g.paint(ears.map((e) => (x, y) => y < tipsAbove && e(x, y)), BROWN, bodyMask);
-    eyes(g, pose, eye, blink);
-    g.dot(nose[0], nose[1], OUT);
-    return { mask: union(farMask, bodyMask), head: [eye[0] - 1, eye[1] - 6] };
-  },
-};
-
-// ------------------------------------------------------------------------------------------------- more four-legged
-// The helpers the later animals share: legs for a gallop frame, spikes and bristles, and drawing the parts in order.
-
-// legs for gallop frame k (0-3), from hip and shoulder: [near, far]
-function gallop(k, [hx, hy], [sx, sy], r) {
-  const F = [
-    [[-3.5, -1.1], [-2, -0.4], [4.5, -1.9], [3, -0.8]],
-    [[0.5, 0], [2, 0], [-0.5, 0], [1.5, 0]],
-    [[4, -0.8], [2.5, -0.4], [-2.5, -1.1], [-1, -0.6]],
-    [[-1, 0], [0.5, 0], [1.5, 0], [0, 0]],
-  ][k], at = ([dx, dy], x) => [x + dx, 18.4 + dy];
-  return [legs([[hx, hy, ...at(F[0], hx)], [sx, sy, ...at(F[2], sx)]], r), legs([[hx + 1, hy, ...at(F[1], hx)], [sx + 0.5, sy, ...at(F[3], sx)]], r * 0.9)];
-}
-// legs up (knocked out on its back) from the body's x positions
-const legsUp = (xs, r, top = 11) => legs(xs.map((x, i) => [x, 14.5, x + (i % 2 ? 0.5 : -1), top]), r);
-// paws in front and behind, for lying low (ducking), shuffling with f
-const paws = (f, front, back) => [ellipse(front + (f ? 1 : 0), 18.9, 2.3, 1), ellipse(back + (f ? 0 : 1.5), 18.9, 2.6, 1)];
+// ------------------------------------------------------------------------------------------------- the hedgehog's ball
 
 // spikes (a hedgehog) or bristles (a boar): ticks out of the outline where `where` holds, every so often (phase turns
 // them); a texture of lighter specks inside
@@ -444,216 +215,19 @@ function spikes(g, mask, where, phase = 0, speck = 0) {
   if (speck) for (let i = 0; i < mask.length; i++) if (mask[i] && where(i % g.w, Math.floor(i / g.w)) && ((i * 37 + phase * 11) % 17) % 5 === 0) g.px[i] = speck;
 }
 
-// an animal from its parts, back to front: the tail (soft: no collisions), far legs, the body with near legs and ears,
-// paint on the body, things on top (outlined), the eye and the nose
-function render(g, pose, blink, p) {
-  if (p.tail) g.layer(p.tail, p.tailColor ?? p.fur, OUT);
-  const farMask = g.layer(p.far || [], p.fur, OUT);
-  const bodyMask = g.layer([...p.body, ...(p.near || [])], p.fur, OUT);
-  for (const [shapes, color] of p.paint || []) g.paint(shapes, color, bodyMask);
-  p.after?.(bodyMask);
-  for (const [shapes, color] of p.over || []) g.layer(shapes, color, OUT);
-  p.last?.();
-  for (const [x, y, c] of p.dots || []) g.dot(x, y, c);
-  eyes(g, pose, p.eye, blink);
-  if (p.nose) g.dot(p.nose[0], p.nose[1], OUT);
-  return { mask: union(farMask, bodyMask), head: [p.eye[0] - 1, p.eye[1] - 6] };
-}
-const frameOf = (pose, f) => (pose === 'jump' ? (f ? 2 : 0) : pose === 'run' ? f : 1);
-const swing = (x, y, a, L) => [x - Math.sin(a) * L, y - Math.cos(a) * L]; // from (x, y), L long, at angle a from straight up
-
-Object.assign(DRAW, {
-  // the hedgehog: a round spiky back, a cream face, a pointed snout; short legs. Its power rolls it into a ball.
-  hedgehog(g, pose, f, soft, blink) {
-    if (pose === 'ball') {
-      const m = g.layer([ellipse(12, 12.5, 6.5, 6.5)], BROWN, OUT);
-      spikes(g, m, () => true, f, TAN);
-      g.paint([ellipse(13 + [0, 1, 0, -1][f], 13.5 + [0, 0, 1, 0][f], 2.6, 2.2)], EAR, m); // the face, turning with it
-      return { mask: m, head: [12, 4] };
-    }
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', back = ellipse(11.5, ko ? 16.2 : 15.5, 9, ko ? 3.2 : 4), face = ellipse(19.5, 16, 3, 2.6), snout = capsule(21, 16.8, 24, 17.1, 1);
-      return render(g, pose, blink, { fur: BROWN, body: [back, face, snout], near: ko ? legsUp([8, 14], 0.9) : paws(f, 20, 6),
-        paint: [[[face, snout, ...(ko ? [ellipse(12, 14, 6, 1.5)] : [])], EAR]], eye: [20.5, 15.5], nose: [24.5, 16.6],
-        after: (m) => spikes(g, m, (x, y) => x < 18 && (ko ? y > 15 : y < 16), 0, TAN) });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [8, 16.5], [15, 16.5], 0.9);
-    const back = ellipse(11, 11.3, 8.5, 7.2), face = ellipse(18.5, 13, 3.4, 3), snout = capsule(20, 14.4, 23.6, 14.8, 1.1);
-    return render(g, pose, blink, { fur: BROWN, body: [back, face, snout, ellipse(12, 15.5, 6, 2.5)], near, far,
-      paint: [[[face, snout, ellipse(12.5, 16.4, 5, 1.3)], EAR]], over: [[[ellipse(17.6, 9.6, 1.1, 1.1)], EAR]], eye: [19.5, 12.4], nose: [24, 14.4],
-      after: (m) => spikes(g, m, (x, y) => x < 17 && y < 15, 0, TAN) });
-  },
-
-  // the squirrel: red, tufted ears, a big bushy tail curled up over its back (on the spring)
-  squirrel(g, pose, f, soft, blink) {
-    const bushy = (x, y, a, r1, r2) => { const [mx, my] = swing(x, y, a, 5), [tx, ty] = swing(mx, my, a - 1.3, 4.2); return [capsule(x, y, mx, my, r1), capsule(mx, my, tx, ty, r2)]; };
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', hy = ko ? 15.8 : 15.6, head = ellipse(19, hy, 3, 2.8);
-      return render(g, pose, blink, { fur: STRIPE, body: [ellipse(12, 16.4, 7, 2.6), head, ellipse(21.6, hy + 1, 1.5, 1.2), triangle(16.8, hy - 2, 16, hy - 4.4, 18.4, hy - 2.6)],
-        near: ko ? legsUp([9, 14], 0.8) : paws(f, 20.5, 7), tail: [capsule(6, 15.5, 1.2, 14, 2.1), ellipse(2, 13.5, 2, 1.8)],
-        paint: [[[ellipse(14, 18.2, 4, 1), ellipse(21.4, hy + 1.4, 1.3, 0.8)], BELLY]], eye: [19.6, hy - 0.8], nose: [23, hy + 0.6] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [8.5, 15.5], [15, 15], 0.85), head = ellipse(18.5, 9.6, 3.3, 3.1), snout = ellipse(21.3, 10.8, 1.7, 1.4);
-    return render(g, pose, blink, { fur: STRIPE, body: [ellipse(11.5, 13, 6, 3.6), ellipse(9, 14.2, 3.8, 3.4), head, snout, triangle(16.6, 7.2, 17, 2.8, 18.6, 6.4)],
-      near, far, tail: bushy(6, 12, 0.42 + 0.6 * lag(soft), 2.2, 2.6),
-      paint: [[[ellipse(14, 15.2, 4, 1.3), ellipse(21, 11.6, 1.6, 0.8)], BELLY]], eye: [19.5, 8.8], nose: [23, 10.4] });
-  },
-
-  // the otter: long and low, dark brown with a light face, small round ears, a thick tail
-  otter(g, pose, f, soft, blink) {
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', head = ellipse(20.5, 15.6, 3, 2.8), snout = ellipse(23, 16.4, 1.7, 1.3);
-      return render(g, pose, blink, { fur: BROWN, body: [capsule(4.5, 16.6, 17, 16.6, ko ? 2.8 : 2.6), head, snout, ellipse(18.6, 13.2, 1, 0.9)],
-        near: ko ? legsUp([7, 14], 1) : paws(f, 21.5, 7), tail: [capsule(4.5, 16.8, 0.5, 17.6, 1.4)],
-        paint: [[[snout, ellipse(21.5, 17, 2, 1), ellipse(11, 18.4, 5, 0.9)], EAR]], eye: [21, 15], nose: [24.4, 15.8] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [8, 16], [16, 14.5], 1), head = ellipse(20.3, 8.3, 3.4, 3.3), snout = ellipse(23, 9.5, 1.8, 1.5);
-    const [tx, ty] = swing(5.5, 14, 1.9 + 0.3 * lag(soft), 2.8), [ex, ey] = swing(tx, ty, 2.05 + 0.5 * lag(soft), 2.2);
-    return render(g, pose, blink, { fur: BROWN, body: [capsule(6, 14, 15.5, 11.8, 3.8), capsule(15.5, 11.8, 19, 9, 2.8), head, snout, ellipse(18.3, 5, 1.2, 1.1)],
-      near, far, tail: [capsule(5.5, 14, tx, ty, 1.8), capsule(tx, ty, ex, ey, 0.9)],
-      paint: [[[snout, ellipse(22, 10.5, 2.5, 1.4), ellipse(12, 15.8, 4.5, 1.2)], EAR]], eye: [21, 7.4], nose: [24.6, 8.9] });
-  },
-
-  // the skunk: round and fluffy, black with a white stripe from its head down its back, a big bushy tail (on the spring)
-  skunk(g, pose, f, soft, blink) {
-    const bushy = (x, y, a) => { const [mx, my] = swing(x, y, a, 4.2), [tx, ty] = swing(mx, my, a - 1, 3.4); return [capsule(x, y, mx, my, 2.3), capsule(mx, my, tx, ty, 2.5)]; };
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', head = ellipse(19.5, 16, 3, 2.6), snout = ellipse(22.2, 16.9, 1.6, 1.2);
-      return render(g, pose, blink, { fur: SKUNK, body: [ellipse(11.5, 16, 8, ko ? 3.2 : 3), head, snout, ellipse(18, 13.6, 0.9, 0.9)],
-        near: ko ? legsUp([8, 14], 0.9) : paws(f, 20.5, 6.5), tail: [capsule(4.5, 15, 0.8, 13, 2), ellipse(1.5, 12.5, 1.6, 1.6)],
-        paint: [[[capsule(19.5, 13.6, 6, ko ? 13.6 : 13.3, 0.9)], BELLY]], eye: [20.2, 15.4], nose: [23.6, 16.6] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [8, 15.5], [14.5, 15.5], 0.9), head = ellipse(18.8, 12.6, 3.3, 3), snout = ellipse(21.8, 13.8, 1.8, 1.2);
-    const a = 0.48 + 0.35 * lag(soft), tail = bushy(6, 10, a), fur = () => g.px.map((c) => +(c === SKUNK));
-    return render(g, pose, blink, { fur: SKUNK, body: [ellipse(10.5, 11.2, 6.5, 7.2)], near, far, tail,
-      paint: [[[capsule(16, 6.5, 6.5, 5.6, 0.9)], BELLY]], // the stripe down its back
-      after: () => g.paint([ellipse(...swing(...swing(6, 10, a, 4.2), a - 1, 2.9), 1.3, 1.3)], BELLY, fur()), // the tail's white tip
-      over: [[[head, snout, ellipse(17.2, 9.8, 1, 1)], SKUNK]],
-      last: () => g.paint([capsule(20.6, 11.2, 17.6, 9.8, 0.7)], BELLY, fur()), // and up its forehead
-      eye: [19.5, 12], nose: [23.4, 13.6] });
-  },
-
-  // the wolf: the fox's build, in grey (dark grey socks and ear tips)
-  wolf(g, ...args) {
-    const r = DRAW.fox(g, ...args);
-    for (let i = 0; i < g.px.length; i++) g.px[i] = g.px[i] === FOX ? WOLF : g.px[i] === BROWN ? WOLF_DARK : g.px[i];
-    return r;
-  },
-
-  // the boar: dark and stocky, bristles along its back, a pink snout, little white tusks, a thin tail
-  boar(g, pose, f, soft, blink) {
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', hy = ko ? 16 : 15.7, head = ellipse(18.8, hy, 3.5, 3), snout = ellipse(22.3, hy + 0.9, 1.7, 1.6);
-      return render(g, pose, blink, { fur: BOAR, body: [ellipse(11.5, ko ? 16.5 : 16.2, 8, 3), head, snout, triangle(16, hy - 2.1, 15.5, hy - 4.5, 17.8, hy - 2.7)],
-        near: ko ? legsUp([8, 14], 1) : paws(f, 20, 6.5), paint: [[[snout], SNOUT]], dots: [[22.5, hy + 0.9, OUT], [21, hy + 2.5, BELLY]], eye: [19.2, hy - 1],
-        after: (m) => spikes(g, m, (x, y) => x < 17 && (ko ? y > 16 : y < 14)) });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [8, 15.8], [15, 15.5], 1), [tx, ty] = swing(4.4, 10, 1.33 + 0.6 * lag(soft), 3.2);
-    const head = ellipse(18.3, 11.2, 3.9, 3.8), snout = ellipse(22.3, 12.6, 1.9, 1.9);
-    return render(g, pose, blink, { fur: BOAR, body: [ellipse(11.5, 11.8, 7.3, 4.8), head, snout, triangle(15.4, 8.2, 15.9, 3.4, 18.2, 7.5)],
-      near, far, tail: [capsule(4.4, 10, tx, ty, 0.6)], paint: [[[snout], SNOUT]], dots: [[22.6, 12.4, OUT], [21, 14.6, BELLY], [21.8, 13.9, BELLY]], eye: [18.8, 9.9],
-      after: (m) => spikes(g, m, (x, y) => x < 17 && y < 10) });
-  },
-
-  // the bear: big and brown, round ears, a light snout, a stubby tail
-  bear(g, pose, f, soft, blink) {
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', head = ellipse(19.8, 15.4, 3.4, 3), snout = ellipse(22.8, 16.4, 1.8, 1.3);
-      return render(g, pose, blink, { fur: BARK, body: [ellipse(11.5, ko ? 16.2 : 15.8, 8.5, ko ? 3 : 3.3), head, snout, ellipse(17.8, 12.6, 1.1, 1.1)],
-        near: ko ? legsUp([7.5, 14], 1.4) : paws(f, 20.5, 6.5), tail: [ellipse(2.8, 15, 1.1, 1.1)], paint: [[[snout], WOOD]], eye: [20.4, 14.6], nose: [24.4, 16] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [7.5, 14.5], [15, 14.5], 1.5), snout = ellipse(22.4, 10.6, 1.9, 1.5);
-    return render(g, pose, blink, { fur: BARK, body: [ellipse(11, 11.5, 7.5, 5), ellipse(12.5, 8.2, 4.5, 3.5), ellipse(19, 9.3, 3.7, 3.5), snout, ellipse(16.8, 5.8, 1.4, 1.4), ellipse(19.8, 5.6, 1.3, 1.3)],
-      near, far, tail: [ellipse(3.3, 9.6 + 1.2 * lag(soft), 1.2, 1.2)], paint: [[[snout], WOOD]], eye: [20, 8.4], nose: [24.2, 10.2] });
-  },
-
-  // the cheetah: slim and long-legged, golden with black spots, black tear lines from its eyes, a long ringed tail
-  cheetah(g, pose, f, soft, blink) {
-    const spots = (dy) => [[7, 8.5], [9.5, 8], [12, 8.3], [14.5, 8.8], [8.5, 10.5], [11, 10.6], [13.5, 10.8], [6, 10]].map(([x, y]) => [x, y + dy, OUT]);
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', hy = ko ? 15.8 : 15.6, muzzle = ellipse(22, hy + 1, 1.5, 1.1);
-      return render(g, pose, blink, { fur: CHEETAH, body: [ellipse(11.5, 16.5, 8, 2.6), ellipse(19.8, hy, 2.8, 2.5), muzzle, ellipse(18.4, hy - 2.4, 0.9, 0.9)],
-        near: ko ? legsUp([8, 14], 0.8) : paws(f, 20.5, 6.5), tail: [capsule(4, 16, 0, 17, 0.8)],
-        paint: [[[muzzle, ellipse(12, 18.4, 5, 0.8)], BELLY]], dots: [...spots(6.5), [21, hy + 0.6, OUT], [21, hy + 1.4, OUT]], eye: [20.4, hy - 0.8], nose: [23.4, hy + 0.6] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [8, 12.8], [15, 12.8], 0.85), muzzle = ellipse(22.1, 9, 1.4, 1.1);
-    const sway = pose === 'run' ? [0.35, 0, -0.35, 0][f] : 0; // the tail swings with the stride, its tip whipping the other way
-    const a = 1.1 + 0.45 * lag(soft) + sway, [mx, my] = swing(5.5, 10, a, 4), [tx, ty] = swing(mx, my, a + 0.5 - sway * 1.8, 3.3);
-    return render(g, pose, blink, { fur: CHEETAH, body: [ellipse(11.5, 10.8, 6.5, 3), ellipse(15.5, 11.2, 2.6, 2.8), ellipse(19.6, 7.6, 3.3, 3.1), muzzle, ellipse(17.6, 4.8, 1.1, 1.1), ellipse(20.6, 4.4, 1.1, 1.1)],
-      near, far, tail: [capsule(5.5, 10, mx, my, 0.8), capsule(mx, my, tx, ty, 0.8)], last: () => { g.dot(mx, my, OUT); g.dot(tx, ty, BELLY); },
-      paint: [[[muzzle, ellipse(13, 13.3, 4.5, 0.9)], BELLY]], dots: [...spots(0.3).slice(0, 6), [20.6, 8.6, OUT], [21, 9.3, OUT], [19.6, 9, PINK]], eye: [20.5, 6.6], nose: [23.2, 8.6] });
-  },
-
-  // the rhino: big and grey, a great horn on its nose and a small one behind it, skin folds, thick short legs
-  rhino(g, pose, f, soft, blink) {
-    if (pose === 'duck' || pose === 'ko') {
-      const ko = pose === 'ko', head = capsule(17, 15.4, 22.6, 16.6, 2.3);
-      return render(g, pose, blink, { fur: RHINO, body: [ellipse(11.5, ko ? 16.3 : 16, 8.5, 3.2), head, triangle(16.2, 14, 16.4, 11.6, 17.8, 13.6)],
-        near: ko ? legsUp([7.5, 14], 1.4) : paws(f, 20, 6.5), tail: [capsule(3.2, 15, 1.6, 16.5, 0.5)],
-        paint: [[[capsule(10, 13.4, 10, 18.6, 0.5), capsule(15, 13.4, 15, 18.6, 0.5)], RHINO_DARK]],
-        over: [[[triangle(21.5, 15, 23, 10.6, 24.2, 15.6), triangle(19.4, 14.4, 20, 12.4, 21, 14.4)], EAR]], eye: [19.4, 15], nose: [24.5, 17] });
-    }
-    const [near, far] = gallop(frameOf(pose, f), [7.5, 15], [14.5, 15], 1.5), [tx, ty] = swing(3.6, 9.5, 1.45 + 0.6 * lag(soft), 2.5);
-    return render(g, pose, blink, { fur: RHINO, body: [ellipse(11, 11.5, 7.5, 5), capsule(16.5, 10, 22, 12.4, 3), triangle(15.4, 7.6, 15.9, 3.6, 17.8, 7.2)],
-      near, far, tail: [capsule(3.6, 9.5, tx, ty, 0.5)],
-      paint: [[[capsule(9.5, 7, 9.5, 16, 0.5), capsule(14.5, 7.6, 14.5, 15, 0.5)], RHINO_DARK]],
-      over: [[[triangle(21.4, 10.4, 23.4, 4.2, 24.4, 11), triangle(19, 9, 19.8, 6.6, 21, 9)], EAR]], eye: [18.6, 10], nose: [24.6, 12.6] });
-  },
-
-  // the dino: the blocky runner of Google's game, drawn like the others (filled, outlined, a lighter belly); its shape
-  // pixel by pixel, its legs stepping two by two
-  dino(g, pose, f, soft, blink) {
-    const run = [
-      '...............xxxxxx...',
-      '..............xxxxxxxx..',
-      '..............xxxxxxxx..',
-      '..............xxxx......',
-      '..............xxxxxx....',
-      '.............xxxx.......',
-      '....x.......xxxxx.......',
-      '....x......xxxxxxxx.....',
-      '....xx....xxxxxx.x......',
-      '....xxx..xxxxxxx........',
-      '....xxxxxxxxxxxx........',
-      '.....xxxxxxxxxxx........',
-      '......xxxxxxxxx.........',
-      '.......xxxxxxxx.........',
-      '........xxxxxx..........',
-    ];
-    const steps = [ // a stride: legs apart, the back leg passing (knee up), legs crossed, the front leg passing; and standing
-      ['.........xx..xx.........', '........xx....xx........', '.......xx......xx.......', '.......xxx......xxx.....'],
-      ['.........xx..xx.........', '........xx...xx.........', '.............xx.........', '.............xxx........'],
-      ['.........xx..xx.........', '..........xxxx..........', '.........xx..xx.........', '........xxx..xxx........'],
-      ['.........xx..xx.........', '.........xx...xx........', '.........xx.............', '.........xxx............'],
-      ['.........xx..xx.........', '.........xx..xx.........', '.........xx..xx.........', '.........xxx.xxx........'],
-    ];
-    const duck = [
-      '.................xxxxxx..',
-      '....x......xxxxxxxxxxxxx.',
-      '....xxx..xxxxxxxxxxxxxxx.',
-      '....xxxxxxxxxxxxxxxxx....',
-      '.....xxxxxxxxxxxxxxxxx...',
-      '......xxxx..xx...........',
-    ];
-    const low = pose === 'duck' || pose === 'ko', k = pose === 'idle' || pose === 'hurt' ? 4 : pose === 'jump' ? (f ? 2 : 0) : frameOf(pose, f);
-    const rows = low ? [...duck, ...(f && pose === 'duck' ? ['.......x....xx..........', '.......xx....x..........'] : ['.......xx...x...........', '............xx..........'])] : [...run, ...steps[k]];
-    const top = FOOT + 1 - rows.length, shape = (x, y) => rows[y - top]?.[x] === 'x';
-    const mask = g.layer([shape], DINO, OUT);
-    g.paint([(x, y) => y >= top + (low ? 3 : 9) && y <= top + (low ? 4 : 14) && x >= (low ? 7 : 9) && x <= (low ? 19 : 14)], DINO_LIGHT, mask); // the belly (not the legs)
-    const eye = low ? [19, top + 1] : [17, top + 1];
-    const teeth = low ? [[21, top + 2], [23, top + 2], [21, top + 4]] : [[19, top + 2], [21, top + 2], [18, top + 4]];
-    for (const [x, y] of teeth) g.dot(x, y, BELLY);
-    eyes(g, pose, eye, blink);
-    return { mask, head: [eye[0] - 1, eye[1] - 5] };
-  },
+// its super power rolls it up: a spiky ball, its face turning with it (frames 0-3)
+const balls = [0, 1, 2, 3].map((f) => {
+  const g = new Grid(26, 20), m = g.layer([ellipse(12, 12.5, 6.5, 6.5)], BROWN, OUT);
+  spikes(g, m, () => true, f, TAN);
+  g.paint([ellipse(13 + [0, 1, 0, -1][f], 13.5 + [0, 0, 1, 0][f], 2.6, 2.2)], EAR, m);
+  return sprite(g, m, { head: [12, 4] });
 });
 
 // ------------------------------------------------------------------------------------------------------------ rigs
 // An animal can be a rig (animals/<kind>.js, see the cat): joints, shapes on them, legs that bend to reach their paws,
 // chains (a tail, ears) that the body's motion swings, and a pose for each move and frame. Its shapes are distances (how
 // far a point lies outside them), so they join smoothly. Each frame is drawn into a grid just big enough for it, with its
-// offset (ox, oy) from the 26×20 box the game places every animal by: a tail can reach out of the box. With ?old in the
-// address, the animals are drawn as they were (DRAW), to compare.
+// offset (ox, oy) from the 26×20 box the game places every animal by: a tail can reach out of the box.
 // (moves: the build's own, over the moves its make worked out: a list of keyframes set by hand in the workshop's timeline,
 // in place of the move; or a gait's settings over the worked-out ones, a leg's over its own)
 function withMoves(rig) {
@@ -672,8 +246,6 @@ function withMoves(rig) {
 }
 const RIGS = Object.fromEntries(Object.entries({ rabbit, cat, dog, fox, hedgehog, squirrel, otter, skunk, wolf, boar, bear, cheetah, rhino, elephant, dino })
   .map(([k, rig]) => [k, withMoves(rig)]));
-const LEGACY = typeof location !== 'undefined' && /[?&]old\b/.test(location.search);
-export const rigged = (kind) => !!RIGS[kind] && (!LEGACY || !DRAW[kind]); // (?old: drawn the old way, where there is one)
 const NAMED = { OUT, FUR, EAR, PINK, INK, BERRY, ORANGE, LEAF, FAINT, LIGHT, FOX, BELLY, TAN, BROWN, GINGER, STRIPE, YELLOW, BARK, WOOD,
   FISH, LEAF_DARK, GRAPE, WOLF, BOAR, SNOUT, WOLF_DARK, SKUNK, CHEETAH, RHINO, RHINO_DARK, DINO, DINO_LIGHT, ELEPHANT, ELEPHANT_DARK };
 
@@ -812,7 +384,6 @@ function restPoints(c) {
 // the moving parts of an animal on screen (body: kept by the game, one per animal it draws): its chains, stepped by how
 // the animal moves. x, y: where its box is now; wind: how fast the world goes by (the air streams past the runner)
 export function moveBody(body, kind, pose, frame, x, y, wind, dt) {
-  if (!rigged(kind)) return;
   const rig = RIGS[kind], was = body.at || [x, y];
   if (body.kind !== kind || dt > 0.2 || Math.hypot(x - was[0], y - was[1]) > 40) { body.kind = kind; body.chains = {}; body.move = null; body.landed = Infinity; } // (a new start)
   ease(body, rig, pose, frame, dt);
@@ -880,15 +451,42 @@ const rigFrames = new Map();
 // no more than still goes under a branch (see ducked). (The dino's even: drawn half as big again as a giant, still whole)
 const SIZE = { rabbit: 0, cat: 1, dog: 2, fox: 1, hedgehog: 0, squirrel: 0, otter: 1, skunk: 0, wolf: 2, boar: 3, bear: 4, cheetah: 2, rhino: 4, elephant: 3, dino: 2 };
 const ducks = {};
-function ducked(kind) { // (the most it grows by, ducking: tried, every frame of the crawl)
-  if (ducks[kind] !== undefined) return ducks[kind];
-  const m = RIGS[kind].poses.duck, frames = m?.gait ? m.gait.frames : Array.isArray(m) ? m.length : 1;
+// how many frames a move has (a gait's, keyframes'; a loop's), for an animal
+const framesOf = (kind, pose) => { const m = RIGS[kind].poses[pose]; return m?.gait ? m.gait.frames : Array.isArray(m) ? m.length : m?.frames || 1; };
+// the most it grows by, ducking: tried, every frame of the crawl, a frame at a time (see readying; ducked: all at once)
+function* fitDuck(kind) {
+  const top = (s) => { let t = Infinity; for (let i = 0; i < s.mask.length; i++) if (s.mask[i]) { t = Math.floor(i / s.w); break; } return t + s.oy; };
   let n = SIZE[kind] || 0;
-  const top = (s) => Math.min(...[...s.mask.keys()].filter((i) => s.mask[i]).map((i) => Math.floor(i / s.w) + s.oy));
-  while (n > 0 && [...Array(frames).keys()].some((f) => FOOT - top(rigFrame(kind, 'duck', f, false, null, 1, n)) + 1 > GROUND - DUCK_UNDER - 1)) n--;
-  return (ducks[kind] = n);
+  for (; n > 0; n--) {
+    let low = true;
+    for (let f = 0; low && f < framesOf(kind, 'duck'); f++) { low = FOOT - top(rigFrame(kind, 'duck', f, false, null, 1, n)) + 1 <= GROUND - DUCK_UNDER - 1; yield; }
+    if (low) break;
+  }
+  ducks[kind] = n;
+}
+function ducked(kind) {
+  if (ducks[kind] === undefined) for (const it = fitDuck(kind); !it.next().done;);
+  return ducks[kind];
 }
 const grown = (kind, pose) => (pose === 'duck' ? ducked(kind) : SIZE[kind] || 0);
+
+// what an animal runs into in a move's frame: the frame at rest (its mask, blinking or not), kept for good (the frames
+// drawn come and go), so a jump or a duck never waits for one to be drawn
+const hitboxes = new Map();
+export function hitbox(kind, pose, frame) {
+  if (pose === 'ball') return animal(kind, pose, frame);
+  const key = `${kind} ${pose} ${frame}`;
+  if (!hitboxes.has(key)) hitboxes.set(key, rigFrame(kind, pose, frame, false, null));
+  return hitboxes.get(key);
+}
+// an animal made ready to run, a piece at a time (the game does one a frame, from the title on): how low it ducks, and
+// every frame it can run into
+export function* readying(kind) {
+  if (ducks[kind] === undefined) yield* fitDuck(kind);
+  for (const pose of ['run', 'jump', 'duck', 'hurt']) {
+    for (let f = 0; f < framesOf(kind, pose); f++) if (!hitboxes.has(`${kind} ${pose} ${f}`)) { hitbox(kind, pose, f); yield; }
+  }
+}
 
 // grown by n rows: how much bigger (k), and moved by how much (from its feet, the row above the ground's, in the middle:
 // moved back, so they stay where they were)
@@ -913,7 +511,7 @@ function rigFrame(kind, pose, frame, blink, body, scale = 1, n = grown(kind, pos
   return s;
 }
 
-// draw a rig in a pose, back to front as DRAW does: soft chains (a tail), the far legs, the body (torso, shapes, ears,
+// draw a rig in a pose, back to front: soft chains (a tail), the far legs, the body (torso, shapes, ears,
 // near legs, joined smoothly), the markings on it (paint; spikes; socks; dark ear tips), the near paws outlined over the
 // belly (over: lying low), things on top (top: horns, fangs, a head over a round body, outlined), chains in front (front:
 // lop ears), single pixels (dots), the face. The collision mask: the far legs and the body. (recolor: one palette name
@@ -936,8 +534,7 @@ function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = 
   const boxOf = (caps) => [Math.min(...caps.map((c) => Math.min(c[0], c[2]) - c[4])), Math.min(...caps.map((c) => Math.min(c[1], c[3]) - c[4])),
     Math.max(...caps.map((c) => Math.max(c[0], c[2]) + c[4])), Math.max(...caps.map((c) => Math.max(c[1], c[3]) + c[4]))];
   const join = (...boxes) => (boxes.length ? [Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])), Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))] : [0, 0, 0, 0]);
-  const ovalBox = ([cx, cy, rx, ry]) => [cx - rx, cy - ry, cx + rx, cy + ry];
-  const triBox = (t) => [Math.min(...t.map((v) => v[0])), Math.min(...t.map((v) => v[1])), Math.max(...t.map((v) => v[0])), Math.max(...t.map((v) => v[1]))];
+  const ovalBox = (ellipse) => extent({ ellipse }), triBox = (triangle) => extent({ triangle });
   const body = [...(p.ownShapes ? [] : rig.shapes || []), ...(p.shapes || [])].map(placed); // (ownShapes: the pose's alone)
   if (torso.r > 0) { // the torso: along the spine from the hip to the chest, reaching past both (an ellipse, or a capsule)
     const len = Math.hypot(P.J.chest[0] - P.J.hip[0], P.J.chest[1] - P.J.hip[1]), half = len / 2;
@@ -971,7 +568,7 @@ function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = 
   // the frame's bounds: every shape's box (turned with its frame), one more pixel for the outline
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const fit = ([x, y], r = 0) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
-  const fitShape = ({ s, f }) => { const [a, b, c, d] = extent(s); for (const q of [[a, b], [c, b], [a, d], [c, d]]) fit(toWorld(f, q)); };
+  const fitShape = ({ box: [a, b, c, d] }) => { fit([a, b]); fit([c, d]); }; // (its box, turned: see placed)
   body.forEach(fitShape);
   for (const t of tops) t.shapes.forEach(fitShape);
   for (const L of [...legs, ...soft, ...front]) for (const [ax, ay, bx, by, r] of L.parts) { fit([ax, ay], r); fit([bx, by], r); }
@@ -1062,8 +659,8 @@ function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = 
 }
 
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
-export function setRig(kind, rig) { RIGS[kind] = withMoves(rig); rigFrames.clear(); worked.clear(); }
-export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), pose: (kind, move, frame) => poseOf(RIGS[kind], move, frame), move: (kind, name) => RIGS[kind].poses[name], chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), growth: (kind, pose) => growth(grown(kind, pose)), restPoints, toWorld, toLocal, sdShape, NAMED };
+export function setRig(kind, rig) { RIGS[kind] = withMoves(rig); rigFrames.clear(); worked.clear(); hitboxes.clear(); delete ducks[kind]; }
+export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), pose: (kind, move, frame) => poseOf(RIGS[kind], move, frame), move: (kind, name) => RIGS[kind].poses[name], chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), growth: (kind, pose) => growth(grown(kind, pose)), toWorld, toLocal, sdShape, NAMED };
 
 // the birds that circle a knocked-out head: two frames
 const birds = [0, 1].map((f) => {
@@ -1180,7 +777,8 @@ export const CROW_BOTTOM = Math.max(...crows.map((c) => Math.max(...[...c.mask.k
 // each animal's face, for the high scores: its whole head as it runs (the ears too), cut out of the animal drawn smaller
 // (FACE_S: from its shapes, outlined as ever); FACE_W × FACE_H, its eye at EYE_AT (FACE_AT moves one's cut by [dx, dy]),
 // cut round (no body behind it) and outlined where it is cut
-export const FACE_W = 10, FACE_H = 9;
+export const FACE_W = 10;
+const FACE_H = 9;
 const FACE_S = 0.6, EYE_AT = [5, 5], FACE_AT = {}, faces = {};
 export function face(kind) {
   if (faces[kind] || !ANIMALS[kind]) return faces[kind];
@@ -1273,6 +871,9 @@ const peanut = food(11, 7, (g) => {
 export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grapes(), apple, acorn, shell, beetle, sausage, mushroom, berries, drumstick, leaf, peanut, roast };
 
 // ---------------------------------------------------------------------------------------------------------- the sky
+// the far hills: how high they are at u (art pixels along them)
+export const hill = (u) => 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3);
+
 export const cloud = fromRows([
   '......ffff......',
   '...fff....ff....',
@@ -1296,7 +897,7 @@ const golds = {};
 export function golden(pal) {
   return (golds[pal.bg] ||= { ...Object.fromEntries(Object.entries(pal).map(([k, hex]) => {
     if (k === 'bg' || +k === OUT || +k === INK) return [k, hex];
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255), l = 0.3 * r + 0.59 * g + 0.11 * b;
+    const l = luma(hex) / 255;
     return [k, l > 0.8 ? '#fff4b8' : l > 0.5 ? '#ffd23f' : '#e3a21a'];
   })), bg: `${pal.bg} gold` });
 }
@@ -1332,10 +933,12 @@ export function text(ctx, s, x, y, color, align = 'left', size = 1, glyphs = GLY
   if (align === 'right') x -= textWidth(s) * size;
   x = Math.round(x);
   ctx.fillStyle = color;
-  [...s].forEach((ch, i) => {
-    const gl = glyphs[ch] || GLYPHS[ch] || GLYPHS[' '];
-    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (+gl[r] & (4 >> c)) ctx.fillRect(x + (i * 4 + c) * size, y + r * size, size, size);
-  });
+  ctx.beginPath(); // (every pixel of it in one path: one fill)
+  for (let i = 0; i < s.length; i++) {
+    const gl = glyphs[s[i]] || GLYPHS[s[i]] || GLYPHS[' '];
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (+gl[r] & (4 >> c)) ctx.rect(x + (i * 4 + c) * size, y + r * size, size, size);
+  }
+  ctx.fill();
 }
 
 // do two sprites overlap, pixel for pixel (by their masks)?

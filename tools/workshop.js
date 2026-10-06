@@ -5,7 +5,8 @@
 // a frame), a gait's settings, a loop to look at; the frames before and after faded (onion skin). After every change the
 // animal is made again from its build (its make) and drawn by the game's own code; Save writes the build back into its
 // file (POST /save, see serve.mjs and rig-format.js).
-import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strideRate, idleFrame, jumpFrame, golden, cactus } from '../art.js';
+import { ANIMALS, PALETTES, COLOR, FOOT, GROUND, W, H, animal, setRig, rigParts, moveBody, stride, strides, idleFrame, jumpFrame, golden, cactus, hill,
+  JUMP, GRAVITY } from '../art.js';
 
 const { toWorld, toLocal, sdShape, NAMED } = rigParts;
 const KINDS = Object.keys(ANIMALS);
@@ -57,7 +58,7 @@ function restore(json) {
 function undo() { const h = hist(); if (h.past.length) { h.future.push(snapshot()); restore(h.past.pop()); } }
 function redo() { const h = hist(); if (h.future.length) { h.past.push(snapshot()); restore(h.future.pop()); } }
 
-async function choose(k) {
+function choose(k) {
   kind = k; mod = mods[k]; build = mod.build; sel = { type: 'rig' };
   pv.body = {};
   $('kind').value = k;
@@ -275,7 +276,7 @@ function drawHandles(ctx) {
 function drawSprites(s) {
   const box = $('sprites'), pal = PALETTES.day;
   if (!box.children.length) for (const t of ['1×', '3×', 'giant']) box.append(el('div', {}, el('canvas'), el('div', { className: 'note', textContent: t })));
-  const big = view.move === 'edit' ? animal(kind, 'hurt', 0, 0.4, false, 0, null, 2) : animal(kind, view.move, view.frame, 0.4, false, 0, null, 2);
+  const big = view.move === 'edit' ? animal(kind, 'hurt', 0, { scale: 2 }) : animal(kind, view.move, view.frame, { scale: 2 });
   [[s, 1], [s, 3], [big, 1]].forEach(([sp, k], i) => {
     const c = box.children[i].firstChild;
     c.width = sp.w; c.height = sp.h; c.style.width = `${sp.w * k}px`; c.style.height = `${sp.h * k}px`;
@@ -539,7 +540,7 @@ function setPlay(on) { view.play = on; view.t = 0; $('play').textContent = on ? 
 $('play').onclick = () => { if (view.move === 'edit') show('run'); setPlay(!view.play); draw(); };
 function fps() {
   const m = moveOf(view.move);
-  return m.gait ? m.gait.frames * (1.6 + +$('speed').value / 90) * (view.move === 'duck' ? 1 : strideRate(kind)) : m.fps || 4;
+  return m.gait ? m.gait.frames * strides(kind, +$('speed').value, view.move === 'duck' ? 1 : undefined) : m.fps || 4;
 }
 function stepPlay(dt) {
   if (!view.play || view.move === 'edit') return;
@@ -643,16 +644,16 @@ function tick(now) {
 function stepPreview(dt) {
   const act = $('act').value, t = ANIMALS[kind], moving = ['run', 'jump', 'duck'].includes(act), speed = moving ? +$('speed').value : 0;
   pv.t += dt; pv.scroll += speed * dt;
-  pv.phase = (pv.phase + dt * (1.6 + speed / 90) * (act === 'duck' ? 1 : strideRate(kind))) % 1;
+  pv.phase = (pv.phase + dt * strides(kind, speed, act === 'duck' ? 1 : undefined)) % 1;
   if (act === 'jump') {
-    if (pv.alt > 0 || pv.vAlt > 0) { pv.vAlt -= 1500 * t.gravity * dt; pv.alt = Math.max(0, pv.alt + pv.vAlt * dt); if (!pv.alt) { pv.vAlt = 0; pv.wait = 0.5; } }
-    else if ((pv.wait -= dt) < 0) pv.vAlt = 330 * t.jump;
+    if (pv.alt > 0 || pv.vAlt > 0) { pv.vAlt -= GRAVITY * t.gravity * dt; pv.alt = Math.max(0, pv.alt + pv.vAlt * dt); if (!pv.alt) { pv.vAlt = 0; pv.wait = 0.5; } }
+    else if ((pv.wait -= dt) < 0) pv.vAlt = JUMP * t.jump;
   } else { pv.alt = 0; pv.vAlt = 0; }
   const [pose, frame, lift] = pvPose(act);
   moveBody(pv.body, kind, pose, frame, 30, GROUND - FOOT - pv.alt - lift, speed, dt);
 }
 function pvPose(act) {
-  if (act === 'jump' && pv.alt > 0) return ['jump', jumpFrame(kind, pv.vAlt / (330 * ANIMALS[kind].jump)), 0];
+  if (act === 'jump' && pv.alt > 0) return ['jump', jumpFrame(kind, pv.vAlt / (JUMP * ANIMALS[kind].jump)), 0];
   if (act === 'run' || act === 'jump') { const s = stride(kind, pv.phase); return ['run', s.frame, s.lift]; }
   if (act === 'duck') return ['duck', stride(kind, pv.phase, 'duck').frame, 0];
   if (act === 'idle') return ['idle', idleFrame(kind, pv.t), 0];
@@ -665,12 +666,12 @@ function drawPreview() {
   const light = $('light').value, base = PALETTES[light === 'night' ? 'night' : 'day'], pal = light === 'golden' ? golden(base) : base;
   ctx.fillStyle = base.bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = base[COLOR.FAINT];
-  const hill = Math.floor(pv.scroll * 0.08);
-  for (let x = 0; x <= W; x++) { const u = x + hill, h = 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3); ctx.fillRect(x, Math.round(GROUND - h), 1, Math.round(h)); }
+  const from = Math.floor(pv.scroll * 0.08);
+  for (let x = 0; x <= W; x++) { const h = hill(x + from); ctx.fillRect(x, Math.round(GROUND - h), 1, Math.round(h)); }
   ctx.fillStyle = base[COLOR.INK]; ctx.fillRect(0, GROUND, W, 1);
   for (const k of pv.cacti) { const x = ((k.x - pv.scroll) % 330 + 330) % 330 - 30; k.s.draw(ctx, Math.round(x), GROUND - k.s.h + 1, base); }
   const act = $('act').value, [pose, frame, lift] = pvPose(act), s = $('giant').checked ? 2 : 1;
-  const sp = animal(kind, pose, frame, 0.4, pv.t % 3.2 < 0.12, 0, pv.body, s), y = GROUND - FOOT - pv.alt - lift;
+  const sp = animal(kind, pose, frame, { blink: pv.t % 3.2 < 0.12, body: pv.body, scale: s }), y = GROUND - FOOT - pv.alt - lift;
   sp.draw(ctx, 30 - 4 * (s - 1), Math.round(y + FOOT * (1 - s)), pal);
 }
 

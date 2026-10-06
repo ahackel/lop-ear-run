@@ -67,9 +67,11 @@
     opacity: 0.5; pointer-events: none; }
   #leftPad { left: max(10px, env(safe-area-inset-left)); }
   #rightPad { right: max(10px, env(safe-area-inset-right)); }
-  .pad svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
-  .pad .ring, .pad .icon, .pad.on .fill { fill: var(--game-ink, #3a3a3a); }
-  .pad .fill, .pad.on .icon { fill: var(--game-bg, #f7f6f0); }
+  .pad svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; shape-rendering: crispEdges; will-change: opacity; }
+  .pad .ring, .pad .up .icon, .pad .down .fill { fill: var(--game-ink, #3a3a3a); }
+  .pad .up .fill, .pad .down .icon { fill: var(--game-bg, #f7f6f0); }
+  .pad .down, .pad.on .up { opacity: 0; }
+  .pad.on .down { opacity: 1; }
   /* phones play sideways */
   @media (pointer: coarse) and (orientation: portrait) {
     #rotate { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;

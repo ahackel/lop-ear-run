@@ -1,6 +1,6 @@
 // The dog as a rig (see the cat, and kit.js): a beagle puppy, white with a tan saddle and head, a floppy brown ear in
 // front, a wagging tail with a white tip; its tongue out as it runs.
-import { quadruped, ko, bump, wave } from './kit.js';
+import { quadruped, gallop, ko, bump, wave } from './kit.js';
 
 const tongue = [{ color: 'PINK', shapes: [{ on: 'head', ellipse: [3, 4.3, 1, 1.2] }] }];
 
@@ -82,7 +82,7 @@ export const make = (rig) => {
   };
 
   return { ...rig, poses: quadruped(rig, low, {
-  run: { top: tongue, gait: quadruped(rig, low).run.gait },
+  run: { top: tongue, ...gallop(rig) },
   ko: [{ ...ko(rig, low), top: tongue }],
   idle: { frames: 80, fps: 10, at: sit },
 }) };

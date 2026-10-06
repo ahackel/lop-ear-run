@@ -1,5 +1,5 @@
 // The cat as a rig (see kit.js for what a rig holds): a ginger kitten, pointed ears, the tail up.
-import { jump } from './kit.js';
+import { jump, crawl, standing, bump, wave } from './kit.js';
 
 // @build: the rig, edited in the workshop (tools/workshop.html), which rewrites what is between these lines
 export const build = {
@@ -41,17 +41,9 @@ export const build = {
 };
 // @end
 
-// (the run and the crawl are gaits, worked out from the stride: see the poses below) standing, all four paws down: hurt
-const standing = { paws: { hindNear: [7, 18.4], hindFar: [8.5, 18.4], frontNear: [14.5, 18.4], frontFar: [16.5, 18.4] } };
-
 // lying low (ducking, and knocked out on its back): the body long and flat, the ears laid back
 const low = { joints: { hip: [7, 16.3], chest: [14, 16.3], head: [19.5, 15.3] }, torso: { r: 2.9, ends: 4.5 },
   chains: { tail: { at: [-3.5, -0.3], angle: 1.55 }, earA: { tip: [-4.2, -5] }, earB: { tip: [1.5, -5.2] } } };
-
-// eased in from a to a + e and out from b - e to b: 0…1…0
-const ease = (u) => u * u * (3 - 2 * u), clamp01 = (u) => Math.min(1, Math.max(0, u));
-const bump = (t, a, b, e) => ease(clamp01((t - a) / e)) * ease(clamp01((b - t) / e));
-const wave = (t, n, o = 0) => Math.sin(Math.PI * 2 * (n * t + o));
 
 // sitting, t (0…1) through an 8 s loop: a round body on its haunch, the front legs straight, the tail along the ground.
 // It breathes (4 times), swishes its tail (its tip flicking), flicks an ear now and then, and once glances up.
@@ -80,13 +72,9 @@ export const make = (rig) => ({ ...rig, poses: {
   // in the stride and where its paw's sweep is centred (from its root). The body bobs, the hip and the chest out of step.
   run: { gait: { frames: 8, stance: 0.4, reach: 6, lift: 2.6, bob: 0.6, ground: 18.4,
     legs: { hindNear: [0, -0.5], hindFar: [0.1, -0.5], frontNear: [0.5, 0.8], frontFar: [0.6, 0.8] } } },
-  // ducking: a slinking crawl, low and flat, the head held level, the shoulders and the haunch rolling (bob twice a
-  // stride, the head still). Diagonal paws step together, slow and low, the near ones flat (pad) and outlined over the
-  // belly (over), or they would hide in it
-  duck: { ...low, pad: [1.8, 1], over: true, gait: { frames: 8, stance: 0.6, reach: 4, lift: 0.8, bob: 0.6, beat: 2, head: 0, ground: 18.4,
-    legs: { hindNear: [0, -1], frontFar: [0.05, 1.5], hindFar: [0.5, 1.5], frontNear: [0.55, 3] } } },
+  duck: crawl(rig, low), // a slinking crawl (see kit.js)
   jump: jump(rig), // rising, falling (the build's own: see moves)
-  hurt: [standing],
+  hurt: [standing(rig)], // all four paws down
   ko: [{ ...low, flip: true, paws: { hindNear: [6, 11], hindFar: [10, 11], frontNear: [14, 11], frontFar: [17, 11] } }], // on its back, legs up
   idle: { frames: 80, fps: 10, at: sit }, // sitting: an 8 s loop
 } });

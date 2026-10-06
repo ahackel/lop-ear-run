@@ -6,7 +6,7 @@ import { deflateSync } from 'node:zlib';
 import { animal, PALETTES } from '../art.js';
 
 const SKY = '#bfe6f2', OUT = 1, INK = 5;
-const rabbit = animal('rabbit', 'run', 6, 0.45); // its run, high in a hop: stretched out, the hind legs pushing back, the front paws reaching
+const rabbit = animal('rabbit', 'run', 6); // its run, high in a hop: stretched out, the hind legs pushing back, the front paws reaching
 const GROUND = 27, GAP = 4; // the ground line's row; how high over it the rabbit hops
 const BITS = [[2, 29, 3], [8, 30, 1], [13, 29, 2], [19, 30, 3], [25, 29, 1], [29, 30, 2]]; // the ground's bits under it: [x, y, length]
 const pal = PALETTES.day;

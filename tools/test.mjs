@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/src/engine/engine.js';
 import { diskSamples } from '../engine/src/disk-samples.js';
-import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, rigged, moveBody, stride, idleFrame } from '../art.js';
+import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, moveBody, stride, idleFrame, jumpHeight, FOOD } from '../art.js';
 
 let failed = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) failed++; };
@@ -59,17 +59,17 @@ ok(calls.every((id) => song.stingers.some((x) => x.id === id)), `every stinger t
 // the art: heights in rows above the ground, the ground row included
 const maskRows = (s) => [...s.mask.keys()].filter((i) => s.mask[i]).map((i) => Math.floor(i / s.w) + (s.oy || 0)); // (in the box)
 const rows = (s) => FOOT - Math.min(...maskRows(s)) + 1;
-const aBranch = branch(Math.random), branchBottom = aBranch.oy + Math.max(...[...aBranch.mask.entries()].filter(([, v]) => v).map(([i]) => Math.floor(i / 26)));
+const aBranch = branch(Math.random), branchBottom = aBranch.oy + Math.max(...[...aBranch.mask.entries()].filter(([, v]) => v).map(([i]) => Math.floor(i / aBranch.w)));
 for (const k of Object.keys(ANIMALS)) {
   const frames = (move) => [...new Set([...Array(64).keys()].map((i) => stride(k, i / 64, move).frame))]; // (every frame of its stride)
   const stand = frames('run').map((f) => rows(animal(k, 'run', f))), duck = frames('duck').map((f) => rows(animal(k, 'duck', f)));
   ok(Math.min(...stand) >= GROUND - DUCK_UNDER + 4 && Math.max(...duck) <= GROUND - DUCK_UNDER - 1,
     `the ${k} runs into what hangs low (${Math.min(...stand)} rows tall) and ducks under it (${Math.max(...duck)} rows)`);
 }
-// a rigged animal stands on the ground in every pose (its frames end on the feet's row, none below it), and its chains
+// an animal stands on the ground in every pose (its frames end on the feet's row, none below it), and its chains
 // stay whole as its body runs, jumps, ducks and falls (easing from move to move, squashed as it lands: nothing below the
 // ground then either)
-for (const k of Object.keys(ANIMALS).filter(rigged)) {
+for (const k of Object.keys(ANIMALS)) {
   const every = (move, n) => [...new Set([...Array(n).keys()].map((i) => (move === 'idle' ? idleFrame(k, i / 10) : stride(k, i / n, move).frame)))].map((f) => [move, f]);
   const poses = [...every('run', 64), ['jump', 0], ['jump', 1], ...every('duck', 64), ...every('idle', 200), ['hurt', 0], ['ko', 0]];
   const leaps = [...Array(64).keys()].some((i) => stride(k, i / 64).lift > 0); // (a leap's frames may be in the air: none below the ground then)
@@ -79,7 +79,7 @@ for (const k of Object.keys(ANIMALS).filter(rigged)) {
   for (let i = 0; i < 900; i++) {
     const [p, f, up] = moves[Math.floor(i / 90) % moves.length];
     moveBody(body, k, p, f, 20, 59 + up * Math.sin((i % 90) / 90 * Math.PI), 200, 1 / 60);
-    const s = animal(k, p, f, 0.4, false, 0, body);
+    const s = animal(k, p, f, { body });
     whole &&= Object.values(body.chains).every((c) => c.every((q) => Number.isFinite(q.p[0]) && Number.isFinite(q.p[1]))) && s.w < 60 && s.h < 60 && s.oy + s.h - 1 <= FOOT;
   }
   ok(low.every(Boolean) && whole, `the ${k}'s rig stands on the ground in every pose, its chains stay whole in motion`);
@@ -94,13 +94,16 @@ for (const k of Object.keys(ANIMALS).filter(rigged)) {
   }
   ok(!off.length, `every animal's build is in the workshop's format${off.length ? ` — npm run rigs: ${off}` : ''}`);
 }
-// every animal jumps the tallest cactus (20 high), even the heavy ones (the game's JUMP 330 and GRAVITY 1500)
-const heights = Object.entries(ANIMALS).map(([k, t]) => [k, Math.round((330 * t.jump) ** 2 / (2 * 1500 * t.gravity))]);
+// every animal jumps the tallest cactus (20 high), even the heavy ones
+const heights = Object.keys(ANIMALS).map((k) => [k, Math.round(jumpHeight(k))]);
 ok(heights.every(([, h]) => h >= 24), `every animal jumps high enough (${heights.map(([k, h]) => `${k} ${h}`).join(', ')})`);
 const mults = Object.values(ANIMALS).map((t) => t.mult);
 ok(mults.every((m, i) => !i || m > mults[i - 1]), `each animal counts more than the one before (${mults.join(', ')})`);
 ok(branchBottom <= DUCK_UNDER && branchBottom >= DUCK_UNDER - 2, `branches end just above a ducking animal (row ${branchBottom})`);
 ok(CROW_BOTTOM > 0, 'crows have a lowest row');
+// every animal has its food, and its file is kept for playing offline (sw.js)
+const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), missing = Object.keys(ANIMALS).filter((k) => !FOOD[ANIMALS[k].food] || !sw.includes(`'animals/${k}.js'`));
+ok(!missing.length, `every animal has its food and is kept offline${missing.length ? ` — not: ${missing}` : ''}`);
 
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);
