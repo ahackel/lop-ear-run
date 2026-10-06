@@ -7,6 +7,7 @@ import { Engine } from '../engine/src/engine/engine.js';
 import { openSongZip } from '../engine/src/bundle.js';
 import { loadSamples, songSamples } from '../engine/src/samples.js';
 import { courseOf, playThrough, days, starves } from './course.mjs';
+import { songFor, STYLES } from '../music.js';
 import { pace, drain, meals, CHASE } from '../level.js';
 import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, moveBody, stride, idleFrame, jumpHeight, FOOD } from '../art.js';
 
@@ -57,6 +58,25 @@ ok(!silent.length, `every stinger plays (${song.stingers.map((x) => x.id)})${sil
   let back = null; t = 0;
   run(4, (en) => { t += 128 / SR; if (back === null && en.section?.id !== 'star') back = t; en.drainEvents(); });
   ok(at !== null && at < 2 && back !== null && back < 2, `the power music comes within ${at?.toFixed(1)} s and leaves within ${back?.toFixed(1)} s`);
+}
+// every animal's song (music.js): the song in its colours, healthy, in a mode the chords stay sweet in, its motif two
+// bars long (and the rabbit's the song as it is)
+{
+  const steps = (p) => p.split('|').map((bar) => bar.trim().split(/\s+/).reduce((n, t) => n + (/^\.\*(\d+)$/.test(t) ? +t.slice(2) : 1), 0));
+  const off = [];
+  for (const kind of Object.keys(ANIMALS)) {
+    const st = STYLES[kind], s = songFor(song, kind), en = new Engine(SR, s, 5);
+    en.setSamples(recordings instanceof Error ? {} : recordings);
+    en.setMood('action');
+    const L = new Float32Array(128), R = new Float32Array(128);
+    let peak = 0, bad = 0;
+    for (let i = 0; i < 8 * SR; i += 128) { en.process(L, R, 128); en.drainEvents(); for (let j = 0; j < 128; j++) { if (!Number.isFinite(L[j])) bad++; peak = Math.max(peak, Math.abs(L[j])); } }
+    const why = [!st && 'no style', bad && 'not finite', (peak < 0.1 || peak >= 1) && `peak ${peak.toFixed(2)}`,
+      !['major', 'mixolydian', 'minor', 'harmonicMinor'].includes(s.scale) && s.scale,
+      kind !== 'rabbit' && st?.motif && steps(st.motif).join() !== '16,16' && `motif ${steps(st.motif)}`].filter(Boolean);
+    if (why.length) off.push(`${kind}: ${why.join(', ')}`);
+  }
+  ok(!off.length && JSON.stringify(songFor(song, 'rabbit')) === JSON.stringify(song), `every animal has its own song, healthy, each motif two bars${off.length ? ` — ${off.join('; ')}` : ''}`);
 }
 const used = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
 const calls = [...used.matchAll(/call\('sting', '(\w+)'\)/g)].map((m) => m[1]);

@@ -13,7 +13,8 @@
 //   power      while a super power lasts      record     past the best score so far
 //                                             alert      knocked out (fanfare: into the high scores)
 //                                             power, powerdown   golden food gives one, and it wears off
-import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
+import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
+import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
   JUMP, GRAVITY, hill, strides, rgb, luma } from './art.js';
@@ -71,6 +72,7 @@ const keep = (k, v) => { try { if (v === null) localStorage.removeItem(`lop.${k}
 // --------------------------------------------------------------------------------------------------------- the music
 const music = new StardriftPlayer();
 const song = fetch('song.zip').then((r) => r.arrayBuffer()); // the song and the recordings it plays (the editor's Export for a game)
+let tunes = null, playing = null; // the song and its recordings, unzipped (each animal plays it its own way: music.js); whose plays
 let audio = 'off'; // off | starting | on
 let muted = kept('muted') === '1';
 let mood = null;
@@ -89,7 +91,9 @@ async function startAudio() {
   audio = 'starting';
   try {
     await music.init();
-    await music.loadZip(await song, { seed: Math.floor(Math.random() * 1e6) });
+    const { song: base, read } = await openSongZip(await song);
+    tunes = { base, read }; playing = kind;
+    music.load(songFor(base, kind), { seed: Math.floor(Math.random() * 1e6), read });
     music.setVolume(muted ? 0 : 1, 0);
     await music.play();
     audio = 'on';
@@ -160,7 +164,13 @@ function choose(k) {
   pick(k);
   if (state === 'ko') { gained = null; reset(); state = 'title'; }
 }
-const pick = (k) => { kind = k; keep('animal', k); }; // (kept for the next visit)
+const pick = (k) => { kind = k; keep('animal', k); songOf(k); }; // (kept for the next visit)
+// the animal's own song, from where the music is (the same song, played its way: music.js)
+function songOf(k) {
+  if (!tunes || playing === k) return;
+  playing = k;
+  music.load(songFor(tunes.base, k), { read: tunes.read });
+}
 const inRun = () => state === 'run' || state === 'paused';
 const KINDS = Object.keys(ANIMALS);
 const renamed = (k) => (k === 'sabre' ? 'elephant' : k); // (kept in this browser under an animal's old name: the sabre-tooth became the elephant)
