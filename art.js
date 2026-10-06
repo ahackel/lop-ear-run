@@ -874,6 +874,64 @@ export const FOOD = { carrot: carrot(), bone: bone(), fish: fish(), grapes: grap
 // the far hills: how high they are at u (art pixels along them)
 export const hill = (u) => 7 + 4 * Math.sin(u * 0.021) + 3 * Math.sin(u * 0.057 + 1.3);
 
+// The lands a run goes through, a day each (then round again): the meadow, the desert, the forest, the mountains, the
+// canyon, the snow. Each has its sky by day (night is the same night everywhere), its far skyline, and what tops it in
+// a second colour (snow on the peaks, the pines on the snowy hills): skyline(u) → [how high the skyline is at u, how much
+// of that, from the top, is in the second colour]. Their colours by day and by night: hills, top (in every palette, as
+// hills0…, top0…: the skyline keeps its land's colours as the next land's comes in).
+const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+// the highest of the shapes around u, one a cell (cell: how far apart; shape(u, cell) → [height, top])
+const cells = (u, size, shape) => { const c = Math.floor(u / size); let best = [0, 0]; for (let k = c - 1; k <= c + 1; k++) { const r = shape(u, k); if (r[0] > best[0]) best = r; } return best; };
+const pine = (u, c, size, tall) => { const x = c * size + size / 2 + (hash(c) - 0.5) * size * 0.5, t = tall * (0.6 + 0.4 * hash(c + 0.3)); return Math.max(0, t - Math.abs(u - x) * 2.2); };
+export const LANDS = [
+  { name: 'THE MEADOW', sky: '#f7f6f0', hills: ['#dedbd0', '#2e3350'], top: ['#dedbd0', '#2e3350'], skyline: (u) => [hill(u), 0] },
+  { name: 'THE DESERT', sky: '#faf0dc', hills: ['#ecd6b0', '#363149'], top: ['#ecd6b0', '#363149'],
+    skyline: (u) => {
+      const dunes = 5 + 3 * Math.sin(u * 0.013) + 1.5 * Math.sin(u * 0.031 + 2);
+      const [mesa] = cells(u, 170, (v, c) => {
+        if (hash(c) > 0.6) return [0, 0];
+        const x = c * 170 + 50 + hash(c) * 60, w = 16 + hash(c + 0.5) * 22, h = 14 + Math.floor(hash(c + 0.7) * 8), d = Math.abs(v - x);
+        return [d < w ? h : d < w + 5 ? h * (1 - (d - w) / 5) : 0, 0];
+      });
+      return [Math.max(dunes, mesa), 0];
+    } },
+  { name: 'THE FOREST', sky: '#eff3e8', hills: ['#d9e3cd', '#2a3646'], top: ['#bdd0af', '#24303c'],
+    skyline: (u) => {
+      const base = 5 + 2 * Math.sin(u * 0.02 + 1), [p] = cells(u, 9, (v, c) => [pine(v, c, 9, 19), 0]);
+      return p > base ? [p, p - base] : [base, 0];
+    } },
+  { name: 'THE MOUNTAINS', sky: '#ecf1f6', hills: ['#cfd7e2', '#2c3550'], top: ['#fbfcfd', '#56617f'],
+    skyline: (u) => {
+      const [h, snow] = cells(u, 64, (v, c) => {
+        const x = c * 64 + 32 + (hash(c) - 0.5) * 30, top = 18 + hash(c + 0.2) * 16, slope = 0.7 + hash(c + 0.4) * 0.4;
+        const at = top - Math.abs(v - x) * slope + (hash(Math.floor(v / 3)) - 0.5) * 1.5;
+        return [at, Math.max(0, at - (top - 6))];
+      });
+      return [Math.max(6, h), h > 6 ? snow : 0];
+    } },
+  { name: 'THE CANYON', sky: '#fbebe0', hills: ['#ecccb6', '#3a2c3c'], top: ['#ecccb6', '#3a2c3c'],
+    skyline: (u) => {
+      const base = 4 + 2 * Math.sin(u * 0.017);
+      const [rock] = cells(u, 46, (v, c) => {
+        if (hash(c) > 0.7) return [0, 0];
+        const x = c * 46 + 23 + (hash(c + 0.1) - 0.5) * 16, w = 3 + hash(c + 0.6) * 8, h = 12 + Math.floor(hash(c + 0.9) * 16), d = Math.abs(v - x);
+        return [d < w ? h : d < w + 3 ? Math.round(h * 0.55) : 0, 0];
+      });
+      return [Math.max(base, rock), 0];
+    } },
+  { name: 'THE SNOW', sky: '#eef3f8', hills: ['#d5dfea', '#3a445e'], top: ['#b3c4c0', '#28324a'],
+    skyline: (u) => {
+      const base = 8 + 5 * Math.sin(u * 0.015) + 2 * Math.sin(u * 0.05 + 0.5);
+      const [p] = cells(u, 23, (v, c) => [hash(c + 0.8) < 0.45 ? base + pine(v, c, 23, 13) * 0.9 - 1 : 0, 0]);
+      return p > base ? [p, p - base] : [base, 0];
+    } },
+];
+// a land's skyline colours, in every palette (see LANDS)
+for (const [i, l] of LANDS.entries()) {
+  PALETTES.day[`hills${i}`] = l.hills[0]; PALETTES.day[`top${i}`] = l.top[0];
+  PALETTES.night[`hills${i}`] = l.hills[1]; PALETTES.night[`top${i}`] = l.top[1];
+}
+
 export const cloud = fromRows([
   '......ffff......',
   '...fff....ff....',

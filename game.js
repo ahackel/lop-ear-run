@@ -17,7 +17,7 @@ import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by pat
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
-  JUMP, GRAVITY, hill, strides, rgb, luma } from './art.js';
+  JUMP, GRAVITY, LANDS, strides, rgb, luma } from './art.js';
 import { course, pace, drain, hardness, nightAt, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
@@ -129,6 +129,8 @@ let speed, dist, bonus, alt, vAlt, ducking, phase, obstacles, food, parts, float
 let track, ahead, chase, night, hunted, dark, day, koT, streak, duckHeld, upFromDuck, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
 const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
 let clouds, sky, hillX, groundX; // the clouds, where the next comes from, how far the hills and the ground have gone (as they were, every run)
+let lands; // the lands along the skyline: [{ u: where it begins (along the hills), i: which (LANDS) }], a day each
+const landOf = (d) => (d - 1) % LANDS.length; // a day's land
 let fresh = null; // a knock-out's new entry in the high scores, to name
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
@@ -144,6 +146,7 @@ function reset() {
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
   power = 0; gold = null; airJumps = 0; quake = 0;
   sky = random(seedOf(kind) ^ 0x5c1e5); hillX = groundX = 0; // (the clouds too: as they were)
+  lands = [{ u: -Infinity, i: 0 }];
   clouds = CLOUDS.map((c) => ({ ...c }));
 }
 reset();
@@ -157,6 +160,7 @@ function start() {
   state = 'run';
   updateMood();
   call('sting', 'go');
+  banner('DAY 1', 30); banner(LANDS[0].name, 38);
 }
 
 function choose(k) {
@@ -273,7 +277,11 @@ function dawn() {
   if (joins) unlock(c);
   else call('sting', away ? 'escape' : 'dawn');
   day++; night = hunted = false;
+  // the next land: its sky with the morning, its skyline coming in at the right (the last one's going on the left)
+  const i = landOf(day);
+  lands = [...lands.filter((l, k) => !lands[k + 1] || lands[k + 1].u > Math.floor(hillX)), { u: Math.floor(hillX) + W + 1, i }];
   banner(`DAY ${day}`, joins ? 40 : 30); // (under the unlock)
+  banner(LANDS[i].name, joins ? 48 : 38);
 }
 
 function knockOut(why) {
@@ -977,18 +985,17 @@ function dizzyBirds(pal, behind) {
 const blend = (a, b, f) => `#${rgb(a).map((v, i) => Math.round(v * (1 - f) + rgb(b)[i] * f).toString(16).padStart(2, '0')).join('')}`;
 const tint = (pal, by, f, more) => ({ ...Object.fromEntries(Object.entries(pal).map(([k, c]) =>
   [k, blend(c, `#${rgb(c).map((v, i) => Math.round((v * rgb(by)[i]) / 255).toString(16).padStart(2, '0')).join('')}`, f)])), ...more });
-const SKIES = {
-  day: PALETTES.day,
-  sunset: tint(PALETTES.day, '#ff8c5a', 0.6, { bg: '#f7a76c' }),
-  dusk: tint(PALETTES.night, '#ffb4d8', 0.3, { bg: '#56457a' }),
-  night: PALETTES.night,
-  morning: tint(PALETTES.day, '#ffb4c4', 0.45, { bg: '#ffdcbc' }),
-};
-// the two palettes to draw in and how much of the second, from how dark it is and which way it is going
+// (a land's: its sky by day, see LANDS; the same night everywhere)
+const DUSK = tint(PALETTES.night, '#ffb4d8', 0.3, { bg: '#56457a' });
+const SKIES = LANDS.map((l) => {
+  const day = { ...PALETTES.day, bg: l.sky };
+  return { day, sunset: tint(day, '#ff8c5a', 0.6, { bg: '#f7a76c' }), dusk: DUSK, night: PALETTES.night, morning: tint(day, '#ffb4c4', 0.45, { bg: '#ffdcbc' }) };
+});
+// the two palettes to draw in and how much of the second, from how dark it is and which way it is going (in the day's land)
 function skies() {
   const way = night ? ['day', 'sunset', 'dusk', 'night'] : ['night', 'morning', 'day'], f = (night ? dark : 1 - dark) * (way.length - 1);
-  const i = Math.min(Math.floor(f), way.length - 1);
-  return i < way.length - 1 ? [SKIES[way[i]], SKIES[way[i + 1]], ease(f - i)] : [SKIES[way[i]], null, 0];
+  const i = Math.min(Math.floor(f), way.length - 1), sk = SKIES[landOf(day)];
+  return i < way.length - 1 ? [sk[way[i]], sk[way[i + 1]], ease(f - i)] : [sk[way[i]], null, 0];
 }
 const second = document.createElement('canvas'), secondCtx = second.getContext('2d');
 const themeColor = document.querySelector('meta[name=theme-color]');
@@ -1049,15 +1056,21 @@ function scene(pal) {
     ctx.fill();
     moon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
   }
-  // far hills
-  ctx.fillStyle = pal[COLOR.FAINT];
-  const hills = snap(hillX), from = Math.floor(hills);
-  ctx.beginPath();
-  for (let x = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
-    const h = hill(x + from);
-    ctx.rect(x - (hills - from), Math.round(GROUND - h), 1, Math.round(h));
+  // far hills: each land's skyline in its colours, the top of it (snow, pines) in its second
+  const hills = snap(hillX), from = Math.floor(hills), paths = {};
+  for (let x = 0, k = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
+    const u = x + from;
+    while (lands[k + 1] && lands[k + 1].u <= u) k++;
+    const { i } = lands[k], [h, top] = LANDS[i].skyline(u), y = Math.round(GROUND - h), t = Math.round(top), cx = x - (hills - from);
+    (paths[`hills${i}`] ||= []).push(cx, y + t, Math.round(h) - t);
+    if (t > 0) (paths[`top${i}`] ||= []).push(cx, y, t);
   }
-  ctx.fill(); // (one path: one fill, not a fill a column)
+  for (const [c, cols] of Object.entries(paths)) { // (a path a colour: one fill each, not a fill a column)
+    ctx.fillStyle = pal[c];
+    ctx.beginPath();
+    for (let j = 0; j < cols.length; j += 3) ctx.rect(cols[j], cols[j + 1], 1, cols[j + 2]);
+    ctx.fill();
+  }
   for (const c of clouds) cloud.draw(ctx, c.x, c.y, pal);
 
   const scroll = ground(pal);
@@ -1115,7 +1128,7 @@ function hud(pal) {
   if (board) { drawBoard(pal); atTop(() => drawButtons(pal)); return; }
   // the energy, the score (blinking at every hundred): at the top of the screen
   atTop(() => {
-    if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.DIM], 'right'); }
+    if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.INK], 'right'); }
     const pad = (n) => String(n).padStart(5, '0');
     if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - safeR - 6, 5, pal[COLOR.INK], 'right');
     if (best()) text(ctx, `HI ${pad(best())}`, W - safeR - 30, 5, pal[COLOR.DIM], 'right');
