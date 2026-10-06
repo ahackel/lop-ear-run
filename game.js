@@ -146,7 +146,6 @@ reset();
 blinkT = 0;
 
 function start() {
-  if (gained && unlocked(gained)) pick(gained); // the one just unlocked runs next
   gained = null;
   beat = best(); // the best so far: passing it plays a fanfare
   if (kind === newKind) { newKind = null; keep('new', null); } // (no longer new)
@@ -178,8 +177,8 @@ let open = ['rabbit'];
 const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device)
 const ALL = Q.has('all'); // ?all: every animal open, for this visit (nothing saved)
 function unlocked(k) { return ALL || open.includes(k); }
-// the one unlocked last: in this run (gained, played next, from the knock-out or the title) and until played (newKind,
-// marked NEW on the title)
+// the one unlocked last: in this run (gained: after the knock-out and the high scores, the title, to pick it there) and
+// until played (newKind, marked NEW on the title)
 let gained = null, newKind = null;
 const keptKind = (name) => { const k = renamed(kept(name)); return ANIMALS[k] && unlocked(k) ? k : null; };
 newKind = keptKind('new');
@@ -200,7 +199,7 @@ function goHome() {
   if (state === 'title') return;
   if (state === 'paused' && audio === 'on') music.play();
   fresh = null;
-  if (gained) { pick(gained); gained = null; } // the new one, picked
+  gained = null; // (the new one waits on the title, marked NEW, to be picked)
   reset();
   state = 'title';
   fingers.clear();
@@ -280,7 +279,7 @@ function press() {
   startAudio();
   if (scoresOpen()) return;
   if (state === 'title') return start();
-  if (state === 'ko') { if (koT > 0.8 && !fresh) start(); return; } // (a new high score is named first)
+  if (state === 'ko') { if (koT > 0.8 && !fresh) { if (gained) goHome(); else start(); } return; } // (a new high score is named first; one unlocked: to the title, to pick it)
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
   jumpHeld = true;
   if (alt === 0) jump();
@@ -1118,7 +1117,7 @@ function hud(pal) {
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8 && fresh && TOUCH) help('NEW HIGH SCORE! TAP TO ENTER YOUR NAME', pal, pal[7]);
-    else if (koT > 0.8 && !fresh && gained) help(`${TOUCH ? 'TAP' : 'SPACE OR TAP'} TO RUN AS THE ${ANIMALS[gained].name}!`, pal, pal[7]);
+    else if (koT > 0.8 && !fresh && gained) help(`THE ${ANIMALS[gained].name} IS YOURS! ${TOUCH ? 'TAP' : 'SPACE OR TAP'} TO PICK`, pal, pal[7]);
     else if (koT > 0.8 && !fresh) help(TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', pal);
   } else if (state === 'paused') {
     text(ctx, TOUCH ? 'PAUSED - TAP TO GO ON' : 'PAUSED - SPACE OR TAP', W / 2, 30, pal[COLOR.INK], 'center');
