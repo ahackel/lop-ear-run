@@ -1,6 +1,6 @@
 # Lop Hop
 
-A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is days and nights, and every day is harder than the one before (up to the fifth: faster, closer obstacles, more crows and packs, hungrier). At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Getting away till dawn unlocks that one: fifteen in all, the rabbit the easy start, each after it clearly harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs) and worth more points (×1 to ×4). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is days and nights, and it keeps getting harder, with no top: faster, closer obstacles, more crows, branches and packs, less food, more tiring, so even a player who never misses runs out of energy in the end. An animal's course is the same every run (what comes and where), and every obstacle can be got past: there is always room to land and jump, duck or stand up in time. A jump pressed just before landing jumps as the animal lands, and one pressed while ducking jumps out of the duck. Food eaten one after another is worth more (25, 50, 75, 100), until a bump or a missed one. At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Getting away till dawn unlocks that one: fifteen in all, the rabbit the easy start, each after it a little harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs, and a head start on the run's hardness) and worth more points (×1 to ×4). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 | Animal | Food | Power |
 |---|---|---|
@@ -37,7 +37,7 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 | high scores | `setMood('highscore')` |
 | knocked out | `setMood('relaxed')` |
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
-| night falls (after every 1000) | `wonder` |
+| night falls (after every day's 1000) | `wonder` |
 | the next animal gives chase (through the night) | `danger` |
 | a super power (golden food, 8 s) | `power`, with `sting('power')` and `sting('powerdown')` |
 | a run starts, a jump, food, a bump, a smash | `sting('go')`, `jump`, `reward`, `bump`, `smash` |
@@ -53,7 +53,9 @@ Plain files, no build step: GitHub Pages serves the repo as it is.
 ```bash
 npm run dev        # http://localhost:8323 (the audio needs http://, not file://)
 npm test           # the song plays every mood and stinger; every animal is tall enough to hit a branch and ducks under it;
-                   # nothing newer than Safari 15 without a fallback
+                   # every course is the same every run and can be got past (played through, six days); it gets harder
+                   # every day and with every animal; nothing newer than Safari 15 without a fallback
+node tools/course.mjs  # the courses, day by day: how fast, how close, food against tiredness, where energy runs out
 npm run engine     # copies the engine from ../stardrift-engine into engine/ (or: node tools/engine.mjs <path>)
 npm run icons      # draws icons/ from the game's own pixel art
 npm run rigs       # writes every animal's build the way the workshop saves it
@@ -77,6 +79,7 @@ and squashes as it lands.
 |---|---|
 | `index.html` | the page: only the game, on every screen (`?music` on a computer: the music's moods and calls under it) |
 | `game.js` | the game: input, the run, energy, its buttons, the high scores, the calls to the music |
+| `level.js` | the course: what comes where (the same every run, for an animal), how fast, how it gets harder, why it is fair |
 | `art.js` | the pixel art, drawn from shapes: the rigs that draw the animals, obstacles, food, a 3×5 font |
 | `animals/` | an animal each: its build (joints, shapes, legs, chains, face: the data the workshop edits) and its moves; `kit.js`: what they share |
 | `tools/workshop.html` | the animal workshop (through `npm run dev`, which saves for it) |

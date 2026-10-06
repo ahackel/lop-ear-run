@@ -14,9 +14,10 @@
 //                                             alert      knocked out (fanfare: into the high scores)
 //                                             power, powerdown   golden food gives one, and it wears off
 import { StardriftPlayer } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
-import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, TRUNK, animal, moveBody, stride, bird, cactus, rock, log, branch, crow,
+import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
-  JUMP, GRAVITY, jumpHeight, hill, strides, rgb, luma } from './art.js';
+  JUMP, GRAVITY, hill, strides, rgb, luma } from './art.js';
+import { course, pace, drain, hardness, nightAt, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
 
@@ -24,24 +25,23 @@ const view = document.getElementById('game'), vctx = view.getContext('2d');
 let ctx = vctx; // (the screen, in art pixels scaled up, see fit; for a moment the second palette's canvas, see draw)
 
 // ------------------------------------------------------------------------------------------------------------- tuning
-const START_SPEED = 110, MAX_SPEED = 270, ACCEL = 3; // art pixels per second (per second)
+// (what comes, how fast, how tiring: level.js)
 const JUMP_CUT = 140; // a held jump rises to about 36 px (see JUMP in art.js), a tap to about 12
-let RUN_X = 30; const SCORE_PER_PX = 0.1; // (where the animal runs: right of a notch, see fit)
-const BRANCHES_FROM = 150, CROWS_FROM = 300, FAST_FROM = 700; // the scores where branches, crows (tension) and speed (action) begin
-// A run is days and nights. Night falls after a day's run (DAY points), getting dark over TWILIGHT seconds (and light
-// again after dawn); the next animal comes when it is getting dark (HUNT_FROM s) and chases the animal till dawn. It runs at CRUISE_X; a bump brings it closer, and it falls back in RECOVER seconds; a
-// second bump before it is back lets it catch the animal (at CATCH_X). Getting away at dawn unlocks it (the
-// first time), and the next day is harder (up to the fifth): faster, closer, more crows and packs, hungrier, and the
-// chaser takes longer to fall back.
-const DAY = 1000, NIGHT_SECS = 21, TWILIGHT = 10, HUNT_FROM = 6, CRUISE_X = -8, CATCH_X = 6, RECOVER = 5, HARDEST = 4;
-const DAY_SPEED = 30, DAY_TIGHT = 0.05, DAY_PACKS = 0.25, DAY_DRAIN = 0.15, DAY_CROWS = 0.03, DAY_RECOVER = 2, ESCAPE = 100;
-const hard = () => Math.min(day - 1, HARDEST); // how much harder than the first day
-const DRAIN = 2, BUMP = 30, MEAL = 12, SAFE_SECS = 1.5; // energy (of 100): lost per second, per bump; won per food; blinking after a bump
-// golden food (the first after 250, then one in every 400-700 points) gives a super power for 8 seconds, each animal its
+const BUFFER = 0.12; // seconds: a jump pressed this early (in the air, before it lands) jumps as it lands
+let RUN_X = 30; // (where the animal runs: right of a notch, see fit)
+// A run is days and nights (see level.js: a day's run, a night's, where the chaser comes), getting dark over TWILIGHT
+// seconds (and light again after dawn); the next animal chases the animal till dawn. It runs at CRUISE_X; a bump brings
+// it closer, and it falls back in RECOVER seconds; a second bump before it is back lets it catch the animal (at
+// CATCH_X). Getting away at dawn unlocks it (the first time). It all gets harder as the run goes on (level.js), and
+// the chaser takes longer to fall back (DAY_RECOVER more seconds a day of hardness, up to the sixth).
+const TWILIGHT = 10, CRUISE_X = -8, CATCH_X = 6, RECOVER = 5, DAY_RECOVER = 2, ESCAPE = 100;
+const BUMP = 30, MEAL = 12, SAFE_SECS = 1.5; // energy (of 100): lost per bump; won per food; blinking after a bump
+const FEAST = 4; // food eaten one after another (no bump, none missed) is worth 25 more each time, up to this many times 25
+// golden food (the first after 250 points, then about every half minute) gives a super power for 8 seconds, each animal its
 // own: its name, and what it does (smashes: what it runs into tumbles away; bounces: off it; passes: through it; clears:
 // what is ahead is blown away; boost: runs that much faster; doubles: scores double; shakes off the chaser, saying so).
 // The rest, where it happens (the kind's own checks)
-const POWER_SECS = 8, GOLD_FIRST = 250, GOLD_GAP = [400, 700];
+const POWER_SECS = 8; // (where golden food comes: level.js)
 const POWERS = {
   rabbit: { name: 'SUPER HOP!' }, // jumps higher, and once more in the air
   cat: { name: 'NINE LIVES!', bounces: true }, // bumps cost nothing
@@ -121,21 +121,26 @@ function updateMood(options) {
 // ----------------------------------------------------------------------------------------------------------- state
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
-let speed, dist, bonus, t, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
-let spawnIn, chase, night, dark, nextNight, day, koT, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, nextGold, airJumps, quake, shake = 0;
+let speed, dist, bonus, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
+let track, ahead, chase, night, hunted, dark, day, koT, streak, duckHeld, upFromDuck, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
+const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
+let clouds, sky, hillX, groundX; // the clouds, where the next comes from, how far the hills and the ground have gone (as they were, every run)
 let fresh = null; // a knock-out's new entry in the high scores, to name
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
 const score = () => Math.floor(dist * SCORE_PER_PX * T().mult + bonus); // what it scores: harder animals count more
-const rnd = Math.random;
+const rnd = Math.random; // (for what only looks: sparks, dust; what comes is level.js's, the same every run)
 const AUTO = Q.has('auto'); // ?auto: the animal runs by itself (to hear the moods)
 
 function reset() {
-  speed = START_SPEED; dist = 0; bonus = 0; t = 0; alt = 0; vAlt = 0; ducking = false; phase = 0;
+  dist = 0; speed = pace(kind, 0); bonus = 0; alt = 0; vAlt = 0; phase = 0;
+  ducking = duckHeld = upFromDuck = jumpHeld = false; queued = 0; streak = 0;
   obstacles = []; food = []; parts = []; floats = [];
-  spawnIn = 120; chase = null; night = 0; dark = 0; nextNight = DAY; day = 1; flash = 0; hundreds = 0;
+  track = course(kind); ahead = track.next(); chase = null; night = hunted = false; dark = 0; day = 1; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
-  power = 0; gold = null; nextGold = GOLD_FIRST + rnd() * 150; airJumps = 0; quake = 0;
+  power = 0; gold = null; airJumps = 0; quake = 0;
+  sky = random(seedOf(kind) ^ 0x5c1e5); hillX = groundX = 0; // (the clouds too: as they were)
+  clouds = CLOUDS.map((c) => ({ ...c }));
 }
 reset();
 blinkT = 0;
@@ -212,6 +217,7 @@ function bump(o) {
     return;
   }
   if (!power) energy = Math.max(0, energy - BUMP * T().bump); // (a super power keeps the energy)
+  streak = 0;
   safe = SAFE_SECS; hurtT = 0.35; slow = 1;
   if (chase && !chase.leaving) { if (chase.heat > 0.05) chase.catching = true; chase.heat = 1; } // the chaser closes in
   if (alt === 0) vAlt = 150; // knocked up a little
@@ -257,12 +263,12 @@ function dawn() {
   floats.push({ text: `ESCAPED! +${worth}`, x: RUN_X, y: GROUND - 40, life: 1.4 });
   if (joins) unlock(c);
   else call('sting', away ? 'escape' : 'dawn');
-  day++; nextNight = far() + DAY;
+  day++; night = hunted = false;
   banner(`DAY ${day}`, joins ? 40 : 30); // (under the unlock)
 }
 
 function knockOut(why) {
-  state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = false; power = 0;
+  state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = duckHeld = false; power = 0;
   if (chase && !chase.caught) chase.leaving = true; // (one that caught it stays)
   if (!AUTO) fresh = record(kind, score());
   call('sting', fresh ? 'fanfare' : 'alert'); // (into the high scores: a fanfare)
@@ -276,19 +282,32 @@ function press() {
   if (state === 'title') return start();
   if (state === 'ko') { if (koT > 0.8 && !fresh) start(); return; } // (a new high score is named first)
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
-  if (alt === 0 && !ducking) {
-    vAlt = JUMP * T().jump * (superHop() ? 1.25 : 1);
-    call('sting', 'jump');
-  } else if (alt > 0 && ((superHop() && airJumps < 1) || (power && kind === 'squirrel'))) { // once more in the air (gliding: again and again)
+  jumpHeld = true;
+  if (alt === 0) jump();
+  else if ((superHop() && airJumps < 1) || (power && kind === 'squirrel')) { // once more in the air (gliding: again and again)
     airJumps++;
     vAlt = JUMP * (kind === 'squirrel' ? 0.6 : 1);
     sparkle(8, 60);
     call('sting', 'jump');
-  }
+  } else queued = BUFFER; // too early: it jumps as it lands
+}
+// off the ground: from a duck too (up and away; still held, it ducks again as it lands), not in a belly slide
+function jump() {
+  if (power && kind === 'otter') return;
+  if (ducking) { upFromDuck = true; duck(); }
+  vAlt = JUMP * T().jump * (superHop() ? 1.25 : 1);
+  call('sting', 'jump');
+}
+// ducking: held (a key, a finger), not jumped up from, or a belly slide
+function duck(held = duckHeld) {
+  if (held && !duckHeld) upFromDuck = false; // (ducking again, in the air: falls fast)
+  duckHeld = held;
+  ducking = (duckHeld && !upFromDuck) || (power > 0 && kind === 'otter');
 }
 const superHop = () => power > 0 && kind === 'rabbit';
 const stinks = () => power > 0 && kind === 'skunk';
 function release() {
+  jumpHeld = false;
   if (vAlt > JUMP_CUT) vAlt = JUMP_CUT;
 }
 
@@ -307,13 +326,13 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'Escape') return goHome();
   if (JUMP_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) press(); }
-  else if (DUCK_KEYS.includes(e.code)) { e.preventDefault(); startAudio(); ducking = true; }
+  else if (DUCK_KEYS.includes(e.code)) { e.preventDefault(); startAudio(); if (!e.repeat) duck(true); }
   else if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseNext(-1); }
   else if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chooseNext(1); }
 });
 addEventListener('keyup', (e) => {
   if (JUMP_KEYS.includes(e.code)) release();
-  else if (DUCK_KEYS.includes(e.code)) ducking = false;
+  else if (DUCK_KEYS.includes(e.code)) duck(false);
 });
 // touch: a finger on the left half of the screen ducks while it is held, one on the right half jumps (both at once too),
 // anywhere but on the game's buttons (around the game too, where it does not fill the screen); a mouse click jumps. On
@@ -339,7 +358,7 @@ stage.addEventListener('pointerdown', (e) => {
     if (k && k !== kind) choose(k);
     return;
   }
-  if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); ducking = true; fingers.set(e.pointerId, 'duck'); }
+  if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); duck(true); fingers.set(e.pointerId, 'duck'); }
   else { fingers.set(e.pointerId, 'jump'); press(); }
 });
 const lift = (e) => {
@@ -350,7 +369,7 @@ const lift = (e) => {
   }
   const what = fingers.get(e.pointerId);
   fingers.delete(e.pointerId);
-  if (what === 'duck' && ![...fingers.values()].includes('duck')) ducking = false;
+  if (what === 'duck' && ![...fingers.values()].includes('duck')) duck(false);
   if (what === 'jump') release();
 };
 stage.addEventListener('pointerup', lift);
@@ -381,7 +400,7 @@ upright.addEventListener('change', () => { if (upright.matches) pause(); });
 function pause() {
   if (state !== 'run') return;
   state = 'paused';
-  fingers.clear(); ducking = false;
+  fingers.clear(); duck(false); release();
   if (audio === 'on') music.pause(0.2);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
@@ -668,51 +687,24 @@ const LOGO = { O: '75557', P: '75744' }; // (the title's letters: square)
 const help = (s, pal, color = pal[COLOR.DIM]) => text(ctx, s, W / 2, helpY, color, 'center');
 
 // ------------------------------------------------------------------------------------------------------------ world
-// low obstacles to jump (cacti, rocks, logs, low crows), high ones to duck under (branches, crows at head height),
-// crows to run under; food now and then, on the ground or up in the air
-function spawn() {
-  const s = far(), r = rnd();
-  let o;
-  if (s >= CROWS_FROM - T().early && r < 0.22 + DAY_CROWS * hard()) {
-    const at = ['low', 'head', 'head', 'high'][Math.floor(rnd() * 4)];
-    const bottom = at === 'low' ? GROUND - 1 : at === 'head' ? DUCK_UNDER : GROUND - 24;
-    o = { kind: 'crow', sprite: crow(0), x: W, y: bottom - CROW_BOTTOM, fly: 20, duck: at === 'head', over: at === 'high' };
-  } else if (s >= BRANCHES_FROM - T().early && r < 0.38 + 2 * DAY_CROWS * hard()) {
-    o = { kind: 'branch', sprite: branch(rnd), x: W, y: 0, fly: 0, duck: true };
-  } else {
-    const k = rnd(), sp = k < 0.15 ? rock(rnd) : k < 0.3 ? log(rnd) : cactus(rnd, s > 150 && rnd() < 0.35);
-    o = { kind: 'ground', sprite: sp, x: W, y: GROUND - sp.h + 1, fly: 0 };
-    // at speed, small cacti come in twos and threes
-    for (let n = speed > 170 && rnd() < 0.35 * T().packs * (1 + DAY_PACKS * hard()) ? 1 + Math.floor(rnd() * (speed > 220 ? 2 : 1)) : 0, x = W + sp.w; n > 0; n--) {
-      const more = cactus(rnd, false);
-      obstacles.push({ kind: 'ground', sprite: more, x: x - 2, y: GROUND - more.h + 1, fly: 0 });
-      x += more.w - 2;
-      o.extra = (o.extra || 0) + more.w - 2;
-    }
-  }
-  obstacles.push(o);
-  const gap = (speed * (0.75 + rnd() * 0.9) + 24) * T().tight * (1 - DAY_TIGHT * hard()) + (o.duck ? 20 : 0); // (time to stand up after ducking)
-  spawnIn = o.sprite.w + (o.extra || 0) + gap;
-  // golden food, now and then: high over a ground obstacle (jump it at the right moment)
-  if (o.kind === 'ground' && !gold && !power && s >= nextGold) {
-    const reach = jumpHeight(kind) + 15; // how high this animal gets, its head
-    gold = { x: o.x + (o.sprite.w + (o.extra || 0)) / 2 - 6, y: GROUND - Math.min(reach - 6, o.sprite.h + 26) };
-    nextGold = s + GOLD_GAP[0] + rnd() * (GOLD_GAP[1] - GOLD_GAP[0]);
-  }
-  if (rnd() < (power && kind === 'fox' ? 0.8 : 0.35 * T().meals)) { // (the sly fox finds more)
-    const sp = FOOD[ANIMALS[kind].food];
-    food.push({ x: W + o.sprite.w + (o.extra || 0) + gap / 2, y: rnd() < 0.5 ? GROUND - sp.h - 3 : GROUND - 30 - rnd() * 10 });
-  }
+// the course's next piece comes in at the right (where it is in the course: the same every run, see level.js): low
+// obstacles to jump (cacti, rocks, logs, low crows), high ones to duck under (branches, crows at head height), crows to
+// run under; food now and then, on the ground or up in the air (more for the sly fox); golden food over an obstacle
+function place(p) {
+  const x = W - (dist - p.at);
+  for (const it of p.items) obstacles.push({ kind: it.kind, sprite: it.sprite, x: x + it.dx, y: it.y, fly: it.fly, duck: it.duck, over: it.over });
+  for (const f of p.food) if (!f.sly || (power && kind === 'fox')) food.push({ x: x + f.dx, y: f.y });
+  if (p.gold) gold = { x: x + p.gold.dx, y: p.gold.y };
 }
 
 // ?auto: jump what is low, duck what is at head height, run under the rest; jump for food in the air when it is clear
 function autopilot() {
-  const ahead = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
-  ducking = false;
+  const next = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
+  duck(false);
   const p = powered();
   if (p.smashes || p.bounces || p.passes || p.clears) return; // straight through (the otter slides by itself)
-  const gap = ahead ? ahead.x - (RUN_X + 22) : Infinity;
-  if (ahead?.duck) { ducking = alt === 0 && gap < 30; return; }
+  const gap = next ? next.x - (RUN_X + 22) : Infinity;
+  if (next?.duck) { duck(alt === 0 && gap < 30); return; }
   if (alt === 0 && gap < speed * 0.1 && gap > -8) return press();
   const snack = food.find((f) => f.y < GROUND - 20 && f.x > RUN_X);
   if (snack && alt === 0 && gap > 90 && snack.x - (RUN_X + 12) < speed * 0.12) press();
@@ -761,9 +753,10 @@ function update(dt) {
 
   if (state === 'run') {
     if (AUTO) autopilot();
-    t += dt;
+    duck();
+    queued = Math.max(0, queued - dt);
     slow = Math.max(0, slow - dt / 1.2);
-    speed = Math.min(MAX_SPEED + DAY_SPEED * hard(), START_SPEED + ACCEL * t) * T().speed * (chase ? 1.12 : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
+    speed = pace(kind, dist) * (chase ? CHASE : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
   } else speed *= Math.exp(-5 * dt); // knocked out: the world rolls to a stop (back a little, after a bump)
   const dx = speed * dt;
   dist += state === 'run' ? dx : 0;
@@ -787,11 +780,13 @@ function update(dt) {
     if (alt <= 0) {
       alt = 0; vAlt = 0; airJumps = 0;
       for (let i = 0; i < 3; i++) parts.push({ x: RUN_X + 8 + i * 3, y: GROUND - 1, vx: -30 - rnd() * 30, vy: -20 - rnd() * 20, life: 0.35, color: COLOR.INK });
+      if (upFromDuck) { upFromDuck = false; duck(); } // (still held: down again)
+      if (queued && state === 'run') { queued = 0; jump(); if (!jumpHeld) release(); } // (pressed just before: a tap or held on)
     }
   }
 
   // the world moves left
-  if (state === 'run') { spawnIn -= dx; if (spawnIn <= 0) spawn(); }
+  while (state === 'run' && dist >= ahead.at) { place(ahead); ahead = track.next(); }
   for (const o of obstacles) {
     o.x -= dx + o.fly * dt;
     if (o.smashed) { o.x += o.vx * dt; o.y += o.vy * dt; o.vy += 600 * dt; } // bowled over: tumbling away
@@ -801,7 +796,7 @@ function update(dt) {
   for (const f of food) f.x -= dx;
   food = food.filter((f) => f.x > -14);
   if (gold) { gold.x -= dx; if (gold.x < -14) gold = null; }
-  for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + rnd() * 80; c.y = 8 + rnd() * 30 - rnd() * SKY * 0.7; } }
+  for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + sky() * 80; c.y = 8 + sky() * 30 - sky() * SKY * 0.7; } }
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
@@ -813,7 +808,7 @@ function update(dt) {
     if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
-      chase.heat = Math.max(0, chase.heat - dt / (RECOVER + DAY_RECOVER * hard()));
+      chase.heat = Math.max(0, chase.heat - dt / (RECOVER + DAY_RECOVER * Math.min(6, hardness(kind, far()))));
       const to = safeL + (power ? CRUISE_X - 12 : chase.catching ? CATCH_X : CRUISE_X + ((CATCH_X - CRUISE_X) / 2) * chase.heat); // (right of a notch)
       chase.x += Math.max(-10 * dt, Math.min(40 * dt, to - chase.x));
       if (state === 'run' && chase.catching && chase.x >= safeL + CATCH_X - 0.5) { // caught
@@ -828,7 +823,6 @@ function update(dt) {
   if (power) {
     power = Math.max(0, power - dt);
     if (rnd() < dt * 30) sparkle(1);
-    if (kind === 'otter') ducking = power > 0; // belly slide
     if (kind === 'dino') { // giant: what its big body touches tumbles away
       const [x, y, w, h] = giantBox();
       for (const o of obstacles) if (!o.smashed && o.x < x + w && o.x + o.sprite.w > x && o.y < y + h && o.y + o.sprite.h > y) smash(o);
@@ -848,7 +842,7 @@ function update(dt) {
       for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
     }
     if (powered().shakes && chase) chase.leaving = true; // (it comes, and turns away)
-    if (!power) { call('sting', 'powerdown'); updateMood({ within: 0 }); }
+    if (!power) { duck(); call('sting', 'powerdown'); updateMood({ within: 0 }); } // (a belly slide ends)
   }
 
   // what the animal runs into (the frame of its move as it is, not eased into: it ducks as quickly as ever), what it eats
@@ -862,32 +856,38 @@ function update(dt) {
   const reaches = (f) => f.x + meal.w > RUN_X + 3 && f.x < RUN_X + 22 && f.y + meal.h > ay + 3 && f.y < ay + FOOT; // (its mouth: food comes to it)
   if (gold && reaches(gold)) { gold = null; startPower(); }
   food = food.filter((f) => {
-    if (!reaches(f)) return true;
+    if (!reaches(f)) {
+      if (!f.missed && f.x + meal.w <= RUN_X + 3) { f.missed = true; streak = 0; } // (gone by: a feast ends)
+      return true;
+    }
     energy = Math.min(100, energy + MEAL * (power && kind === 'bear' ? 2 : 1));
-    bonus += 25;
+    streak++;
+    const worth = 25 * Math.min(streak, FEAST);
+    bonus += worth;
     call('sting', 'reward');
-    floats.push({ text: '+25', x: f.x, y: f.y - 6, life: 0.8 }, { sprite: heart, x: f.x + 14, y: f.y - 6, life: 0.8 });
+    floats.push({ text: streak > 1 ? `+${worth} X${streak}` : '+25', x: f.x, y: f.y - 6, life: 0.8 }, { sprite: heart, x: f.x + (streak > 1 ? 34 : 14), y: f.y - 6, life: 0.8 });
     for (let i = 0; i < 6; i++) parts.push({ x: f.x + 3, y: f.y + 3, vx: (rnd() - 0.5) * 90, vy: -rnd() * 80, life: 0.5, color: COLOR.BERRY });
     return false;
   });
 
   // running tires: without food the energy runs out
-  if (!power) energy -= DRAIN * T().drain * (1 + DAY_DRAIN * hard()) * dt; // (a super power keeps the energy)
+  if (!power) energy -= drain(kind, far()) * dt; // (a super power keeps the energy)
   if (energy <= 0) return knockOut('TOO TIRED!');
 
   // the days: night falls after a day's run, the next animal chases the animal through it, and at dawn it is left behind
   const s = far();
   dark = Math.max(0, Math.min(1, dark + (night ? dt : -dt) / TWILIGHT)); // (dusk and dawn take a while)
+  const n = nightAt(kind, day); // (where this day's night falls: the same every run)
+  if (!night && s >= n.from) { night = true; call('sting', 'dusk'); }
   if (night) {
-    const was = night;
-    night = Math.max(0, night - dt);
-    if (was > NIGHT_SECS - HUNT_FROM && night <= NIGHT_SECS - HUNT_FROM) { // the chaser comes
+    if (!hunted && s >= n.hunt) { // the chaser comes
+      hunted = true;
       chase = { x: -40, heat: 0, catching: false, phase: 0, body: {} };
       call('sting', 'chased');
       banner(`THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`, 30);
     }
-    if (!night) dawn();
-  } else if (s >= nextNight) { night = NIGHT_SECS; call('sting', 'dusk'); }
+    if (s >= n.to) dawn();
+  }
   if (beat && score() > beat && !AUTO) { // past the best score so far
     beat = 0;
     call('sting', 'record');
@@ -905,11 +905,10 @@ function updateBits(dt) {
 }
 
 // ------------------------------------------------------------------------------------------------------------- draw
-const clouds = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
-const stars = Array.from({ length: 100 }, () => ({ x: Math.floor(rnd() * W), y: 50 - Math.floor(rnd() * 210), p: rnd() * 6 })); // (up into the sky a tall screen adds)
-let hillX = 0, groundX = 0;
+const scenery = random(1); // (the stars, the ground's bits: the same every time too)
+const stars = Array.from({ length: 100 }, () => ({ x: Math.floor(scenery() * W), y: 50 - Math.floor(scenery() * 210), p: scenery() * 6 })); // (up into the sky a tall screen adds)
 const GROUND_LOOP = 600;
-const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(rnd() * GROUND_LOOP), kind: rnd() < 0.15 ? 'tuft' : rnd() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(rnd() * 4) }));
+const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(scenery() * GROUND_LOOP), kind: scenery() < 0.15 ? 'tuft' : scenery() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(scenery() * 4) }));
 let stageBg = null, stageInk = null;
 // the title's animals in a row, the one picked in the middle: the row slides to it (carousel: where it is now)
 let carousel = null;

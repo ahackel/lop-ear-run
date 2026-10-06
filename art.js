@@ -144,20 +144,20 @@ export const JUMP = 330, GRAVITY = 1500;
 export const jumpHeight = (kind) => (JUMP * ANIMALS[kind].jump) ** 2 / (2 * GRAVITY * ANIMALS[kind].gravity);
 export const ANIMALS = {
   rabbit: { name: 'RABBIT', food: 'carrot', ...tune(1.0, 1.0, 1.08, 1, 1, 1, 1, 0, 1, 1) },
-  cat: { name: 'CAT', food: 'fish', ...tune(1.21, 1.04, 1, 1, 1.07, 0.97, 1.04, 0, 1.1, 0.98) },
-  dog: { name: 'DOG', food: 'bone', ...tune(1.43, 1.07, 1, 1.05, 1.14, 0.94, 1.09, 50, 1.3, 0.97) },
-  fox: { name: 'FOX', food: 'grapes', ...tune(1.64, 1.11, 1, 1.05, 1.21, 0.91, 1.13, 100, 1.4, 0.95) },
-  hedgehog: { name: 'HEDGEHOG', food: 'apple', ...tune(1.86, 1.14, 0.92, 1.05, 1.29, 0.89, 1.17, 100, 1.5, 0.93) }, // short jumps
-  squirrel: { name: 'SQUIRREL', food: 'acorn', ...tune(2.07, 1.18, 1, 0.85, 1.36, 0.86, 1.21, 100, 1.6, 0.91) }, // floaty, hungry
-  otter: { name: 'OTTER', food: 'shell', ...tune(2.29, 1.21, 0.97, 1.1, 1.43, 0.83, 1.26, 150, 1.8, 0.9) }, // crows from the start
-  skunk: { name: 'SKUNK', food: 'beetle', ...tune(2.5, 1.25, 1.05, 1.1, 1.5, 0.8, 1.3, 200, 1.9, 0.88) },
-  wolf: { name: 'WOLF', food: 'sausage', ...tune(2.71, 1.29, 1, 1.15, 1.57, 0.77, 1.34, 200, 2.0, 0.86) },
-  boar: { name: 'BOAR', food: 'mushroom', ...tune(2.93, 1.32, 0.95, 1.2, 1.64, 0.74, 1.39, 250, 2.2, 0.85) }, // heavy, low jumps
-  bear: { name: 'BEAR', food: 'berries', ...tune(3.14, 1.36, 0.95, 1.2, 1.71, 0.71, 1.43, 250, 2.3, 0.83) },
-  cheetah: { name: 'CHEETAH', food: 'drumstick', ...tune(3.36, 1.39, 1.08, 1.1, 1.79, 0.69, 1.47, 300, 2.4, 0.81) },
-  rhino: { name: 'RHINO', food: 'leaf', ...tune(3.57, 1.43, 0.95, 1.15, 1.86, 0.66, 1.51, 300, 2.5, 0.79) },
-  elephant: { name: 'ELEPHANT', food: 'peanut', ...tune(3.79, 1.46, 1, 1.2, 1.93, 0.63, 1.56, 300, 2.7, 0.78) },
-  dino: { name: 'DINO', food: 'roast', ...tune(4.0, 1.5, 1, 1.25, 2.0, 0.6, 1.6, 300, 2.8, 0.76) }, // the hardest
+  cat: { name: 'CAT', food: 'fish', ...tune(1.21, 1.04, 1, 1, 1.05, 0.98, 1.04, 0, 1.1, 0.98) },
+  dog: { name: 'DOG', food: 'bone', ...tune(1.43, 1.07, 1, 1.05, 1.09, 0.96, 1.09, 50, 1.3, 0.97) },
+  fox: { name: 'FOX', food: 'grapes', ...tune(1.64, 1.11, 1, 1.05, 1.14, 0.94, 1.13, 100, 1.4, 0.95) },
+  hedgehog: { name: 'HEDGEHOG', food: 'apple', ...tune(1.86, 1.14, 0.92, 1.05, 1.19, 0.93, 1.17, 100, 1.5, 0.93) }, // short jumps
+  squirrel: { name: 'SQUIRREL', food: 'acorn', ...tune(2.07, 1.18, 1, 0.85, 1.23, 0.91, 1.21, 100, 1.6, 0.91) }, // floaty, hungry
+  otter: { name: 'OTTER', food: 'shell', ...tune(2.29, 1.21, 0.97, 1.1, 1.28, 0.89, 1.26, 150, 1.8, 0.9) }, // crows from the start
+  skunk: { name: 'SKUNK', food: 'beetle', ...tune(2.5, 1.25, 1.05, 1.1, 1.32, 0.87, 1.3, 200, 1.9, 0.88) },
+  wolf: { name: 'WOLF', food: 'sausage', ...tune(2.71, 1.29, 1, 1.15, 1.37, 0.85, 1.34, 200, 2.0, 0.86) },
+  boar: { name: 'BOAR', food: 'mushroom', ...tune(2.93, 1.32, 0.95, 1.2, 1.42, 0.83, 1.39, 250, 2.2, 0.85) }, // heavy, low jumps
+  bear: { name: 'BEAR', food: 'berries', ...tune(3.14, 1.36, 0.95, 1.2, 1.46, 0.81, 1.43, 250, 2.3, 0.83) },
+  cheetah: { name: 'CHEETAH', food: 'drumstick', ...tune(3.36, 1.39, 1.08, 1.1, 1.51, 0.8, 1.47, 300, 2.4, 0.81) },
+  rhino: { name: 'RHINO', food: 'leaf', ...tune(3.57, 1.43, 0.95, 1.15, 1.56, 0.78, 1.51, 300, 2.5, 0.79) },
+  elephant: { name: 'ELEPHANT', food: 'peanut', ...tune(3.79, 1.46, 1, 1.2, 1.6, 0.76, 1.56, 300, 2.7, 0.78) },
+  dino: { name: 'DINO', food: 'roast', ...tune(4.0, 1.5, 1, 1.25, 1.65, 0.74, 1.6, 300, 2.8, 0.76) }, // the hardest
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: a gait's frame, and how high a leap has the body (a

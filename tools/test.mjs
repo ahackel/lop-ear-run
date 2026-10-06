@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/src/engine/engine.js';
 import { openSongZip } from '../engine/src/bundle.js';
 import { loadSamples, songSamples } from '../engine/src/samples.js';
+import { courseOf, playThrough, days, starves } from './course.mjs';
+import { pace, drain, meals, CHASE } from '../level.js';
 import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, moveBody, stride, idleFrame, jumpHeight, FOOD } from '../art.js';
 
 let failed = 0;
@@ -108,6 +110,23 @@ ok(CROW_BOTTOM > 0, 'crows have a lowest row');
 // every animal has its food, and its file is kept for playing offline (sw.js)
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), missing = Object.keys(ANIMALS).filter((k) => !FOOD[ANIMALS[k].food] || !sw.includes(`'animals/${k}.js'`));
 ok(!missing.length, `every animal has its food and is kept offline${missing.length ? ` — not: ${missing}` : ''}`);
+
+// the courses (level.js): the same every run, the next animal's another; every one can be got past (a player who
+// presses only every tenth of a second, at a chase's speed or not); harder every day, with no end of food (a run
+// ends); a little harder with every animal, every one getting through its first night (to unlock the next)
+const KINDS = Object.keys(ANIMALS);
+const looks = (kind) => JSON.stringify(courseOf(kind, 3000).map((p) => [p.at, p.items.map((o) => [o.kind, o.dx, o.y, o.sprite.w, o.sprite.h, o.sprite.px?.join('')]), p.food, p.gold]));
+ok(looks('rabbit') === looks('rabbit') && looks('rabbit') !== looks('cat'), 'a course is the same every run, each animal its own');
+const stuck = KINDS.flatMap((k) => [1, CHASE].map((c) => [k, c, playThrough(k, 6, c)])).filter(([, , r]) => r);
+ok(!stuck.length, `every course can be got past, six days and nights${stuck.map(([k, c, r]) => `\n  ${k}${c > 1 ? ' (chased)' : ''} at ${r.s}: ${r.near.join(', ')}`).join('')}`);
+const ramp = KINDS.filter((k) => { const d = days(k, 6); return d.some((x, i) => i && (x.speed <= d[i - 1].speed || x.drain <= d[i - 1].drain)) || d[5].every >= d[0].every * 0.8; });
+ok(!ramp.length, `every day is faster and more tiring, obstacles closer by the sixth${ramp.length ? ` — not: ${ramp}` : ''}`);
+const ends = KINDS.map((k) => [k, starves(k, 0.8)]);
+ok(ends.every(([, d], i) => d && d >= 2.4 && d <= 8 && (!i || d <= ends[i - 1][1] + 0.5)) && ends[0][1] - ends[ends.length - 1][1] >= 2,
+  `eating 4 in 5, energy runs out after the first night and by day 8, sooner with every animal (${ends.map(([k, d]) => `${k} ${d}`).join(', ')})`);
+const dial = (f) => KINDS.every((k, i) => !i || f(k) > f(KINDS[i - 1]));
+ok(dial((k) => pace(k, 20000)) && dial((k) => drain(k, 0)) && dial((k) => -meals(k, 0)),
+  'every animal runs faster, tires sooner and finds less food than the one before');
 
 // the older iPad (Safari 15): nothing newer than it without a fallback
 const newer = oldSafari();
