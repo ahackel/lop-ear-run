@@ -172,7 +172,7 @@ const pick = (k) => { kind = k; keep('animal', k); songOf(k); }; // (kept for th
 // the animal's own song (the same song, played its way: music.js), never abruptly: the one playing fades out over
 // SONG_FADE seconds, then the new one starts from its beginning, in the mood the game is in. Picked again meanwhile:
 // the last one picked (the one playing: it comes back)
-const SONG_FADE = 2;
+const SONG_FADE = 1;
 let wanted = null, switching = false;
 function songOf(k) {
   wanted = k;

@@ -60,23 +60,25 @@ ok(!silent.length, `every stinger plays (${song.stingers.map((x) => x.id)})${sil
   ok(at !== null && at < 2 && back !== null && back < 2, `the power music comes within ${at?.toFixed(1)} s and leaves within ${back?.toFixed(1)} s`);
 }
 // every animal's song (music.js): the song in its colours, healthy, in a mode the chords stay sweet in, its motif two
-// bars long (and the rabbit's the song as it is)
+// bars long, its menu happy (major) whatever its mode (and the rabbit's the song as it is)
 {
   const steps = (p) => p.split('|').map((bar) => bar.trim().split(/\s+/).reduce((n, t) => n + (/^\.\*(\d+)$/.test(t) ? +t.slice(2) : 1), 0));
   const off = [];
   for (const kind of Object.keys(ANIMALS)) {
     const st = STYLES[kind], s = songFor(song, kind), en = new Engine(SR, s, 5);
     en.setSamples(recordings instanceof Error ? {} : recordings);
-    en.setMood('action');
-    const L = new Float32Array(128), R = new Float32Array(128);
+    const L = new Float32Array(128), R = new Float32Array(128), menu = new Set();
     let peak = 0, bad = 0;
-    for (let i = 0; i < 8 * SR; i += 128) { en.process(L, R, 128); en.drainEvents(); for (let j = 0; j < 128; j++) { if (!Number.isFinite(L[j])) bad++; peak = Math.max(peak, Math.abs(L[j])); } }
+    const play = (secs) => { for (let i = 0; i < secs * SR; i += 128) { en.process(L, R, 128); for (const ev of en.drainEvents()) if (ev.type === 'chord' && en.section?.id === 'nest') menu.add(ev.scale); for (let j = 0; j < 128; j++) { if (!Number.isFinite(L[j])) bad++; peak = Math.max(peak, Math.abs(L[j])); } } };
+    en.setMood('menu'); play(10);
+    en.setMood('action'); play(5);
     const why = [!st && 'no style', bad && 'not finite', (peak < 0.1 || peak >= 1) && `peak ${peak.toFixed(2)}`,
       !['major', 'mixolydian', 'minor', 'harmonicMinor'].includes(s.scale) && s.scale,
-      kind !== 'rabbit' && st?.motif && steps(st.motif).join() !== '16,16' && `motif ${steps(st.motif)}`].filter(Boolean);
+      kind !== 'rabbit' && st?.motif && steps(st.motif).join() !== '16,16' && `motif ${steps(st.motif)}`,
+      (!menu.size || [...menu].some((x) => x !== 'major')) && `menu in ${[...menu].join(', ') || 'nothing'}`].filter(Boolean);
     if (why.length) off.push(`${kind}: ${why.join(', ')}`);
   }
-  ok(!off.length && JSON.stringify(songFor(song, 'rabbit')) === JSON.stringify(song), `every animal has its own song, healthy, each motif two bars${off.length ? ` — ${off.join('; ')}` : ''}`);
+  ok(!off.length && JSON.stringify(songFor(song, 'rabbit')) === JSON.stringify(song), `every animal has its own song, healthy, each motif two bars, its menu in major${off.length ? ` — ${off.join('; ')}` : ''}`);
 }
 const used = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
 const calls = [...used.matchAll(/call\('sting', '(\w+)'\)/g)].map((m) => m[1]);

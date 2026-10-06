@@ -5,6 +5,7 @@
 // Only modes the song's chords stay sweet in: major, mixolydian, minor and harmonic minor (dorian, lydian and phrygian
 // would make a chord of I V vi IV diminished). The sections that bring their own mode (the chase, the super power,
 // night) keep it, in the animal's key.
+// The menu (the title) is always happy: in major, whatever the animal's mode (its chords, in the key).
 //   songFor(song, kind) → the animal's song (a new object; the song is left as it is)
 
 // voices: instruments for a track (lead, bell, bass); kick: a kick drum for the kit (the song's own is a soft click)
@@ -119,6 +120,15 @@ export function songFor(song, kind) {
   }
   for (const [id, octave] of Object.entries(st.octaves || {})) { const tr = s.tracks.find((t) => t.id === id); if (tr) tr.octave = octave; }
   if (st.kick) for (const def of Object.values(s.instruments)) if (def.type === 'drums' && def.kit) def.kit.k = st.kick;
+  if (s.scale !== 'major') { // the menu's chords (those without a mode of their own) in major, as copies only it plays
+    const menu = s.moods.menu?.sections || {};
+    for (const p of [...s.progressions]) {
+      if (p.scale || !Object.keys(menu).some((id) => (p.sections?.[id] ?? 1) > 0)) continue;
+      const only = Object.fromEntries(s.sections.map((x) => [x.id, menu[x.id] ? p.sections?.[x.id] ?? 1 : 0]));
+      s.progressions.push({ ...p, id: `${p.id}_menu`, scale: 'major', sections: only });
+      p.sections = { ...p.sections, ...Object.fromEntries(Object.keys(menu).map((id) => [id, 0])) };
+    }
+  }
   if (st.motif) {
     s.blocks.push({ id: 'motif', beats: 8, sections: { ...MOTIF_IN }, pattern: st.motif });
     s.tracks.find((t) => t.id === 'lead').clips.push('motif');
