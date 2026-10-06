@@ -34,8 +34,9 @@
   canvas { display: block; width: 100%; aspect-ratio: 300 / 126; /* (the world, 300 × 90, with sky above it and room below it: see fit) */ image-rendering: pixelated; border-radius: 6px; touch-action: none; cursor: pointer; outline: 1px solid var(--line);
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   #stage { position: relative; }
-  /* the name for a high score: typed here, drawn by the game (the field lies, invisible, over the name) */
-  #name { position: absolute; z-index: 2; margin: 0; padding: 0; border: 0; outline: 0; background: transparent; color: transparent; caret-color: transparent; font-size: 16px; }
+  /* around the game where it does not fill the screen: at its sides (a wide screen) its sky; above and below it (taller
+     than 4:3: it is no taller than that) black */
+  :root { --letterbox: linear-gradient(var(--game-bg, #f7f6f0), var(--game-bg, #f7f6f0)) center / 100% min(100%, 75vw) no-repeat, #000; }
   .help { color: var(--dim); margin: 10px 0 20px; }
   kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
   h2 { font-size: 13px; margin: 0 0 8px; color: var(--dim); font-weight: normal; }
@@ -49,9 +50,9 @@
   #rotate { display: none; }
 
   /* the page (?music): only the game in full screen, or where the browser has none (the .full fallback) */
-  #stage:fullscreen, #stage.full { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); }
-  /* (the game's whole height: a taller screen shows more sky, see fit in game.js) */
-  #stage:fullscreen canvas, #stage.full canvas { width: min(100vw, calc(100vh * 300 / 90)); width: min(100vw, calc(100dvh * 300 / 90)); height: 100%; aspect-ratio: auto;
+  #stage:fullscreen, #stage.full { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: var(--letterbox); }
+  /* (the game's whole height: a taller screen shows more sky, see fit in game.js; up to 4:3, black bars above and below it) */
+  #stage:fullscreen canvas, #stage.full canvas { width: min(100vw, calc(100vh * 300 / 90)); width: min(100vw, calc(100dvh * 300 / 90)); height: min(100%, 75vw); aspect-ratio: auto;
     border-radius: 0; outline: none; }
   body:has(#stage.full) { overflow: hidden; }
   /* only the game, as large as it fits, on every screen (?music on a computer: the page around it, with the music's
@@ -60,11 +61,10 @@
   html:not(.page), html:not(.page) body { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--game-bg, #f7f6f0); }
   html:not(.page) main { padding: 0; max-width: none; }
   html:not(.page) header, html:not(.page) .help, html:not(.page) section { display: none; }
-  html:not(.page) #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); touch-action: none;
+  html:not(.page) #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--letterbox); touch-action: none;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-  html:not(.page) #name { -webkit-user-select: text; user-select: text; }
   html:not(.page) #stage canvas { width: min(100%, calc(100vh * 300 / 90)); /* (Safari before 15.4: no dvh) */
-    width: min(100%, calc(100dvh * 300 / 90)); height: 100%; aspect-ratio: auto; border-radius: 0; outline: none; }
+    width: min(100%, calc(100dvh * 300 / 90)); height: min(100%, 75vw); aspect-ratio: auto; border-radius: 0; outline: none; }
   /* under the ground, at the sides: the animal before and after; on a phone, duck and jump (where to tap) (see showPad, fit in game.js) */
   .pad { position: absolute; z-index: 1; top: var(--pad-top, 0); width: calc(var(--px, 3) * 17px); height: calc(var(--px, 3) * 17px);
     opacity: 0.5; pointer-events: none; }
@@ -91,7 +91,6 @@
   </header>
   <div id="stage">
     <canvas id="game" aria-label="Lop Hop: an animal runs, jumps and ducks"></canvas>
-    <input id="name" hidden maxlength="10" autocomplete="nickname" autocapitalize="characters" autocorrect="off" enterkeyhint="done" spellcheck="false" aria-label="Your name for the high scores">
   </div>
   <p class="help"><kbd>Space</kbd> / <kbd>↑</kbd> jump (hold to jump higher) · <kbd>↓</kbd> duck · <kbd>←</kbd> <kbd>→</kbd> pick an animal · <kbd>M</kbd> sound · <kbd>H</kbd> high scores · <kbd>C</kbd> credits · <kbd>F</kbd> full screen (or the buttons at the top left of the game). On a phone: tap the right half of the screen to jump, hold the left half to duck.<br>
   Jump the cacti, rocks and logs, duck under the branches. Running tires: eat to keep the energy up. Every bump costs energy; with none left, the animal is knocked out. Golden food, now and then high over an obstacle, gives a super power for 8 seconds: each animal its own. At night the next animal gives chase: a second bump while it is close lets it catch you. Get away till dawn to unlock it; every new day is harder.</p>

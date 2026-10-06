@@ -17,8 +17,8 @@ import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by pat
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
-  JUMP, GRAVITY, LANDS, strides, rgb, luma } from './art.js';
-import { course, pace, drain, hardness, nightAt, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
+  JUMP, GRAVITY, hill, strides, rgb, luma } from './art.js';
+import { course, pace, drain, hardness, nightAt, landOf, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
 
@@ -45,8 +45,10 @@ const FEAST = 4; // food eaten one after another (no bump, none missed) is worth
 const POWER_SECS = 8; // (where golden food comes: level.js)
 const POWERS = {
   rabbit: { name: 'SUPER HOP!' }, // jumps higher, and once more in the air
+  guineapig: { name: 'POPCORN!' }, // hops by itself (see autopilot), and for joy
   cat: { name: 'NINE LIVES!', bounces: true }, // bumps cost nothing
   dog: { name: 'ZOOMIES!', boost: 1.3, smashes: true },
+  pig: { name: 'TRUFFLE SNOUT!' }, // what is ahead turns into truffles
   fox: { name: 'SLY FOX!', shakes: 'LOST YOU!' }, // food comes to it
   hedgehog: { name: 'SPIKE BALL!', smashes: true }, // rolled up
   squirrel: { name: 'GLIDE!' }, // falls slowly, and jumps again in the air
@@ -55,8 +57,12 @@ const POWERS = {
   wolf: { name: 'HOWL!', clears: true },
   boar: { name: 'TUSK CHARGE!', boost: 1.35, smashes: true }, // (worth double)
   bear: { name: 'BERRY RUSH!', doubles: true }, // and food fills it twice as much
+  yak: { name: 'STAMPEDE!', smashes: true, shakes: 'EEK!' }, // a herd runs by, trampling what is ahead
+  ostrich: { name: 'FLY!' }, // it keeps flying while the jump is held
   cheetah: { name: 'SPRINT!', boost: 1.6, passes: true },
+  dromedary: { name: 'SPIT!' }, // what flies or hangs is knocked away
   rhino: { name: 'QUAKE!', clears: true }, // stomps: everything on the screen flies off
+  gorilla: { name: 'CHEST DRUM!' }, // ducking drums: the next obstacle is knocked over
   elephant: { name: 'SPLASH!', clears: true }, // sprays water from its trunk
   dino: { name: 'GIANT DINO!', passes: true, doubles: true }, // twice as big: it tramples everything
 };
@@ -126,11 +132,10 @@ function updateMood(options) {
 let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
-let track, ahead, chase, night, hunted, dark, day, koT, streak, duckHeld, upFromDuck, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
+let track, ahead, chase, night, hunted, dark, day, koT, streak, duckHeld, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
+let herd, herdT, spits, spitT, drumT; // the yak's stampede (the herd running by), the dromedary's spit (in flight), the gorilla's drumming
 const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
 let clouds, sky, hillX, groundX; // the clouds, where the next comes from, how far the hills and the ground have gone (as they were, every run)
-let lands; // the lands along the skyline: [{ u: where it begins (along the hills), i: which (LANDS) }], a day each
-const landOf = (d) => (d - 1) % LANDS.length; // a day's land
 let fresh = null; // a knock-out's new entry in the high scores, to name
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
@@ -140,13 +145,13 @@ const AUTO = Q.has('auto'); // ?auto: the animal runs by itself (to hear the moo
 
 function reset() {
   dist = 0; speed = pace(kind, 0); bonus = 0; alt = 0; vAlt = 0; phase = 0;
-  ducking = duckHeld = upFromDuck = jumpHeld = false; queued = 0; streak = 0;
+  ducking = duckHeld = jumpHeld = false; queued = 0; streak = 0;
   obstacles = []; food = []; parts = []; floats = [];
   track = course(kind); ahead = track.next(); chase = null; night = hunted = false; dark = 0; day = 1; flash = 0; hundreds = 0;
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
   power = 0; gold = null; airJumps = 0; quake = 0;
+  herd = []; herdT = 0; spits = []; spitT = 0; drumT = 0;
   sky = random(seedOf(kind) ^ 0x5c1e5); hillX = groundX = 0; // (the clouds too: as they were)
-  lands = [{ u: -Infinity, i: 0 }];
   clouds = CLOUDS.map((c) => ({ ...c }));
 }
 reset();
@@ -160,7 +165,7 @@ function start() {
   state = 'run';
   updateMood();
   call('sting', 'go');
-  banner('DAY 1', 30); banner(LANDS[0].name, 38);
+  banner('DAY 1', 30); banner(landOf(1).name, 38);
 }
 
 function choose(k) {
@@ -201,7 +206,10 @@ const playable = () => KINDS.filter(unlocked); // the ones on the title (the oth
 // unlocks it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
 const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
 let open = ['rabbit'];
-{ const u = keptJSON('unlocked'); if (Array.isArray(u)) open = ['rabbit', ...u.map(renamed).filter((k) => ANIMALS[k] && k !== 'rabbit')]; }
+{ // (every one before the furthest unlocked: the newer animals came in between the others)
+  const u = keptJSON('unlocked'), far = Array.isArray(u) ? Math.max(0, ...u.map(renamed).map((k) => KINDS.indexOf(k))) : 0;
+  open = KINDS.slice(0, far + 1);
+}
 const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device)
 const ALL = Q.has('all'); // ?all: every animal open, for this visit (nothing saved)
 function unlocked(k) { return ALL || open.includes(k); }
@@ -291,11 +299,8 @@ function dawn() {
   if (joins) unlock(c);
   else call('sting', away ? 'escape' : 'dawn');
   day++; night = hunted = false;
-  // the next land: its sky with the morning, its skyline coming in at the right (the last one's going on the left)
-  const i = landOf(day);
-  lands = [...lands.filter((l, k) => !lands[k + 1] || lands[k + 1].u > Math.floor(hillX)), { u: Math.floor(hillX) + W + 1, i }];
   banner(`DAY ${day}`, joins ? 40 : 30); // (under the unlock)
-  banner(LANDS[i].name, joins ? 48 : 38);
+  banner(landOf(day).name, joins ? 48 : 38); // (the land its obstacles come from now)
 }
 
 function knockOut(why) {
@@ -311,10 +316,12 @@ function press() {
   startAudio();
   if (scoresOpen()) return;
   if (state === 'title') return start();
-  if (state === 'ko') { if (koT > 0.8 && !fresh) { if (gained) goHome(); else start(); } return; } // (a new high score is named first; one unlocked: to the title, to pick it)
+  if (state === 'ko') { if (koT > 0.8) { if (fresh) { if (!TOUCH) nameIt(); } else if (gained) goHome(); else start(); } return; } // (a new high score is named first, on a phone as the tap ends: see touchend; one unlocked: to the title, to pick it)
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
   jumpHeld = true;
+  if (ducking) return; // (no jumping while ducking: let go first)
   if (alt === 0) jump();
+  else if (power && kind === 'ostrich') vAlt = Math.max(vAlt, 120); // (flying again: a beat of its wings)
   else if ((superHop() && airJumps < 1) || (power && kind === 'squirrel')) { // once more in the air (gliding: again and again)
     airJumps++;
     vAlt = JUMP * (kind === 'squirrel' ? 0.6 : 1);
@@ -322,20 +329,28 @@ function press() {
     call('sting', 'jump');
   } else queued = BUFFER; // too early: it jumps as it lands
 }
-// off the ground: from a duck too (up and away; still held, it ducks again as it lands), not in a belly slide
+// off the ground: not while ducking (or in a belly slide)
 function jump() {
-  if (power && kind === 'otter') return;
-  if (ducking) { upFromDuck = true; duck(); }
+  if (ducking) return;
   vAlt = JUMP * T().jump * (superHop() ? 1.25 : 1);
   call('sting', 'jump');
 }
-// ducking: held (a key, a finger), not jumped up from, or a belly slide
+// ducking: held (a key, a finger; in the air: falling fast), or a belly slide
 function duck(held = duckHeld) {
-  if (held && !duckHeld) upFromDuck = false; // (ducking again, in the air: falls fast)
+  if (held && !duckHeld && power > 0 && kind === 'gorilla') return drum(); // (its power: it drums instead)
   duckHeld = held;
-  ducking = (duckHeld && !upFromDuck) || (power > 0 && kind === 'otter');
+  ducking = duckHeld || (power > 0 && kind === 'otter');
+}
+// chest drum: the gorilla stands up and beats its chest, and the next obstacle ahead is knocked over
+function drum() {
+  drumT = 0.35; shake = 0.2;
+  const o = obstacles.filter((x) => !x.smashed && !x.over && x.x + x.sprite.w > RUN_X + 10).sort((a, b) => a.x - b.x)[0];
+  floats.push({ text: 'BOOM!', x: RUN_X + 6, y: animalY() - 8, life: 0.5 });
+  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; parts.push({ x: RUN_X + 14, y: animalY() + 8, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, life: 0.3, color: COLOR.DIM }); }
+  if (o) smash(o); else call('sting', 'smash');
 }
 const superHop = () => power > 0 && kind === 'rabbit';
+const flying = () => power > 0 && kind === 'ostrich' && jumpHeld && !ducking; // (the ostrich's power, while the jump is held)
 const stinks = () => power > 0 && kind === 'skunk';
 function release() {
   jumpHeld = false;
@@ -344,7 +359,6 @@ function release() {
 
 const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'], DUCK_KEYS = ['ArrowDown', 'KeyS'];
 addEventListener('keydown', (e) => {
-  if (e.target.closest?.('input')) return; // typing a name
   if (e.target.closest?.('button') && (e.code === 'Space' || e.code === 'Enter')) return; // the buttons take their own keys
   if (e.code === 'KeyM') return toggleMute();
   if (e.code === 'KeyF') return toggleFull();
@@ -365,7 +379,7 @@ addEventListener('keyup', (e) => {
   if (JUMP_KEYS.includes(e.code)) release();
   else if (DUCK_KEYS.includes(e.code)) duck(false);
 });
-// touch: a finger on the left half of the screen ducks while it is held, one on the right half jumps (both at once too),
+// touch: a finger on the left half of the screen ducks while it is held, one on the right half jumps (not while ducking),
 // anywhere but on the game's buttons (around the game too, where it does not fill the screen); a mouse click jumps. On
 // the title, a tap on an animal picks it (a second tap runs).
 const TOUCH = matchMedia('(pointer: coarse)').matches;
@@ -376,7 +390,6 @@ let viewRect = view.getBoundingClientRect(); // (kept: see fit, and scrolling; r
 addEventListener('scroll', () => { viewRect = view.getBoundingClientRect(); }, { passive: true });
 const artAt = (e) => { const r = viewRect; return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * VH]; };
 stage.addEventListener('pointerdown', (e) => {
-  if (e.target === nameEl) return; // (typing a name)
   e.preventDefault();
   const [x, y] = artAt(e);
   stage.setPointerCapture(e.pointerId);
@@ -404,16 +417,19 @@ const lift = (e) => {
   if (what === 'jump') release();
 };
 stage.addEventListener('pointerup', lift);
-// on a phone, after a knock-out with a new high score, the tap asks for the name in the phone's own dialog (during the
-// tap: a phone shows it only then), then opens the high scores
-stage.addEventListener('touchend', (e) => {
-  if (!TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
-  e.preventDefault();
+// after a knock-out with a new high score, a press (a key, a click; on a phone the tap, as it ends: a phone shows a
+// dialog only then) asks for the name in the browser's own dialog, then opens the high scores
+function nameIt() {
   const entry = fresh;
   fresh = null;
   askName(entry);
   wake(); // (the dialog may have stopped the audio)
   showScores(entry);
+}
+stage.addEventListener('touchend', (e) => {
+  if (!TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
+  e.preventDefault();
+  nameIt();
 });
 stage.addEventListener('pointercancel', lift);
 // phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
@@ -590,7 +606,7 @@ function showCalls() { if (!callsShown) { callsShown = true; callsEl.textContent
 
 // ------------------------------------------------------------------------------------------------------ high scores
 // one table of ten, every animal in it, kept in this browser (localStorage lop.scores: [{ name, score, kind, date }]). A
-// knock-out that makes the table goes in at once, under the last name typed; the table then opens to name it.
+// knock-out that makes the table goes in at once, under the last name given; then the name is asked (see nameIt).
 const TOP = 10;
 let scores = [], lastName = '';
 try {
@@ -614,54 +630,24 @@ function record(k, s) {
 }
 
 // The high scores screen is drawn in the game, like the rest: rank, the animal's face, name, score; the new entry
-// marked. With a keyboard a text field, invisible, lies over the new entry's name and takes the typing; on a phone the
-// name is asked in its own dialog before (see askName).
-let board = null; // the screen on show: { entry: the new one (marked), typing }
+// marked. Its name is asked in the browser's own dialog before (see askName).
+let board = null; // the screen on show: { entry: the new one (marked) }
 const scoresOpen = () => !!board;
-const nameEl = document.getElementById('name');
 const NAME_LEN = 10, ROW = 9, COLS = [57, 157]; // a row's height; the columns' left edges (rank, face, name, score: 96 wide)
 const rowAt = (i) => [COLS[Math.floor(i / 5)], 14 + (i % 5) * ROW];
 
 function showScores(entry = null) {
-  board = { entry, typing: !!entry && !TOUCH };
+  board = { entry };
   updateMood();
-  if (board.typing) {
-    nameEl.value = entry.name === '???' ? '' : entry.name;
-    nameEl.hidden = false;
-    placeName();
-    nameEl.focus({ preventScroll: true });
-  }
 }
 // back from the high scores (or the credits): to the title, if the run is over (not to its knock-out)
 const leaveScores = () => (state === 'ko' ? goHome() : closeScores());
 function closeScores() {
-  if (board?.typing) doneTyping();
   board = null;
   updateMood();
 }
-function doneTyping() {
-  board.typing = false;
-  lastName = board.entry.name === '???' ? '' : board.entry.name;
-  keep('name', lastName);
-  nameEl.blur();
-  nameEl.hidden = true;
-}
-// the text field over the new entry's name, in the page's pixels
-function placeName() {
-  if (!board?.typing) return;
-  const [rx, ry] = rowAt(scores.indexOf(board.entry)), s = view.clientWidth / W;
-  const [x, y, w, h] = [rx + 14 + FACE_W, SKY + ry - 2, 42, 9]; // (from the top of the screen)
-  Object.assign(nameEl.style, { left: `${view.offsetLeft + x * s}px`, top: `${view.offsetTop + y * s}px`, width: `${w * s}px`, height: `${h * s}px` });
-}
-new ResizeObserver(placeName).observe(view);
 const cleanName = (v) => v.toUpperCase().replace(/[^A-Z0-9 .!-]/g, '').slice(0, NAME_LEN); // what the pixel font has
-nameEl.addEventListener('input', () => {
-  const v = cleanName(nameEl.value);
-  if (v !== nameEl.value) nameEl.value = v;
-  board.entry.name = v.trim() || '???';
-  saveScores();
-});
-// on a phone: the name asked in the phone's own dialog (cancelled: the name it went in under, the last one typed)
+// the name asked in the browser's own dialog (cancelled: the name it went in under, the last one given)
 function askName(entry) {
   const v = prompt('New high score! Your name:', entry.name === '???' ? '' : entry.name);
   if (v === null) return;
@@ -670,20 +656,17 @@ function askName(entry) {
   keep('name', lastName);
   saveScores();
 }
-nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); doneTyping(); } });
 
-// a tap on the screen ends the typing, or runs
+// a tap on the screen runs
 function tapScores() {
-  if (board.typing) doneTyping();
-  else { closeScores(); press(); }
+  closeScores(); press();
 }
 
 // the high scores (or the credits), the animal sitting under them, and what to do
 function drawBoard(pal) {
   (board.credits ? drawCredits : drawScores)(pal);
   animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
-  if (board.typing) help('NEW HIGH SCORE! TYPE YOUR NAME - ENTER WHEN DONE', pal, pal[7]);
-  else help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
+  help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
 }
 function drawScores(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
@@ -694,9 +677,8 @@ function drawScores(pal) {
     const c = mark ? pal.bg : e ? ink : dim;
     text(ctx, `${i + 1}.`, x + 11, y, c, 'right');
     if (e) face(e.kind)?.draw(ctx, x + 13, y - 2, pal);
-    text(ctx, e ? (board.typing && mark && e.name === '???' ? '' : e.name) : '-', x + 15 + FACE_W, y, c);
+    text(ctx, e ? e.name : '-', x + 15 + FACE_W, y, c);
     if (e) text(ctx, e.score, x + 93, y, c, 'right');
-    if (mark && board.typing && !TOUCH && blinkT % 0.8 < 0.5) { ctx.fillStyle = c; ctx.fillRect(x + 15 + FACE_W + (e.name === '???' ? 0 : e.name.length * 4), y + 5, 3, 1); } // the cursor
   }
 }
 
@@ -730,15 +712,17 @@ function place(p) {
   if (p.gold) gold = { x: x + p.gold.dx, y: p.gold.y };
 }
 
-// ?auto: jump what is low, duck what is at head height, run under the rest; jump for food in the air when it is clear
-function autopilot() {
+// ?auto: jump what is low, duck what is at head height, run under the rest; jump for food in the air when it is clear.
+// (popcorn: the guinea pig's super power, the same, through anything, and little hops for joy when nothing is near)
+function autopilot(popcorn = false) {
   const next = obstacles.filter((o) => o.x + o.sprite.w > RUN_X + 2 && !o.over).sort((a, b) => a.x - b.x)[0];
   duck(false);
   const p = powered();
-  if (p.smashes || p.bounces || p.passes || p.clears) return; // straight through (the otter slides by itself)
+  if (!popcorn && (p.smashes || p.bounces || p.passes || p.clears)) return; // straight through (the otter slides by itself)
   const gap = next ? next.x - (RUN_X + 22) : Infinity;
   if (next?.duck) { duck(alt === 0 && gap < 30); return; }
   if (alt === 0 && gap < speed * 0.1 && gap > -8) return press();
+  if (popcorn) { if (alt === 0 && gap > speed * 0.5 && rnd() < 0.05) { vAlt = 150; sparkle(4, 40); } return; }
   const snack = food.find((f) => f.y < GROUND - 20 && f.x > RUN_X);
   if (snack && alt === 0 && gap > 90 && snack.x - (RUN_X + 12) < speed * 0.12) press();
 }
@@ -751,6 +735,8 @@ function animalPose() {
   if (state === 'title') return ['idle', idleFrame(kind, blinkT), blinking()];
   if (hurtT > 0) return ['hurt', 0, false];
   if (power && kind === 'hedgehog') return ['ball', Math.floor(phase * 8) % 4, false]; // spike ball
+  if (drumT > 0 && alt === 0) return ['drum', Math.floor(drumT * 12) % 2, false]; // (the gorilla's chest drum)
+  if (alt > 0 && flying()) return ['jump', Math.floor(blinkT * 10) % 2, blinking()]; // (the ostrich's wings beating: see its jump)
   if (alt > 0) return ['jump', jumpFrame(kind, vAlt / (JUMP * T().jump)), blinking()];
   if (ducking) return ['duck', stride(kind, phase, 'duck').frame, blinking()];
   return [power && kind === 'elephant' ? 'spray' : 'run', stride(kind, phase).frame, blinking()]; // (splash: the trunk up)
@@ -780,12 +766,11 @@ function update(dt) {
   carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
   { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? W / 2 - 13 : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); } // (on the title: where it settles, so sliding there does not fling its ears)
   if (state === 'ko') koT += dt;
-  if (state === 'ko' && fresh && !TOUCH && koT > 1.2) { showScores(fresh); fresh = null; } // a new high score: its name (on a phone: on a tap)
   if (AUTO && state === 'ko' && koT > 3) start();
   if (state !== 'run' && state !== 'ko') return;
 
   if (state === 'run') {
-    if (AUTO) autopilot();
+    if (AUTO || (power && kind === 'guineapig')) autopilot(!AUTO);
     duck();
     queued = Math.max(0, queued - dt);
     slow = Math.max(0, slow - dt / 1.2);
@@ -803,17 +788,18 @@ function update(dt) {
   shake = Math.max(0, shake - dt);
   safe = Math.max(0, safe - dt);
   hurtT = Math.max(0, hurtT - dt);
+  drumT = Math.max(0, drumT - dt);
 
   // jumping: a held jump floats, a ducked one falls fast
   if (alt > 0 || vAlt > 0) {
     vAlt -= GRAVITY * T().gravity * (ducking ? 3 : 1) * dt;
     if (power && kind === 'squirrel') vAlt = Math.max(vAlt, -55); // gliding down
+    if (flying()) vAlt = Math.max(vAlt, 0); // flying: it stays up while the jump is held (pressed again: up a little more)
     alt += vAlt * dt;
     if (alt > 56) { alt = 56; vAlt = Math.min(vAlt, 0); } // (a super hop stays on the screen)
     if (alt <= 0) {
       alt = 0; vAlt = 0; airJumps = 0;
       for (let i = 0; i < 3; i++) parts.push({ x: RUN_X + 8 + i * 3, y: GROUND - 1, vx: -30 - rnd() * 30, vy: -20 - rnd() * 20, life: 0.35, color: COLOR.INK });
-      if (upFromDuck) { upFromDuck = false; duck(); } // (still held: down again)
       if (queued && state === 'run') { queued = 0; jump(); if (!jumpHeld) release(); } // (pressed just before: a tap or held on)
     }
   }
@@ -825,6 +811,18 @@ function update(dt) {
     if (o.smashed) { o.x += o.vx * dt; o.y += o.vy * dt; o.vy += 600 * dt; } // bowled over: tumbling away
     if (o.kind === 'crow') o.sprite = crow(Math.floor(blinkT * 6) % 2);
   }
+  for (const y of herd) { // the stampede: yaks running by, faster than the world, trampling what is ahead (all but what is high)
+    y.x += 170 * dt; y.phase = (y.phase + dt * strides('yak', speed + 170)) % 1;
+    for (const o of obstacles) if (!o.smashed && !o.over && o.x < y.x + 24 && o.x + o.sprite.w > y.x + 4) smash(o, true);
+  }
+  herd = herd.filter((y) => y.x < W + 10);
+  for (const p of spits) { // spit, flying at what it was aimed at
+    const o = p.to, tx = o.x + o.sprite.w / 2, ty = o.y + (o.kind === 'branch' ? o.sprite.h - 4 : o.sprite.h / 2), d = Math.hypot(tx - p.x, ty - p.y);
+    if (o.smashed || d < 5) { if (!o.smashed) smash(o); p.done = true; continue; }
+    p.x += ((tx - p.x) / d) * 320 * dt; p.y += ((ty - p.y) / d) * 320 * dt;
+    if (rnd() < dt * 30) parts.push({ x: p.x, y: p.y, vx: -20, vy: 0, life: 0.2, color: COLOR.FAINT });
+  }
+  spits = spits.filter((p) => !p.done);
   obstacles = obstacles.filter((o) => o.x > -o.sprite.w && o.y < H);
   for (const f of food) f.x -= dx;
   food = food.filter((f) => f.x > -14);
@@ -860,6 +858,24 @@ function update(dt) {
       const [x, y, w, h] = giantBox();
       for (const o of obstacles) if (!o.smashed && o.x < x + w && o.x + o.sprite.w > x && o.y < y + h && o.y + o.sprite.h > y) smash(o);
     }
+    if (kind === 'pig') { // truffle snout: what is just ahead is dug up as truffles (its food), to eat on the way
+      const meal = FOOD.truffle;
+      for (const o of obstacles) if (!o.smashed && !o.dug && !o.over && o.x > RUN_X + 30 && o.x < RUN_X + 100) {
+        o.dug = true;
+        food.push({ x: o.x + Math.max(0, o.sprite.w / 2 - meal.w / 2), y: GROUND - meal.h - 1 });
+        for (let i = 0; i < 8; i++) parts.push({ x: o.x + rnd() * o.sprite.w, y: GROUND - 2 - rnd() * 6, vx: (rnd() - 0.5) * 80, vy: -40 - rnd() * 70, life: 0.4, color: COLOR.DIM });
+        floats.push({ text: 'SNIFF!', x: o.x - 4, y: GROUND - 26, life: 0.6 });
+      }
+      obstacles = obstacles.filter((o) => !o.dug);
+    }
+    if (kind === 'yak' && (herdT -= dt) <= 0) { // stampede: a herd of three now and then
+      herdT = 1.6;
+      for (let i = 0; i < 3; i++) herd.push({ x: -30 - i * 24 - rnd() * 8, phase: rnd() });
+    }
+    if (kind === 'dromedary' && (spitT -= dt) <= 0) { // spit: at what flies or hangs ahead
+      const o = obstacles.find((x) => !x.smashed && !x.aimed && (x.kind === 'crow' || x.kind === 'branch') && x.x > RUN_X + 10 && x.x < W - 10);
+      if (o) { o.aimed = true; spitT = 0.25; spits.push({ x: RUN_X + 24, y: animalY() + 4, to: o }); floats.push({ text: 'PTOO!', x: RUN_X + 18, y: animalY() - 6, life: 0.4 }); }
+    }
     if (kind === 'wolf') for (const o of obstacles) if (!o.smashed && o.x > RUN_X + 12 && o.x < RUN_X + 80) smash(o, true); // howl
     if (kind === 'elephant') { // splash: water sprayed from the trunk, washing away what is just ahead
       if (rnd() < dt * 70) parts.push({ x: RUN_X + 29, y: animalY() + 6, vx: 110 + rnd() * 80, vy: -40 - rnd() * 40, life: 0.5, color: COLOR.ICE }); // (from the trunk's tip)
@@ -875,7 +891,7 @@ function update(dt) {
       for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
     }
     if (powered().shakes && chase) chase.leaving = true; // (it comes, and turns away)
-    if (!power) { duck(); call('sting', 'powerdown'); updateMood({ within: 0 }); } // (a belly slide ends)
+    if (!power) { duck(kind === 'guineapig' ? false : duckHeld); call('sting', 'powerdown'); updateMood({ within: 0 }); } // (a belly slide ends; popcorn lets go of its own ducking)
   }
 
   // what the animal runs into (the frame of its move as it is, not eased into: it ducks as quickly as ever), what it eats
@@ -999,17 +1015,18 @@ function dizzyBirds(pal, behind) {
 const blend = (a, b, f) => `#${rgb(a).map((v, i) => Math.round(v * (1 - f) + rgb(b)[i] * f).toString(16).padStart(2, '0')).join('')}`;
 const tint = (pal, by, f, more) => ({ ...Object.fromEntries(Object.entries(pal).map(([k, c]) =>
   [k, blend(c, `#${rgb(c).map((v, i) => Math.round((v * rgb(by)[i]) / 255).toString(16).padStart(2, '0')).join('')}`, f)])), ...more });
-// (a land's: its sky by day, see LANDS; the same night everywhere)
-const DUSK = tint(PALETTES.night, '#ffb4d8', 0.3, { bg: '#56457a' });
-const SKIES = LANDS.map((l) => {
-  const day = { ...PALETTES.day, bg: l.sky };
-  return { day, sunset: tint(day, '#ff8c5a', 0.6, { bg: '#f7a76c' }), dusk: DUSK, night: PALETTES.night, morning: tint(day, '#ffb4c4', 0.45, { bg: '#ffdcbc' }) };
-});
-// the two palettes to draw in and how much of the second, from how dark it is and which way it is going (in the day's land)
+const SKIES = {
+  day: PALETTES.day,
+  sunset: tint(PALETTES.day, '#ff8c5a', 0.6, { bg: '#f7a76c' }),
+  dusk: tint(PALETTES.night, '#ffb4d8', 0.3, { bg: '#56457a' }),
+  night: PALETTES.night,
+  morning: tint(PALETTES.day, '#ffb4c4', 0.45, { bg: '#ffdcbc' }),
+};
+// the two palettes to draw in and how much of the second, from how dark it is and which way it is going
 function skies() {
   const way = night ? ['day', 'sunset', 'dusk', 'night'] : ['night', 'morning', 'day'], f = (night ? dark : 1 - dark) * (way.length - 1);
-  const i = Math.min(Math.floor(f), way.length - 1), sk = SKIES[landOf(day)];
-  return i < way.length - 1 ? [sk[way[i]], sk[way[i + 1]], ease(f - i)] : [sk[way[i]], null, 0];
+  const i = Math.min(Math.floor(f), way.length - 1);
+  return i < way.length - 1 ? [SKIES[way[i]], SKIES[way[i + 1]], ease(f - i)] : [SKIES[way[i]], null, 0];
 }
 const second = document.createElement('canvas'), secondCtx = second.getContext('2d');
 const themeColor = document.querySelector('meta[name=theme-color]');
@@ -1070,21 +1087,15 @@ function scene(pal) {
     ctx.fill();
     moon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
   }
-  // far hills: each land's skyline in its colours, the top of it (snow, pines) in its second
-  const hills = snap(hillX), from = Math.floor(hills), paths = {};
-  for (let x = 0, k = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
-    const u = x + from;
-    while (lands[k + 1] && lands[k + 1].u <= u) k++;
-    const { i } = lands[k], [h, top] = LANDS[i].skyline(u), y = Math.round(GROUND - h), t = Math.round(top), cx = x - (hills - from);
-    (paths[`hills${i}`] ||= []).push(cx, y + t, Math.round(h) - t);
-    if (t > 0) (paths[`top${i}`] ||= []).push(cx, y, t);
+  // far hills
+  ctx.fillStyle = pal[COLOR.FAINT];
+  const hills = snap(hillX), from = Math.floor(hills);
+  ctx.beginPath();
+  for (let x = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
+    const h = hill(x + from);
+    ctx.rect(x - (hills - from), Math.round(GROUND - h), 1, Math.round(h));
   }
-  for (const [c, cols] of Object.entries(paths)) { // (a path a colour: one fill each, not a fill a column)
-    ctx.fillStyle = pal[c];
-    ctx.beginPath();
-    for (let j = 0; j < cols.length; j += 3) ctx.rect(cols[j], cols[j + 1], 1, cols[j + 2]);
-    ctx.fill();
-  }
+  ctx.fill(); // (one path: one fill, not a fill a column)
   for (const c of clouds) cloud.draw(ctx, c.x, c.y, pal);
 
   const scroll = ground(pal);
@@ -1103,6 +1114,9 @@ function scene(pal) {
     ctx.fillStyle = pal[COLOR.WHITE];
     ctx.fillRect(x + Math.round(meal.w / 2 - Math.cos(a) * (meal.w / 2 + 3)), Math.round(y + meal.h / 2 - Math.sin(a) * (meal.h / 2 + 3)), 1, 1);
   }
+  for (const y of herd) animal('yak', 'run', stride('yak', y.phase).frame).draw(ctx, y.x, GROUND - FOOT - 1, pal); // (the stampede, a little behind)
+  ctx.fillStyle = pal[COLOR.WHITE];
+  for (const p of spits) ctx.fillRect(snap(p.x) - 1, snap(p.y) - 1, 2, 2);
   ctx.globalAlpha = stinks() ? 0.35 : 1; // (faded while the skunk stinks: it runs through them)
   for (const o of obstacles) o.sprite.draw(ctx, onGround(o.x), o.y, pal);
   ctx.globalAlpha = 1;
@@ -1155,7 +1169,7 @@ function hud(pal) {
     else help(pick ? '< > OR CLICK TO PICK - SPACE TO RUN' : 'SPACE TO RUN', pal);
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
-    if (koT > 0.8 && fresh && TOUCH) help('NEW HIGH SCORE! TAP TO ENTER YOUR NAME', pal, pal[7]);
+    if (koT > 0.8 && fresh) help(`NEW HIGH SCORE! ${TOUCH ? 'TAP' : 'SPACE OR CLICK'} TO ENTER YOUR NAME`, pal, pal[7]);
     else if (koT > 0.8 && !fresh && gained) help(`THE ${ANIMALS[gained].name} IS YOURS! ${TOUCH ? 'TAP' : 'SPACE OR TAP'} TO PICK`, pal, pal[7]);
     else if (koT > 0.8 && !fresh) help(TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', pal);
   } else if (state === 'paused') {

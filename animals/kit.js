@@ -19,7 +19,7 @@
 //                back, -1: forward), foot [rx, ry] (a flat foot)
 //   chains       swung by the body's motion: a tail (on, at, angle from straight up, more: further back; links, length, r
 //                or [r at the root, r at the tip], curl per link, +: forward; color, marks [[t along it, color, r]], end (a
-//                round end), front (drawn over the body), joined (in front, grown out of the body: not outlined where it starts), line (a thin line, not outlined: a
+//                round end), front (drawn over the body), joined (in front, grown out of the body: not outlined where it starts), overEye (in front, over the eyes too: the pig's lop ear), line (a thin line, not outlined: a
 //                rhino's tail)) or a pointed ear (ear: its base [[x, y] × 2] on the head, tip).
 //                stiffness pulls each link to its rest, damping stops it ringing, weight pulls it down
 //   face         eye, nose (in the head's frame), noseColor
@@ -81,8 +81,13 @@ export function earsBack(rig, by = 0.7) {
 }
 
 // ducking: a slinking crawl, low and flat (low: the pose lying down), the head held level, the shoulders and the haunch
-// rolling. Diagonal paws step together, slow and low, the near ones flat (pad) and outlined over the belly (over)
-export const crawl = (rig, low, o = {}) => ({ ...low, pad: [1.8, 1], over: true,
+// rolling. Diagonal paws step together, slow and low, the near ones flat (pad) and outlined over the belly (over). Squashed
+// down, it spreads out: a pixel or two longer than lying low (the hip back, the chest and the head forward)
+const stretched = (rig, low) => {
+  const J = { ...rig.joints, ...low.joints }, torso = { ...rig.torso, ...low.torso }, by = (k, dx) => add(J[k], [dx, 0]);
+  return { ...low, joints: { ...low.joints, hip: by('hip', -0.5), chest: by('chest', 0.5), head: by('head', 0.5) }, torso: { ...torso, ends: (torso.ends ?? 0) + 0.2 } };
+};
+export const crawl = (rig, low, o = {}) => ({ ...stretched(rig, low), pad: [1.8, 1], over: true,
   gait: { frames: 8, stance: 0.6, reach: 4, lift: 0.8, bob: 0.6, beat: 2, head: 0, ground: GROUND,
     legs: { hindNear: [0, -1], frontFar: [0.05, 1.5], hindFar: [0.5, 1.5], frontNear: [0.55, 3] }, ...o } });
 

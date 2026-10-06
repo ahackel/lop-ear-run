@@ -16,6 +16,12 @@ const BASS = (bright, decay = 2.5) => ({ type: 'string', string: { decay, bright
 
 export const STYLES = {
   rabbit: {},
+  // squeaky: a thin square wave, high up, wheeking
+  guineapig: {
+    key: 'F', bpm: 156, swing: 0.1, octaves: { lead: 6 },
+    voices: { lead: PULSE(0.25, 0.09, { gain: 0.7 }) },
+    motif: '0 2 4 . 4 . 4 . 7 - 4 . 2 . 0 . | 0 2 4 . 7 . 7 . 9 - 7 . 4 . . .',
+  },
   // sly and smooth: a swung vibraphone, slinking down by half steps
   cat: {
     key: 'Eb', scale: 'minor', bpm: 138, swing: 0.4,
@@ -27,7 +33,13 @@ export const STYLES = {
     key: 'G', bpm: 158, swing: 0.1,
     voices: { lead: PULSE(0.5, 0.14, { gain: 0.74 }) },
     motif: '0 0 4 . 0 0 5 . 4 . 2 . 0 . . . | 0 0 4 . 0 0 7 . 5 . 4 . 2 - - .',
+  },  // bouncy: a tuba, oom-pah, low
+  pig: {
+    key: 'F', bpm: 140, swing: 0.3, octaves: { lead: 4 },
+    voices: { lead: { type: 'fm', fm: { ratio: 1, index: 1.6, env: 1 }, swell: 0.6, scoop: 0.5, env: { a: 0.02, d: 0.25, s: 0.4, r: 0.1 }, cutoff: 2200, poly: 2, gain: 0.8 } },
+    motif: '0 . 4, . 0 . 4, . 2 . 3 . 4 - - . | 0 . 4, . 0 . 4, . 6, . 1 . 0 - - .',
   },
+
   // sneaky: plucked, on tiptoe, in minor
   fox: {
     key: 'D', scale: 'minor', bpm: 152, swing: 0.25,
@@ -75,19 +87,43 @@ export const STYLES = {
     key: 'Bb', bpm: 128, swing: 0.4, kick: KICK(90, 0.2, 0.6),
     voices: { lead: { type: 'wave', wave: 'organ', smooth: true, env: { a: 0.02, d: 0.5, s: 0.6, r: 0.25 }, cutoff: 2600, poly: 3, gain: 0.76 } },
     motif: '0 - - 2 4 - - . 5 - 4 - 2 - . . | 0 - - 2 4 - - . 2 - 1 - 0 - - .',
+  },  // from the high mountains: a low gong ringing over long notes, in minor, and a kick
+  yak: {
+    key: 'E', scale: 'minor', bpm: 132, swing: 0.1, octaves: { lead: 4 }, kick: KICK(85, 0.3),
+    voices: { lead: FM(1.4, 2, 1.6, { cutoff: 2500, gain: 0.8 }) },
+    motif: '0 - - - - - - . 4 - - - 3 - - . | 0 - - - - - - . 2 - - - 0 - - .',
   },
+  // long-legged: a flute, quick, on wide strides
+  ostrich: {
+    key: 'G', scale: 'mixolydian', bpm: 166, swing: 0.1,
+    voices: { lead: { type: 'triangle', vibrato: { depth: 0.1, rate: 6, delay: 0.1 }, env: { a: 0.02, d: 0.2, s: 0.6, r: 0.1 }, cutoff: 5000, poly: 1, gain: 1.1 } },
+    motif: '0 . 4 . 7 . 4 . 9 . 7 . 4 . 2 . | 0 4 7 4 0 4 7 9 7 . 4 . 0 . . .',
+  },
+
   // fast: a sharp, narrow pulse, running up and down
   cheetah: {
     key: 'E', scale: 'mixolydian', bpm: 170, swing: 0.05,
     voices: { lead: PULSE(0.125, 0.1, { gain: 1.2 }) },
     motif: '0 2 4 5 7 5 4 2 0 2 4 5 7 . . . | 7 5 4 2 0 2 4 2 0 . . . . . . .',
+  },  // swaying across the desert: a plucked oud, swung, in harmonic minor
+  dromedary: {
+    key: 'E', scale: 'harmonicMinor', bpm: 136, swing: 0.35,
+    voices: { lead: { type: 'string', string: { decay: 1.4, bright: 0.6, mute: 0.1 }, env: { a: 0.001, d: 1, s: 1, r: 0.1 }, cutoff: 4000, gain: 1.04 } },
+    motif: '4 . 3 . 2 - 1 . 2 - - . . . . . | 4 . 3 . 2 - 1 . 0 - - . . . . .',
   },
+
   // charging: brass that scoops into its notes, in minor, and a kick
   rhino: {
     key: 'C', scale: 'minor', bpm: 140, swing: 0.1, octaves: { lead: 4 }, kick: KICK(100, 0.25),
     voices: { lead: { type: 'fm', fm: { ratio: 1, index: 3, env: 1 }, scoop: 1, swell: 1, env: { a: 0.03, d: 0.4, s: 0.6, r: 0.15 }, cutoff: 3000, poly: 2, gain: 0.72 } },
     motif: '0 . . 0 . . 0 . 3 - - . 2 . . . | 0 . . 0 . . 0 . 4 - - . 3 - 2 .',
+  },  // drumming on its chest: a deep thump, like taiko, in minor, and a kick
+  gorilla: {
+    key: 'G', scale: 'minor', bpm: 138, swing: 0.15, octaves: { lead: 4 }, kick: KICK(60, 0.35),
+    voices: { lead: FM(0.5, 3, 0.3, { cutoff: 1800, gain: 1 }) },
+    motif: '0 . 0 . 0 0 . . 4 . 3 . 0 . . . | 0 . 0 . 0 0 . . 6, . 0 . 0 . . .',
   },
+
   // a trumpet call: brass swelling on wide leaps, and a kick
   elephant: {
     key: 'Ab', bpm: 134, swing: 0.2, kick: KICK(80, 0.3),
