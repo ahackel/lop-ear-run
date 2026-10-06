@@ -18,6 +18,7 @@ import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, DUCK_UNDER, CROW_BOTTOM, 
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
   JUMP, GRAVITY, jumpHeight, hill, strides, rgb, luma } from './art.js';
 import { ease } from './animals/kit.js';
+import { BUILT, ENGINE } from './version.js';
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
 let ctx = vctx; // (the screen, in art pixels scaled up, see fit; for a moment the second palette's canvas, see draw)
@@ -361,14 +362,17 @@ stage.addEventListener('touchend', (e) => {
   const entry = fresh;
   fresh = null;
   askName(entry);
+  wake(); // (the dialog may have stopped the audio)
   showScores(entry);
 });
 stage.addEventListener('pointercancel', lift);
 // phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
-addEventListener('pointerup', () => {
-  startAudio();
-  if (music.ctx?.state === 'suspended' && state !== 'paused') music.ctx.resume().catch(() => {});
-});
+addEventListener('pointerup', () => { startAudio(); wake(); });
+// the audio again (not while paused) where the browser stopped it: suspended, or interrupted (iOS: by a call, Siri, a
+// dialog of its own)
+function wake() {
+  if (music.ctx && music.ctx.state !== 'running' && state !== 'paused') music.ctx.resume().catch(() => {});
+}
 
 // a phone turned upright pauses the run (the page asks to turn it back)
 const upright = matchMedia('(pointer: coarse) and (orientation: portrait)');
@@ -655,6 +659,9 @@ function drawCredits(pal) {
   text(ctx, 'CREDITS', W / 2, 4, ink, 'center');
   CREDITS.forEach(([what, who], i) => { text(ctx, what, W / 2 - 4, 16 + i * ROW, dim, 'right'); text(ctx, who, W / 2 + 4, 16 + i * ROW, ink); });
   text(ctx, 'THANKS FOR PLAYING!', W / 2, 16 + (CREDITS.length + 1) * ROW, pal[7], 'center');
+  const v = 16 + (CREDITS.length + 3) * ROW; // which build this is, either side of the animal sitting in the middle
+  text(ctx, `VERSION ${BUILT}`, W / 2 - 32, v, dim, 'right');
+  text(ctx, `ENGINE ${ENGINE.toUpperCase()}`, W / 2 + 32, v, dim);
 }
 const LOGO = { O: '75557', P: '75744' }; // (the title's letters: square)
 // what to do, in a line of its own at the bottom of the screen (dim, or in a color)

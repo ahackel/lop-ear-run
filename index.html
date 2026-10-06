@@ -13,6 +13,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Lop Hop">
+<script>
+  // ?music on a computer: the page around the game, with the music's moods and calls as the game makes them
+  if (/[?&]music\b/.test(location.search) && !matchMedia('(pointer: coarse), (display-mode: standalone), (display-mode: fullscreen)').matches) document.documentElement.classList.add('page');
+</script>
 <style>
   :root {
     --bg: #f7f6f0; --fg: #3a3a3a; --dim: #85857f; --line: #dedbd0; --chip: #ecebe3; --on: #ee8a2a; --on-fg: #fff;
@@ -44,24 +48,23 @@
   #calls { margin: 0; padding: 10px 12px; min-height: 7.5em; background: var(--chip); border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
   #rotate { display: none; }
 
-  /* only the game, as large as it fits: in full screen, where the browser has none (the .full fallback), on phones and
-     tablets, and installed as an app */
+  /* the page (?music): only the game in full screen, or where the browser has none (the .full fallback) */
   #stage:fullscreen, #stage.full { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); }
   /* (the game's whole height: a taller screen shows more sky, see fit in game.js) */
   #stage:fullscreen canvas, #stage.full canvas { width: min(100vw, calc(100vh * 300 / 90)); width: min(100vw, calc(100dvh * 300 / 90)); height: 100%; aspect-ratio: auto;
     border-radius: 0; outline: none; }
   body:has(#stage.full) { overflow: hidden; }
-  @media (pointer: coarse), (display-mode: standalone), (display-mode: fullscreen) {
-    html, body { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--game-bg, #f7f6f0); }
-    main { padding: 0; max-width: none; }
-    header, .help, section { display: none; }
-    /* the whole screen, under the notch too: the game keeps what it writes clear of it (see fit in game.js) */
-    #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); touch-action: none;
-      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-    #name { -webkit-user-select: text; user-select: text; }
-    #stage canvas { width: min(100%, calc(100vh * 300 / 90)); /* (Safari before 15.4: no dvh) */
-      width: min(100%, calc(100dvh * 300 / 90)); height: 100%; aspect-ratio: auto; border-radius: 0; outline: none; }
-  }
+  /* only the game, as large as it fits, on every screen (?music on a computer: the page around it, with the music's
+     moods and calls); the whole screen, under a phone's notch too: the game keeps what it writes clear of it (see fit in
+     game.js) */
+  html:not(.page), html:not(.page) body { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--game-bg, #f7f6f0); }
+  html:not(.page) main { padding: 0; max-width: none; }
+  html:not(.page) header, html:not(.page) .help, html:not(.page) section { display: none; }
+  html:not(.page) #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--game-bg, #f7f6f0); touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  html:not(.page) #name { -webkit-user-select: text; user-select: text; }
+  html:not(.page) #stage canvas { width: min(100%, calc(100vh * 300 / 90)); /* (Safari before 15.4: no dvh) */
+    width: min(100%, calc(100dvh * 300 / 90)); height: 100%; aspect-ratio: auto; border-radius: 0; outline: none; }
   /* under the ground, at the sides: the animal before and after; on a phone, duck and jump (where to tap) (see showPad, fit in game.js) */
   .pad { position: absolute; z-index: 1; top: var(--pad-top, 0); width: calc(var(--px, 3) * 17px); height: calc(var(--px, 3) * 17px);
     opacity: 0.5; pointer-events: none; }

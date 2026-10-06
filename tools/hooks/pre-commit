@@ -1,0 +1,3 @@
+#!/bin/sh
+# at each commit: version.js says when the build was made (git config core.hooksPath tools/hooks)
+node tools/version.mjs && git add version.js

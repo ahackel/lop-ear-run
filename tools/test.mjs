@@ -1,5 +1,7 @@
 // node tools/test.mjs — the song plays well with the engine (healthy audio, every mood reached, every stinger heard),
-// and the art keeps its promises (every animal stands tall enough to hit a branch and ducks under it).
+// the art keeps its promises (every animal stands tall enough to hit a branch and ducks under it), and all of it runs on
+// Safari 15 (tools/old-safari.mjs).
+import { oldSafari } from './old-safari.mjs'; // (first: it takes away what Safari 15 lacks before the rest loads)
 import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/src/engine/engine.js';
 import { diskSamples } from '../engine/src/disk-samples.js';
@@ -104,6 +106,10 @@ ok(CROW_BOTTOM > 0, 'crows have a lowest row');
 // every animal has its food, and its file is kept for playing offline (sw.js)
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), missing = Object.keys(ANIMALS).filter((k) => !FOOD[ANIMALS[k].food] || !sw.includes(`'animals/${k}.js'`));
 ok(!missing.length, `every animal has its food and is kept offline${missing.length ? ` — not: ${missing}` : ''}`);
+
+// the older iPad (Safari 15): nothing newer than it without a fallback
+const newer = oldSafari();
+ok(!newer.length, `nothing newer than Safari 15 without a fallback${newer.length ? `:\n  ${newer.join('\n  ')}` : ''}`);
 
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

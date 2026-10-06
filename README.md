@@ -29,7 +29,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | pick an animal | <kbd>←</kbd> <kbd>→</kbd> on the title | tap it on the title |
 | sound, high scores, credits, full screen | <kbd>M</kbd>, <kbd>H</kbd>, <kbd>C</kbd>, <kbd>F</kbd> | the buttons at the top left of the game |
 
-The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`) has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (`?auto` lets the animal run by itself, to hear the moods come and go):
+The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`) has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (with `?music`, on a computer; `?auto` lets the animal run by itself, to hear the moods come and go):
 
 | Game | Music |
 |---|---|
@@ -52,13 +52,17 @@ Plain files, no build step: GitHub Pages serves the repo as it is.
 
 ```bash
 npm run dev        # http://localhost:8323 (the audio needs http://, not file://)
-npm test           # the song plays every mood and stinger; every animal is tall enough to hit a branch and ducks under it
+npm test           # the song plays every mood and stinger; every animal is tall enough to hit a branch and ducks under it;
+                   # nothing newer than Safari 15 without a fallback
 npm run engine     # copies the engine from ../stardrift-engine into engine/ (or: node tools/engine.mjs <path>)
 npm run icons      # draws icons/ from the game's own pixel art
 npm run rigs       # writes every animal's build the way the workshop saves it
 ```
 
-In the address: `?all` opens every animal for a visit, `?auto` runs by itself, `?fps` shows the frames a second and the
+Once per checkout, `git config core.hooksPath tools/hooks`: at each commit the hook writes `version.js` (when the build
+was made, and which engine it plays), which the credits screen shows.
+
+In the address: `?music` shows the music's moods and calls under the game, `?all` opens every animal for a visit, `?auto` runs by itself, `?fps` shows the frames a second and the
 work of a frame (on average and at most, in ms: a frame has 16.7 at 60) and the canvas's size, `?scale=3` draws the game
 3 screen pixels an art pixel (fewer than the screen has: the page scales it up).
 
@@ -71,11 +75,12 @@ and squashes as it lands.
 
 | Path | |
 |---|---|
-| `index.html` | the page: the game and the music panel; on phones and installed, only the game |
+| `index.html` | the page: only the game, on every screen (`?music` on a computer: the music's moods and calls under it) |
 | `game.js` | the game: input, the run, energy, its buttons, the high scores, the calls to the music |
 | `art.js` | the pixel art, drawn from shapes: the rigs that draw the animals, obstacles, food, a 3×5 font |
 | `animals/` | an animal each: its build (joints, shapes, legs, chains, face: the data the workshop edits) and its moves; `kit.js`: what they share |
 | `tools/workshop.html` | the animal workshop (through `npm run dev`, which saves for it) |
+| `version.js` | when the build was made, and its engine (written at each commit, `tools/version.mjs`) |
 | `song.json` | the music |
 | `engine/` | a copy of the Stardrift engine (`engine/VERSION` says which commit); `npm run engine` refreshes it |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable app: offline files, name, icons, landscape |
