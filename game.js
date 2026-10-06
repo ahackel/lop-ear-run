@@ -70,7 +70,7 @@ const keep = (k, v) => { try { if (v === null) localStorage.removeItem(`lop.${k}
 
 // --------------------------------------------------------------------------------------------------------- the music
 const music = new StardriftPlayer();
-const song = fetch('song.json').then((r) => r.json());
+const song = fetch('song.zip').then((r) => r.arrayBuffer()); // the song and the recordings it plays (the editor's Export for a game)
 let audio = 'off'; // off | starting | on
 let muted = kept('muted') === '1';
 let mood = null;
@@ -89,7 +89,7 @@ async function startAudio() {
   audio = 'starting';
   try {
     await music.init();
-    music.load(await song, { seed: Math.floor(Math.random() * 1e6) });
+    await music.loadZip(await song, { seed: Math.floor(Math.random() * 1e6) });
     music.setVolume(muted ? 0 : 1, 0);
     await music.play();
     audio = 'on';

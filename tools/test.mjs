@@ -4,16 +4,18 @@
 import { oldSafari } from './old-safari.mjs'; // (first: it takes away what Safari 15 lacks before the rest loads)
 import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/src/engine/engine.js';
-import { diskSamples } from '../engine/src/disk-samples.js';
+import { openSongZip } from '../engine/src/bundle.js';
+import { loadSamples, songSamples } from '../engine/src/samples.js';
 import { animal, ANIMALS, FOOT, GROUND, DUCK_UNDER, CROW_BOTTOM, branch, moveBody, stride, idleFrame, jumpHeight, FOOD } from '../art.js';
 
 let failed = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) failed++; };
 
-// the song
-const SR = 44100, song = JSON.parse(readFileSync(new URL('../song.json', import.meta.url), 'utf8'));
-const e = new Engine(SR, song, 3);
-e.setSamples(await diskSamples());
+// the song, from its zip (song.zip: the editor's Export for a game), with the recordings it plays
+const SR = 44100, { song, read } = await openSongZip(readFileSync(new URL('../song.zip', import.meta.url)));
+const e = new Engine(SR, song, 3), recordings = await loadSamples(read, songSamples(song)).catch((err) => err);
+ok(!(recordings instanceof Error), `song.zip holds every recording the song plays (${songSamples(song)})${recordings instanceof Error ? ` — ${recordings.message}` : ''}`);
+e.setSamples(recordings instanceof Error ? {} : recordings);
 function run(secs, onBlock) {
   const L = new Float32Array(128), R = new Float32Array(128);
   let peak = 0, bad = 0;

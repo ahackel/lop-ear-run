@@ -29,7 +29,7 @@ A little endless runner: a lop-eared rabbit hops over cacti, rocks and logs, duc
 | pick an animal | <kbd>←</kbd> <kbd>→</kbd> on the title | tap it on the title |
 | sound, high scores, credits, full screen | <kbd>M</kbd>, <kbd>H</kbd>, <kbd>C</kbd>, <kbd>F</kbd> | the buttons at the top left of the game |
 
-The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.json`) has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (with `?music`, on a computer; `?auto` lets the animal run by itself, to hear the moods come and go):
+The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedural chiptune engine for games: the song (`song.zip`: the song and the recordings it plays, as the editor's *Export for a game* writes it) has a mood for each state of play and stingers for its events, and the page shows the calls as the game makes them (with `?music`, on a computer; `?auto` lets the animal run by itself, to hear the moods come and go):
 
 | Game | Music |
 |---|---|
@@ -81,10 +81,10 @@ and squashes as it lands.
 | `animals/` | an animal each: its build (joints, shapes, legs, chains, face: the data the workshop edits) and its moves; `kit.js`: what they share |
 | `tools/workshop.html` | the animal workshop (through `npm run dev`, which saves for it) |
 | `version.js` | when the build was made, and its engine (written at each commit, `tools/version.mjs`) |
-| `song.json` | the music |
-| `engine/` | a copy of the Stardrift engine (`engine/VERSION` says which commit); `npm run engine` refreshes it |
+| `song.zip` | the music: the song and its recordings, loaded as it is (`music.loadZip`); a new version comes from the [editor](https://github.com/ahackel/stardrift)'s *Export for a game*, saved over it |
+| `engine/` | a copy of the Stardrift engine's code (`engine/VERSION` says which commit; its recordings come in `song.zip`); `npm run engine` refreshes it |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable app: offline files, name, icons, landscape |
 
 ## License
 
-MIT (see `LICENSE`), the engine copy in `engine/` too. Its sample library is CC0 (public domain) recordings by Versilian Studios.
+MIT (see `LICENSE`), the engine copy in `engine/` too. The recordings in `song.zip` are CC0 (public domain), by Versilian Studios.

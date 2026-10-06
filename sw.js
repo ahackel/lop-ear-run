@@ -2,15 +2,14 @@
 // Online, every request goes to the network (revalidated, so all files are of the same version) and the answer is kept;
 // offline, the kept files answer. (Answering from the cache first mixed an old game.js with a new index.html after an
 // update.)
-const CACHE = 'lop-hop-3';
-const GAME = ['./', 'index.html', 'game.js', 'version.js', 'art.js', 'animals/kit.js', 'animals/rabbit.js', 'animals/cat.js', 'animals/dog.js', 'animals/fox.js', 'animals/hedgehog.js', 'animals/squirrel.js', 'animals/otter.js', 'animals/skunk.js', 'animals/wolf.js', 'animals/boar.js', 'animals/bear.js', 'animals/cheetah.js', 'animals/rhino.js', 'animals/elephant.js', 'animals/dino.js', 'song.json', 'manifest.webmanifest',
+const CACHE = 'lop-hop-4'; // (a new name clears what the last one kept: the engine's recordings, before song.zip)
+const GAME = ['./', 'index.html', 'game.js', 'version.js', 'art.js', 'animals/kit.js', 'animals/rabbit.js', 'animals/cat.js', 'animals/dog.js', 'animals/fox.js', 'animals/hedgehog.js', 'animals/squirrel.js', 'animals/otter.js', 'animals/skunk.js', 'animals/wolf.js', 'animals/boar.js', 'animals/bear.js', 'animals/cheetah.js', 'animals/rhino.js', 'animals/elephant.js', 'animals/dino.js', 'song.zip', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const engine = await (await fetch('engine/files.json', { cache: 'no-cache' })).json();
-    // the recordings are kept as the game loads them (only the ones the song plays): not all of them up front
-    const files = [...GAME, ...engine.filter((f) => !f.startsWith('library/samples/')).map((f) => `engine/${f}`)];
+    const files = [...GAME, ...engine.map((f) => `engine/${f}`)]; // (the recordings the song plays are in song.zip)
     await (await caches.open(CACHE)).addAll(files.map((f) => new Request(f, { cache: 'no-cache' })));
     await self.skipWaiting();
   })());
