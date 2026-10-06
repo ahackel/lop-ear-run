@@ -353,13 +353,15 @@ const lift = (e) => {
   if (what === 'jump') release();
 };
 stage.addEventListener('pointerup', lift);
-// a phone brings up its keyboard only for a field focused during a tap: after a knock-out with a new high score, the tap
-// opens the high scores with the name field focused
+// on a phone, after a knock-out with a new high score, the tap asks for the name in the phone's own dialog (during the
+// tap: a phone shows it only then), then opens the high scores
 stage.addEventListener('touchend', (e) => {
-  if (e.target === nameEl || !TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
+  if (!TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
   e.preventDefault();
-  showScores(fresh);
+  const entry = fresh;
   fresh = null;
+  askName(entry);
+  showScores(entry);
 });
 stage.addEventListener('pointercancel', lift);
 // phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
@@ -558,7 +560,8 @@ function record(k, s) {
 }
 
 // The high scores screen is drawn in the game, like the rest: rank, the animal's face, name, score; the new entry
-// marked. A text field, invisible, lies over the new entry's name and takes the typing.
+// marked. With a keyboard a text field, invisible, lies over the new entry's name and takes the typing; on a phone the
+// name is asked in its own dialog before (see askName).
 let board = null; // the screen on show: { entry: the new one (marked), typing }
 const scoresOpen = () => !!board;
 const nameEl = document.getElementById('name');
@@ -566,13 +569,13 @@ const NAME_LEN = 10, ROW = 9, COLS = [57, 157]; // a row's height; the columns' 
 const rowAt = (i) => [COLS[Math.floor(i / 5)], 14 + (i % 5) * ROW];
 
 function showScores(entry = null) {
-  board = { entry, typing: !!entry };
+  board = { entry, typing: !!entry && !TOUCH };
   updateMood();
-  if (entry) {
+  if (board.typing) {
     nameEl.value = entry.name === '???' ? '' : entry.name;
     nameEl.hidden = false;
     placeName();
-    nameEl.focus({ preventScroll: true }); // (a phone brings up its keyboard when this comes from a tap)
+    nameEl.focus({ preventScroll: true });
   }
 }
 function closeScores() {
@@ -587,29 +590,30 @@ function doneTyping() {
   nameEl.blur();
   nameEl.hidden = true;
 }
-// the text field over the new entry's name, in the page's pixels; on a phone over a field of its own at the top of the
-// screen, clear of the keyboard (see drawField)
+// the text field over the new entry's name, in the page's pixels
 function placeName() {
   if (!board?.typing) return;
   const [rx, ry] = rowAt(scores.indexOf(board.entry)), s = view.clientWidth / W;
-  const [x, y, w, h] = TOUCH ? [FIELD.x, safeT + FIELD.y, FIELD.w, 11] : [rx + 14 + FACE_W, SKY + ry - 2, 42, 9]; // (from the top of the screen)
+  const [x, y, w, h] = [rx + 14 + FACE_W, SKY + ry - 2, 42, 9]; // (from the top of the screen)
   Object.assign(nameEl.style, { left: `${view.offsetLeft + x * s}px`, top: `${view.offsetTop + y * s}px`, width: `${w * s}px`, height: `${h * s}px` });
 }
-const FIELD = { x: W / 2 - 12, y: 3, w: 64 }; // (from the top of the screen: 'YOUR NAME' before it, the two in the middle)
-function drawField(pal) {
-  const ink = pal[COLOR.INK], { x, y, w } = FIELD, name = board.entry.name === '???' ? '' : board.entry.name;
-  text(ctx, 'YOUR NAME', x - 3, y + 3, ink, 'right');
-  drawButton(x, y, null, false, pal, { w, h: 11 });
-  text(ctx, name, x + 3, y + 3, ink);
-  if (blinkT % 0.8 < 0.5) { ctx.fillStyle = ink; ctx.fillRect(x + 3 + name.length * 4, y + 8, 3, 1); } // the cursor
-}
 new ResizeObserver(placeName).observe(view);
+const cleanName = (v) => v.toUpperCase().replace(/[^A-Z0-9 .!-]/g, '').slice(0, NAME_LEN); // what the pixel font has
 nameEl.addEventListener('input', () => {
-  const v = nameEl.value.toUpperCase().replace(/[^A-Z0-9 .!-]/g, '').slice(0, NAME_LEN); // what the pixel font has
+  const v = cleanName(nameEl.value);
   if (v !== nameEl.value) nameEl.value = v;
   board.entry.name = v.trim() || '???';
   saveScores();
 });
+// on a phone: the name asked in the phone's own dialog (cancelled: the name it went in under, the last one typed)
+function askName(entry) {
+  const v = prompt('New high score! Your name:', entry.name === '???' ? '' : entry.name);
+  if (v === null) return;
+  entry.name = cleanName(v).trim() || '???';
+  lastName = entry.name === '???' ? '' : entry.name;
+  keep('name', lastName);
+  saveScores();
+}
 nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); doneTyping(); } });
 
 // a tap on the screen ends the typing, or runs
@@ -622,7 +626,7 @@ function tapScores() {
 function drawBoard(pal) {
   (board.credits ? drawCredits : drawScores)(pal);
   animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
-  if (board.typing) help(TOUCH ? 'NEW HIGH SCORE! TYPE YOUR NAME - TAP WHEN DONE' : 'NEW HIGH SCORE! TYPE YOUR NAME - ENTER WHEN DONE', pal, pal[7]);
+  if (board.typing) help('NEW HIGH SCORE! TYPE YOUR NAME - ENTER WHEN DONE', pal, pal[7]);
   else help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
 }
 function drawScores(pal) {
@@ -1091,7 +1095,7 @@ function scene(pal) {
 
 // what is written over the world (and the high scores), in one palette
 function hud(pal) {
-  if (board) { drawBoard(pal); atTop(() => { drawButtons(pal); if (TOUCH && board.typing) drawField(pal); }); return; }
+  if (board) { drawBoard(pal); atTop(() => drawButtons(pal)); return; }
   // the energy, the score (blinking at every hundred): at the top of the screen
   atTop(() => {
     if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.DIM], 'right'); }
@@ -1143,8 +1147,9 @@ function fit() {
   // below it (where the pads are), up to where the branches' trunks end
   const more = Math.max(0, Math.round((W * r.height) / (r.width || W)) - H);
   SKY = Math.min(Math.floor(more / 2), TRUNK); VH = H + more;
-  // under the ground: the line of help at the bottom (clear of the screen's edge and a home bar), the pads' row between
-  helpY = VH - SKY - Math.ceil(Math.max(10, parseFloat(cs.paddingBottom)) / px) - 5;
+  // under the ground: the line of help at the bottom (5 art pixels under it on every screen, clear of a phone's home bar
+  // too), the pads' row between
+  helpY = VH - SKY - 10;
   padRow = Math.max(GROUND + 2, Math.round((GROUND + 1 + helpY - 2 - PAD) / 2));
   stage.style.setProperty('--pad-top', `${view.offsetTop + (SKY + padRow) * px}px`);
   const scale = FORCE || Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
