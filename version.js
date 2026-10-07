@@ -1,2 +1,2 @@
 // written by tools/version.mjs at each commit (tools/hooks/pre-commit): shown on the credits screen
-export const BUILT = '7.10.2026 15:58', ENGINE = '44655a1';
+export const BUILT = '7.10.2026 16:27', ENGINE = '44655a1';

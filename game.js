@@ -1392,16 +1392,17 @@ function atTop(draw) { ctx.translate(0, safeT - SKY); draw(); ctx.translate(0, S
 // the canvases in screen pixels, a whole number per art pixel: the art is drawn in art pixels, scaled up (not blurred),
 // and what moves is placed to the screen pixel (see snap), so it glides instead of stepping a big pixel at a time
 const FORCE = +Q.get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
-// (a probe for how much of the screen's sides a notch or round corners may cover, in CSS pixels)
+// (a probe for how much of the screen's sides a notch or round corners may cover, in CSS pixels: the screen less those,
+// so it changes size when they change; in the iOS app they can come after the page has loaded, with no resize)
 const inset = document.createElement('div');
-inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; top: env(safe-area-inset-top); right: env(safe-area-inset-right); bottom: env(safe-area-inset-bottom); left: env(safe-area-inset-left)';
 document.body.append(inset);
 function fit() {
   // the game fills the screen's width on a phone (see index.html): what is drawn at its sides keeps clear of the notch
   const r = (viewRect = view.getBoundingClientRect()), cs = getComputedStyle(inset), art = W / (r.width || W);
-  safeL = Math.max(0, Math.ceil((parseFloat(cs.paddingLeft) - r.left) * art));
-  safeR = Math.max(0, Math.ceil((parseFloat(cs.paddingRight) - (document.documentElement.clientWidth - r.right)) * art));
-  const top = parseFloat(cs.paddingTop) - r.top; // (and a little more: the status bar fades out below its edge)
+  safeL = Math.max(0, Math.ceil((parseFloat(cs.left) - r.left) * art));
+  safeR = Math.max(0, Math.ceil((parseFloat(cs.right) - (document.documentElement.clientWidth - r.right)) * art));
+  const top = parseFloat(cs.top) - r.top; // (and a little more: the status bar fades out below its edge)
   safeT = top > 0 ? Math.ceil(top * art) + 5 : 0;
   RUN_X = 30 + safeL; // (the animal, and the one chasing it, where they were before the game went under the notch)
   const px = r.width / W || 1; // (CSS pixels an art pixel)
@@ -1424,6 +1425,7 @@ function fit() {
 }
 let SCALE = 1, fitted = ''; // (screen pixels an art pixel; the size fitted to)
 new ResizeObserver(fit).observe(view);
+new ResizeObserver(fit).observe(inset);
 addEventListener('resize', fit); // (turned the other way round: the notch on the other side)
 fit();
 
@@ -1455,6 +1457,8 @@ function frame(now) {
 }
 updateMood();
 requestAnimationFrame(frame);
+// the iOS app (window.Capacitor) may play without a tap: the music starts with the title
+if (window.Capacitor) startAudio();
 
 // offline, and installable: a service worker keeps the game's files (not on localhost, where files change all the time)
 if ('serviceWorker' in navigator && !['localhost', '127.0.0.1'].includes(location.hostname)) navigator.serviceWorker.register('sw.js');
