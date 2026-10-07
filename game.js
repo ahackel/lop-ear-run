@@ -409,9 +409,10 @@ stage.addEventListener('pointerdown', (e) => {
   const btn = buttonAt(x, y) || padAt(e);
   if (btn) { pressedBtn = btn.id; return; }
   if (scoresOpen()) { startAudio(); return tapScores(); }
-  if (state === 'title') { // a tap on an animal picks it, pressed and moved it is grabbed (see grabbing; the start button runs)
-    const k = y >= 0 && y < VH && !held && animalAt(x);
+  if (state === 'title') { // a tap on an animal picks it, a second one (soon after, near it) makes it jump; pressed and moved it is grabbed (see grabbing; the start button runs)
     startAudio();
+    if (tapped && performance.now() - tapped.t < 350 && Math.abs(x - tapped.x) < 12 && Math.abs(y - tapped.y) < 12) { hop(tapped.k); tapped = null; return; }
+    const k = y >= 0 && y < VH && !held && animalAt(x);
     if (k) grip = { k, id: e.pointerId, x, y };
     return;
   }
@@ -422,6 +423,9 @@ stage.addEventListener('pointermove', (e) => {
   if (!grip || e.pointerId !== grip.id) return;
   const [x, y] = artAt(e);
   if (held) { held.px = x; held.py = y - SKY + held.below; return; } // (in the world: below the sky a tall screen adds)
+  // pushed down: it ducks (while it is pushed; let go, or back up, it sits up again; petted no more this press)
+  const down = !grip.pet && y >= grip.y + LIFT;
+  if (down || grip.duck) { grip.duck = down; grip.moved = true; if (down || y > grip.y - LIFT) return; }
   // on the animal, moved sideways: it is petted (see pet); pulled up, or off it: picked up
   const bx = placeX(at[grip.k]), on = x >= bx - 2 && x < bx + 28 && y - SKY >= GROUND - 24 && y - SKY <= GROUND + 2;
   if (on && y > grip.y - (grip.pet ? 6 : LIFT)) { if (grip.pet || Math.abs(x - grip.x) >= LIFT) pet(grip, x); return; } // (petting, a hand may wander up a little)
@@ -430,13 +434,17 @@ stage.addEventListener('pointermove', (e) => {
   grip.moved = true;
   if (below && y - SKY + below > GROUND - hangDepth(grip.k) - 2) return;
   const [sx, sy] = heldAt(grip.k);
+  delete jumps[grip.k]; // (caught in the air)
   held = { k: grip.k, px: x, py: y - SKY + below, below, x: placeX(at[grip.k]) + sx, y: GROUND - FOOT + sy, h: holdUp(grip.k) };
   hand('grabbing');
 });
 const lift = (e) => {
   if (grip && e.pointerId === grip.id) { // let go: a grabbed animal drops; one only tapped is picked
     if (held) letGo();
-    else if (e.type === 'pointerup' && grip.k !== kind && !grip.pet && !grip.moved) choose(grip.k); // (not one pulled at, not yet lifted)
+    else if (e.type === 'pointerup' && !grip.pet && !grip.moved) { // a tap (not one pulled at, not yet lifted)
+      tapped = { k: grip.k, x: grip.x, y: grip.y, t: performance.now() };
+      if (grip.k !== kind) choose(grip.k);
+    }
     grip = null;
     if (!held) hand('');
   }
@@ -1029,6 +1037,26 @@ function letGo() {
   hand('');
   pick(k);
 }
+// a double tap: the animal jumps (as it would running), and lands with a puff of dust. (tapped: the last tap, to tell
+// a second one; jumps: k → how high it is, how fast it goes up)
+let tapped = null;
+const jumps = {};
+function hop(k) {
+  if (jumps[k] || held?.k === k || dropped?.k === k) return;
+  jumps[k] = { alt: 0, v: JUMP * ANIMALS[k].jump };
+  call('sting', 'jump');
+}
+function updateJumps(dt) {
+  for (const k in jumps) {
+    const j = jumps[k];
+    j.v -= GRAVITY * ANIMALS[k].gravity * dt; j.alt += j.v * dt;
+    if (j.alt > 0) continue;
+    delete jumps[k];
+    const x = placeX(at[k]);
+    for (let i = 0; i < 6; i++) { const side = i % 2 ? 1 : -1; parts.push({ x: x + 13 + side * (5 + rnd() * 5), y: GROUND - 1, vx: side * (20 + rnd() * 30), vy: -10 - rnd() * 25, life: 0.3, color: COLOR.FAINT }); }
+  }
+}
+
 // petting: rubbed back and forth along its back, an animal likes it more and more (joy, 0…1: how far it was rubbed),
 // and less again once left alone; every other stroke (a turn of the hand) a heart floats up from its head, with a
 // little chime now and then
@@ -1063,6 +1091,7 @@ function updatePets(dt) {
 }
 function updateRow(dt) {
   updatePets(dt);
+  updateJumps(dt);
   if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; hand(''); } // (run, or off to the high scores, meanwhile)
   const row = playable(), n = row.length;
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
@@ -1139,7 +1168,10 @@ function standing(k, p, on, pal) {
   if (x < -26 || x > W) return;
   const pt = pets[k];
   ctx.globalAlpha = on ? 1 : 0.4 + 0.6 * (pt?.joy || 0); // (one petted lights up)
-  if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
+  const jp = jumps[k];
+  if (jp) animal(k, 'jump', jumpFrame(k, jp.v / (JUMP * ANIMALS[k].jump))).draw(ctx, x, GROUND - FOOT - Math.round(jp.alt), pal); // jumping (a double tap)
+  else if (grip?.duck && grip.k === k) animal(k, 'duck', 0).draw(ctx, x, GROUND - FOOT, pal); // pushed down
+  else if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
   else if (r?.on) { // running to its place (the way it goes)
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
     if (r.dir < 0) { ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); }
@@ -1342,8 +1374,8 @@ function hud(pal) {
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 10, pal[COLOR.INK], 'center', 2, LOGO);
     const pick = playable().length > 1;
-    if (TOUCH) help(pick ? 'TAP TO PICK - LIFT TO MOVE - RUB TO PET' : 'RUB TO PET', pal);
-    else help(pick ? '< > OR CLICK TO PICK - LIFT TO MOVE - RUB TO PET - SPACE TO RUN' : 'RUB TO PET - SPACE TO RUN', pal);
+    if (TOUCH) { if (pick) help('TAP AN ANIMAL TO PICK IT', pal); } // (moving, petting, ducking, jumping: to be found)
+    else help(pick ? '< > OR CLICK TO PICK - SPACE TO RUN' : 'SPACE TO RUN', pal);
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8 && fresh) help(`NEW HIGH SCORE! ${TOUCH ? 'TAP' : 'SPACE OR CLICK'} TO ENTER YOUR NAME`, pal, pal[7]);
