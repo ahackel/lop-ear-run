@@ -104,6 +104,7 @@ async function startAudio() {
     await music.play();
     audio = 'on';
     music.setMood(mood || 'relaxed', { within: 0 });
+    if (document.hidden) hide(); // (started out of sight: the app opened and left at once)
   } catch (err) {
     audio = 'off';
     status.textContent = `no music: ${err.message}`;
@@ -492,7 +493,18 @@ function pause() {
   fingers.clear(); duck(false); release();
   if (audio === 'on') music.pause(0.2);
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+// out of sight (another app, the home screen, the screen locked), the music stops on every screen, not only in a run: on
+// an iPhone or iPad it plays as media (see the engine's playsMusic), which goes on in the background, and a second copy
+// of the game (the home screen's and the App Store's) would play over it. Back in sight it comes back (a run: on a tap)
+let away = false;
+function hide() {
+  pause();
+  if (audio === 'on' && state !== 'paused' && !away) { away = true; music.pause(); }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hide();
+  else if (away) { away = false; if (audio === 'on') music.play().catch(() => {}); }
+});
 
 function toggleMute() {
   muted = !muted;
