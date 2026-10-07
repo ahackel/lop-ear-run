@@ -408,7 +408,7 @@ stage.addEventListener('pointerdown', (e) => {
   stage.setPointerCapture(e.pointerId);
   const btn = buttonAt(x, y) || padAt(e);
   if (btn) { pressedBtn = btn.id; return; }
-  if (scoresOpen()) { startAudio(); return tapScores(); }
+  if (scoresOpen()) { startAudio(); return; } // (only its buttons do something)
   if (state === 'title') { // a tap on an animal picks it, a second one (soon after, near it) makes it jump; pressed and moved it is grabbed (see grabbing; the start button runs)
     startAudio();
     if (tapped && performance.now() - tapped.t < 350 && Math.abs(x - tapped.x) < 12 && Math.abs(y - tapped.y) < 12) { hop(tapped.k); tapped = null; return; }
@@ -699,16 +699,11 @@ function askName(entry) {
   saveScores();
 }
 
-// a tap on the screen runs
-function tapScores() {
-  closeScores(); press();
-}
-
-// the high scores (or the credits), the animal sitting under them, and what to do
+// the high scores (or the credits), the animal sitting under them (the way out: the BACK button; a key: Space runs,
+// Escape goes back)
 function drawBoard(pal) {
   (board.credits ? drawCredits : drawScores)(pal);
   animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
-  help(TOUCH ? 'TAP TO RUN' : 'SPACE: RUN - ESC: BACK', pal);
 }
 function drawScores(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
@@ -1180,7 +1175,7 @@ function standing(k, p, on, pal) {
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
-  if (!on || held) return; // (the arrow: not while one is held)
+  if (!on || held || jp) return; // (the arrow: not while one is held, or it jumps)
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);

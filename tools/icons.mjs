@@ -1,14 +1,17 @@
-// node tools/icons.mjs — draws the app icons (icons/*.png) from the game's own pixel art: the rabbit running, stretched
-// in a hop over the ground line (with bits of the ground under it, as in the game), on nothing (transparent). Each icon is the same 32×32 picture, scaled by whole pixels. Where a background is a must (the
-// maskable icon, which Android crops to a shape, and the iPhone's, which turns transparency black) it is the sky.
+// node tools/icons.mjs — draws the app icons (icons/*.png) from the game's own pixel art: the rabbit sitting on the
+// ground line, sat up tall to look about (with bits of the ground under it, as in the game), on nothing (transparent).
+// Each icon is filled by the picture, scaled by as many whole pixels as still show the rabbit, the line and its bits
+// (the favicon: the line, the bits cut off; the maskable icon: smaller, in the middle, which Android keeps whatever
+// shape it crops to); the line runs on to its edges. Where a background is a must (the maskable icon, and the iPhone's,
+// which turns transparency black) it is the sky.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { animal, PALETTES } from '../art.js';
 
 const SKY = '#bfe6f2', OUT = 1, INK = 5;
-const rabbit = animal('rabbit', 'run', 6); // its run, high in a hop: stretched out, the hind legs pushing back, the front paws reaching
-const GROUND = 27, GAP = 4; // the ground line's row; how high over it the rabbit hops
-const BITS = [[2, 29, 3], [8, 30, 1], [13, 29, 2], [19, 30, 3], [25, 29, 1], [29, 30, 2]]; // the ground's bits under it: [x, y, length]
+const rabbit = animal('rabbit', 'idle', 46); // sitting (its 8 s loop of 80 frames), sat up tall to look about, half way through that
+const GROUND = 24, GAP = 0; // the ground line's row (the picture in the middle, top to bottom); how high over it the rabbit is
+const BITS = [[2, 2, 3], [8, 3, 1], [13, 2, 2], [19, 3, 3], [25, 2, 1], [29, 3, 2]].map(([x, y, n]) => [x, GROUND + y, n]); // the ground's bits under it: [x, y, length]
 const pal = PALETTES.day;
 const at = (x, y) => (x >= 0 && y >= 0 && x < rabbit.w && y < rabbit.h ? rabbit.px[y * rabbit.w + x] : 0);
 // where it is drawn: its pixels, centered (the hind foot touches the grid's left edge, and loses its outline there:
@@ -19,20 +22,27 @@ const edge = Array.from({ length: rabbit.h }, (_, y) => at(0, y) && at(0, y) !==
 if (edge.some(Boolean)) x0 -= 1;
 const ox = Math.floor((32 - (x1 - x0 + 1)) / 2) - x0, oy = GROUND - GAP - 1 - y1;
 
-// the picture: a color for each logical pixel (null: transparent)
+// what has to show: the rabbit, the line, (low: and its bits) → its middle and its height, in logical pixels
+const TOP = oy + y0, LINE = GROUND, LOW = GROUND + 3, MID_X = ox + (x0 + x1 + 1) / 2;
+const shown = (bits) => { const bottom = bits ? LOW : LINE; return { cx: MID_X, cy: (TOP + bottom + 1) / 2, h: bottom + 1 - TOP }; };
+
+// the picture: a color for each logical pixel (null: transparent); the line and its bits go on both ways
 function color(x, y, bg) {
-  const rx = x - ox, ry = y - oy;
-  if (x >= 0 && x < 32 && (y === GROUND || BITS.some(([bx, by, n]) => y === by && x >= bx && x < bx + n))) return pal[INK];
+  const rx = x - ox, ry = y - oy, bx = ((x % 32) + 32) % 32;
+  if (y === GROUND || BITS.some(([x0, by, n]) => y === by && bx >= x0 && bx < x0 + n)) return pal[INK];
   if (rx === -1 && edge[ry]) return pal[OUT];
   return at(rx, ry) ? pal[at(rx, ry)] : bg;
 }
 
-function png(size, scale, bg = null) {
-  const off = (size - 32 * scale) / 2, raw = Buffer.alloc(size * (size * 4 + 1));
+// an icon size pixels square: what shows (see shown) in its middle, each logical pixel scale pixels (none given: as
+// many as fit)
+function png(size, { scale, bg = null, bits = true } = {}) {
+  const v = shown(bits), k = scale || Math.floor(size / v.h), offX = Math.round(size / 2 - v.cx * k), offY = Math.round(size / 2 - v.cy * k);
+  const raw = Buffer.alloc(size * (size * 4 + 1));
   for (let Y = 0; Y < size; Y++) {
     raw[Y * (size * 4 + 1)] = 0;
     for (let X = 0; X < size; X++) {
-      const hex = color(Math.floor((X - off) / scale), Math.floor((Y - off) / scale), bg), i = Y * (size * 4 + 1) + 1 + X * 4;
+      const hex = color(Math.floor((X - offX) / k), Math.floor((Y - offY) / k), bg), i = Y * (size * 4 + 1) + 1 + X * 4;
       if (hex) { raw[i] = parseInt(hex.slice(1, 3), 16); raw[i + 1] = parseInt(hex.slice(3, 5), 16); raw[i + 2] = parseInt(hex.slice(5, 7), 16); raw[i + 3] = 255; }
     }
   }
@@ -49,7 +59,7 @@ const CRC = Array.from({ length: 256 }, (_, n) => { for (let k = 0; k < 8; k++) 
 const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
 
 mkdirSync(new URL('../icons/', import.meta.url), { recursive: true });
-for (const [name, size, scale, bg] of [['icon-192', 192, 6], ['icon-512', 512, 16], ['maskable-512', 512, 12, SKY], ['apple-touch-icon', 180, 5, SKY], ['favicon', 64, 2]]) {
-  writeFileSync(new URL(`../icons/${name}.png`, import.meta.url), png(size, scale, bg));
+for (const [name, size, how] of [['icon-192', 192], ['icon-512', 512], ['maskable-512', 512, { scale: 12, bg: SKY }], ['apple-touch-icon', 180, { bg: SKY }], ['favicon', 64, { bits: false }]]) {
+  writeFileSync(new URL(`../icons/${name}.png`, import.meta.url), png(size, how));
 }
 console.log('icons/ written');
