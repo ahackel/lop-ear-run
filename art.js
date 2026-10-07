@@ -34,18 +34,18 @@ const OUT = 1, FUR = 2, EAR = 3, PINK = 4, INK = 5, BERRY = 6, ORANGE = 7, LEAF 
   TAN = 14, BROWN = 15, GINGER = 16, STRIPE = 17, CACTUS = 18, CACTUS_DARK = 19, CACTUS_LIGHT = 20, YELLOW = 21, BARK = 22,
   WOOD = 23, FISH = 24, LEAF_DARK = 25, GRAPE = 27, WOLF = 28, BOAR = 29, SNOUT = 30, WOLF_DARK = 31, SKUNK = 32, CHEETAH = 33, RHINO = 34, RHINO_DARK = 35, DINO = 36, DINO_LIGHT = 37,
   ELEPHANT = 38, ELEPHANT_DARK = 39, PIG = 40, PIG_DARK = 41, YAK = 42, HORN = 43, OSTRICH = 44, OSTRICH_SKIN = 45, CAMEL = 46, CAMEL_DARK = 47,
-  GORILLA = 48, SILVER = 49, GORILLA_FACE = 50;
+  GORILLA = 48, SILVER = 49, GORILLA_FACE = 50, BOAR_DARK = 51;
 export const COLOR = { INK, DIM: 13, BERRY, YELLOW, ENERGY: 26, LEAF, FAINT, WHITE: BELLY, ICE: FISH };
 
 export const PALETTES = {
   day: { bg: '#f7f6f0', 1: '#3a3a3a', 2: '#fdfbf6', 3: '#e3d2c2', 4: '#f19bb2', 5: '#535353', 6: '#d6455f', 7: '#ec6f2b', 8: '#62b04f', 9: '#dedbd0',
     10: '#f7f6f0', 11: '#d9682b', 12: '#fdfbf6', 13: '#9a9a94', 14: '#dfa45e', 15: '#8a5a3b', 16: '#f2a65a', 17: '#c46f34', 18: '#6eae4c',
     19: '#3e7a39', 20: '#a6d46c', 21: '#ffcf3a', 22: '#7a5236', 23: '#e2bd86', 24: '#7aa5cf', 25: '#3f8a3a', 26: '#5dbb4c', 27: '#7d4f9e', 28: '#8e919c', 29: '#5e4c40', 30: '#c9a395', 31: '#5a5c66', 32: '#585866', 33: '#e2b25a', 34: '#9a968f', 35: '#77736d', 36: '#8f9090', 37: '#cfcfcc', 38: '#a4a9b4', 39: '#7f8590',
-    40: '#f3b3b9', 41: '#de8f9b', 42: '#57463b', 43: '#ece4d0', 44: '#4f4b55', 45: '#e6aea2', 46: '#d8ad72', 47: '#b88a52', 48: '#55545e', 49: '#abacb5', 50: '#8d8893' },
+    40: '#f3b3b9', 41: '#de8f9b', 42: '#57463b', 43: '#ece4d0', 44: '#4f4b55', 45: '#e6aea2', 46: '#d8ad72', 47: '#b88a52', 48: '#55545e', 49: '#abacb5', 50: '#8d8893', 51: '#4a3b31' },
   night: { bg: '#1d2033', 1: '#141625', 2: '#f4f1ea', 3: '#d3c3b3', 4: '#e88aa3', 5: '#c3c6d8', 6: '#e8607e', 7: '#ee8a2a', 8: '#4f9a48', 9: '#2e3350',
     10: '#1d2033', 11: '#d9682b', 12: '#f4f1ea', 13: '#6a7090', 14: '#cf975a', 15: '#7a5038', 16: '#e69a52', 17: '#b06232', 18: '#4f9446',
     19: '#2f6232', 20: '#86bd5e', 21: '#ffd24a', 22: '#6b4a33', 23: '#cfa974', 24: '#6f98c4', 25: '#2f6e35', 26: '#5dbb4c', 27: '#a274c4', 28: '#a3a6b3', 29: '#6e5a4c', 30: '#c39a8c', 31: '#6a6c78', 32: '#6c6c7a', 33: '#d4a650', 34: '#8e8a84', 35: '#6c6862', 36: '#9a9cac', 37: '#c9cad6', 38: '#979dad', 39: '#717787',
-    40: '#e3a0aa', 41: '#c98290', 42: '#655246', 43: '#d8d0bf', 44: '#5e5a66', 45: '#d39a90', 46: '#c49c66', 47: '#a67c4a', 48: '#62616d', 49: '#9e9fad', 50: '#958f9c' },
+    40: '#e3a0aa', 41: '#c98290', 42: '#655246', 43: '#d8d0bf', 44: '#5e5a66', 45: '#d39a90', 46: '#c49c66', 47: '#a67c4a', 48: '#62616d', 49: '#9e9fad', 50: '#958f9c', 51: '#57473b' },
 };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -289,7 +289,7 @@ function withMoves(rig) {
 const RIGS = Object.fromEntries(Object.entries({ rabbit, guineapig, cat, dog, pig, fox, hedgehog, squirrel, otter, skunk, wolf, boar, bear, yak, ostrich, cheetah, dromedary, rhino, gorilla, elephant, dino })
   .map(([k, rig]) => [k, withMoves(rig)]));
 const NAMED = { OUT, FUR, EAR, PINK, INK, BERRY, ORANGE, LEAF, FAINT, LIGHT, FOX, BELLY, TAN, BROWN, GINGER, STRIPE, YELLOW, BARK, WOOD,
-  FISH, LEAF_DARK, GRAPE, WOLF, BOAR, SNOUT, WOLF_DARK, SKUNK, CHEETAH, RHINO, RHINO_DARK, DINO, DINO_LIGHT, ELEPHANT, ELEPHANT_DARK, PIG, PIG_DARK, YAK, HORN, OSTRICH, OSTRICH_SKIN, CAMEL, CAMEL_DARK, GORILLA, SILVER, GORILLA_FACE };
+  FISH, LEAF_DARK, GRAPE, WOLF, BOAR, SNOUT, WOLF_DARK, SKUNK, CHEETAH, RHINO, RHINO_DARK, DINO, DINO_LIGHT, ELEPHANT, ELEPHANT_DARK, PIG, PIG_DARK, YAK, HORN, OSTRICH, OSTRICH_SKIN, CAMEL, CAMEL_DARK, GORILLA, SILVER, GORILLA_FACE, BOAR_DARK };
 
 const plus = (a, b) => [a[0] + b[0], a[1] + b[1]], minus = (a, b) => [a[0] - b[0], a[1] - b[1]], times = (a, k) => [a[0] * k, a[1] * k];
 const turn = ([x, y], t) => [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)]; // (+: clockwise on screen)

@@ -381,6 +381,7 @@ function release() {
 
 const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW'], DUCK_KEYS = ['ArrowDown', 'KeyS'];
 addEventListener('keydown', (e) => {
+  if (naming) return; // (the keys type the name: see openName)
   if (e.target.closest?.('button') && (e.code === 'Space' || e.code === 'Enter')) return; // the buttons take their own keys
   if (e.code === 'KeyM') return toggleMute();
   if (e.code === 'KeyF') return toggleFull();
@@ -417,7 +418,7 @@ stage.addEventListener('pointerdown', (e) => {
   stage.setPointerCapture(e.pointerId);
   const btn = buttonAt(x, y) || padAt(e);
   if (btn) { pressedBtn = btn.id; return; }
-  if (scoresOpen()) { startAudio(); return; } // (only its buttons do something)
+  if (naming || scoresOpen()) { startAudio(); return; } // (only their buttons do something)
   if (state === 'title') { // a tap on an animal picks it, a second one (soon after, near it) makes it jump; pressed and moved it is grabbed (see grabbing; the start button runs)
     startAudio();
     if (tapped && performance.now() - tapped.t < 350 && Math.abs(x - tapped.x) < 12 && Math.abs(y - tapped.y) < 12) { hop(tapped.k); tapped = null; return; }
@@ -463,21 +464,19 @@ const lift = (e) => {
     const btn = e.type === 'pointerup' && (buttonAt(...artAt(e)) || padAt(e));
     if (btn?.id === pressedBtn) { startAudio(); ACTS[btn.id](); }
     pressedBtn = null;
-  }
+  } else if (naming && e.type === 'pointerup') nameField.focus(); // (the keyboard back, where it was put away)
   const what = fingers.get(e.pointerId);
   fingers.delete(e.pointerId);
   if (what === 'duck' && ![...fingers.values()].includes('duck')) duck(false);
   if (what === 'jump') release();
 };
 stage.addEventListener('pointerup', lift, { passive: true });
-// after a knock-out with a new high score, a press (a key, a click; on a phone the tap, as it ends: a phone shows a
-// dialog only then) asks for the name in the browser's own dialog, then opens the high scores
+// after a knock-out with a new high score, a press (a key, a click; on a phone the tap, as it ends: a phone shows its
+// keyboard only for a field focused then) asks for the name (see openName), then opens the high scores
 function nameIt() {
   const entry = fresh;
   fresh = null;
-  askName(entry);
-  wake(); // (the dialog may have stopped the audio)
-  showScores(entry);
+  openName(entry);
 }
 // (listened to only while a name is due: a listener that may cancel a touch makes iOS wait for the page at each touch,
 // and the frame after it comes late; the others are passive)
@@ -567,12 +566,14 @@ const ACTS = {
   next: () => chooseNext(1),
   start: press,
   back: () => leaveScores(),
+  named: () => doneName(true),
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
 let viewL = 0, viewR = W; // the world's x at the screen's left and right edges (see fit: a little less than all of it, or a little more)
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
+  if (naming) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'named', text: 'OK', x: W / 2 - 15, y: NAME_BOX.y + 25, w: 31, h: 13 }]; // (see drawName)
   if (inRun()) return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
   const ids = ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
@@ -699,7 +700,7 @@ function record(k, s) {
 }
 
 // The high scores screen is drawn in the game, like the rest: rank, the animal's face, name, score; the new entry
-// marked. Its name is asked in the browser's own dialog before (see askName).
+// marked. Its name is asked before (see openName).
 let board = null; // the screen on show: { entry: the new one (marked) }
 const scoresOpen = () => !!board;
 const NAME_LEN = 10, ROW = 9, COLS = [57, 157]; // a row's height; the columns' left edges (rank, face, name, score: 96 wide)
@@ -716,20 +717,56 @@ function closeScores() {
   updateMood();
 }
 const cleanName = (v) => v.toUpperCase().replace(/[^A-Z0-9 .!-]/g, '').slice(0, NAME_LEN); // what the pixel font has
-// the name asked in the browser's own dialog (cancelled: the name it went in under, the last one given)
-function askName(entry) {
-  const v = prompt('New high score! Your name:', entry.name === '???' ? '' : entry.name);
-  if (v === null) return;
-  entry.name = cleanName(v).trim() || '???';
-  lastName = entry.name === '???' ? '' : entry.name;
-  keep('name', lastName);
-  saveScores();
+// The name of a new high score, typed into a box in the game's own pixels, in the top half of the screen (a phone's
+// keyboard covers the bottom half). The keys go to a field no one sees (it brings up a phone's keyboard; the
+// browser's own dialog would leave full screen). OK or Enter keeps it; Escape keeps the name it went in under (the
+// last one given).
+let naming = null; // { entry } while its name is typed
+const NAME_BOX = { w: 120, h: 42, y: 16 }; // (from the top of the screen: under the buttons)
+const nameField = Object.assign(document.createElement('input'), { id: 'name', type: 'text', maxLength: NAME_LEN, autocomplete: 'off', spellcheck: false, tabIndex: -1 });
+for (const [k, v] of [['autocapitalize', 'characters'], ['autocorrect', 'off'], ['enterkeyhint', 'done'], ['aria-label', 'Your name']]) nameField.setAttribute(k, v);
+stage.append(nameField);
+nameField.addEventListener('input', () => { const v = cleanName(nameField.value); if (v !== nameField.value) nameField.value = v; });
+nameField.addEventListener('keydown', (e) => {
+  e.stopPropagation(); // (not the game's keys: see keydown)
+  if (e.key === 'Enter') { e.preventDefault(); doneName(true); }
+  else if (e.key === 'Escape') { e.preventDefault(); doneName(false); }
+});
+function openName(entry) {
+  naming = { entry };
+  nameField.value = entry.name === '???' ? '' : entry.name;
+  nameField.focus();
+  nameField.setSelectionRange(nameField.value.length, nameField.value.length);
+}
+function doneName(save) {
+  if (!naming) return;
+  const { entry } = naming;
+  naming = null;
+  if (save) {
+    entry.name = cleanName(nameField.value).trim() || '???';
+    lastName = entry.name === '???' ? '' : entry.name;
+    keep('name', lastName);
+    saveScores();
+  }
+  nameField.blur();
+  showScores(entry);
+}
+// the box: what it is for, the name as it is typed (a dash under each letter it can have, a blinking block where the
+// next goes), and its OK button (see buttons)
+function drawName(pal) {
+  const ink = pal[COLOR.INK], { w, h, y } = NAME_BOX, v = cleanName(nameField.value), x = W / 2 - textWidth('M'.repeat(NAME_LEN)) / 2;
+  drawButton(W / 2 - w / 2, y, null, false, pal, { w, h }); // (a frame)
+  text(ctx, 'NEW HIGH SCORE!', W / 2, y + 5, pal[7], 'center');
+  text(ctx, v, x, y + 14, ink);
+  for (let i = 0; i < NAME_LEN; i++) { ctx.fillStyle = i < v.length ? ink : pal[COLOR.DIM]; ctx.fillRect(x + i * 4, y + 20, 3, 1); }
+  if (v.length < NAME_LEN && Math.floor(blinkT * 3) % 2 === 0) { ctx.fillStyle = ink; ctx.fillRect(x + v.length * 4, y + 14, 3, 5); }
 }
 
 // the high scores (or the credits), the animal sitting under them (the way out: the BACK button; a key: Space runs,
 // Escape goes back)
 function drawBoard(pal) {
   (board.credits ? drawCredits : drawScores)(pal);
+  if (gained && state === 'ko' && !board.credits) help(`${ANIMALS[gained].name} UNLOCKED!`, pal, pal[7]); // (after a run: see hud)
   animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
 }
 function drawScores(pal) {
@@ -1401,8 +1438,10 @@ function hud(pal) {
     const pick = playable().length > 1;
     if (TOUCH) { if (pick) help('TAP AN ANIMAL TO PICK IT', pal); } // (moving, petting, ducking, jumping: to be found)
     else help(pick ? '< > OR CLICK TO PICK - SPACE TO RUN' : 'SPACE TO RUN', pal);
-  } else if (state === 'ko') {
+  } else if (state === 'ko' && naming) atTop(() => drawName(pal));
+  else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
+    if (gained && koT > 0.3 && (koT > 2 || Math.floor(koT * 4) % 2)) text(ctx, `${ANIMALS[gained].name} UNLOCKED!`, W / 2, 33, pal[7], 'center'); // (unlocked in this run: again, blinking at first, so it is not missed)
     if (koT > 0.8 && fresh) help(`NEW HIGH SCORE! ${TOUCH ? 'TAP' : 'SPACE OR CLICK'} TO ENTER YOUR NAME`, pal, pal[7]);
     else if (koT > 0.8 && !fresh && gained) help(`THE ${ANIMALS[gained].name} IS YOURS! ${TOUCH ? 'TAP' : 'SPACE OR TAP'} TO PICK`, pal, pal[7]);
     else if (koT > 0.8 && !fresh) help(TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', pal);
