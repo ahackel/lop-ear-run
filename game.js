@@ -421,19 +421,24 @@ stage.addEventListener('pointerdown', (e) => {
 stage.addEventListener('pointermove', (e) => {
   if (!grip || e.pointerId !== grip.id) return;
   const [x, y] = artAt(e);
-  if (held) { held.px = x; held.py = y - SKY; return; } // (in the world: below the sky a tall screen adds)
+  if (held) { held.px = x; held.py = y - SKY + held.below; return; } // (in the world: below the sky a tall screen adds)
   // on the animal, moved sideways: it is petted (see pet); pulled up, or off it: picked up
   const bx = placeX(at[grip.k]), on = x >= bx - 2 && x < bx + 28 && y - SKY >= GROUND - 24 && y - SKY <= GROUND + 2;
   if (on && y > grip.y - (grip.pet ? 6 : LIFT)) { if (grip.pet || Math.abs(x - grip.x) >= LIFT) pet(grip, x); return; } // (petting, a hand may wander up a little)
+  // (a finger: it hangs further below it, so as to be seen, and is lifted only once it would hang clear of the ground)
+  const below = e.pointerType === 'touch' ? (FINGER * W) / viewRect.width : 0;
+  grip.moved = true;
+  if (below && y - SKY + below > GROUND - hangDepth(grip.k) - 2) return;
   const [sx, sy] = heldAt(grip.k);
-  held = { k: grip.k, px: x, py: y - SKY, x: placeX(at[grip.k]) + sx, y: GROUND - FOOT + sy, h: holdUp(grip.k) };
-  view.style.cursor = 'grabbing';
+  held = { k: grip.k, px: x, py: y - SKY + below, below, x: placeX(at[grip.k]) + sx, y: GROUND - FOOT + sy, h: holdUp(grip.k) };
+  hand('grabbing');
 });
 const lift = (e) => {
   if (grip && e.pointerId === grip.id) { // let go: a grabbed animal drops; one only tapped is picked
     if (held) letGo();
-    else if (e.type === 'pointerup' && grip.k !== kind && !grip.pet) choose(grip.k);
+    else if (e.type === 'pointerup' && grip.k !== kind && !grip.pet && !grip.moved) choose(grip.k); // (not one pulled at, not yet lifted)
     grip = null;
+    if (!held) hand('');
   }
   if (pressedBtn) {
     const btn = e.type === 'pointerup' && (buttonAt(...artAt(e)) || padAt(e));
@@ -1003,6 +1008,10 @@ const animalAt = (x) => playable().find((k) => k !== dropped?.k && at[k] !== und
 let grip = null, held = null, dropped = null;
 const heldBody = {}; // (its ears and tail)
 const LIFT = 3; // (moved this far, in art pixels: a grab, not a tap)
+// the mouse's cursor: an open hand petting, a closed one holding an animal, '' the usual (on the stage too: it has the
+// pointer while it is pressed, see pointerdown)
+const hand = (c) => { stage.style.cursor = view.style.cursor = c; };
+const FINGER = 40; // (on a touch screen, an animal hangs this much further below the finger, in CSS pixels)
 const SQUASH_SECS = 0.2;
 const RUN = 2.2; // how fast the others run to their places (places a second)
 const runs = {}; // (an animal running to its place: how far in its stride, which way)
@@ -1017,7 +1026,7 @@ function letGo() {
   held.h.falling = true;
   dropped = { k, h: held.h, y: held.y, vy: 0, squash: 0, landed: false };
   held = null;
-  view.style.cursor = '';
+  hand('');
   pick(k);
 }
 // petting: rubbed back and forth along its back, an animal likes it more and more (joy, 0…1: how far it was rubbed),
@@ -1027,7 +1036,7 @@ const pets = {}; // (k → { joy, t, strokes })
 let chimed = 0;
 function pet(g, x) {
   const p = pets[g.k] || (pets[g.k] = { joy: 0, t: 0, strokes: 0 });
-  if (!g.pet) { g.pet = true; g.lastX = g.from = g.x; g.dir = 0; }
+  if (!g.pet) { g.pet = true; g.lastX = g.from = g.x; g.dir = 0; hand('grab'); } // (an open hand)
   const d = Math.sign(x - g.lastX);
   if (d) { p.lean = d; p.still = 0; } // (leaning the way the hand goes)
   if (d && d !== g.dir) { // the hand turns: a stroke (once it went some way)
@@ -1054,7 +1063,7 @@ function updatePets(dt) {
 }
 function updateRow(dt) {
   updatePets(dt);
-  if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; view.style.cursor = ''; } // (run, or off to the high scores, meanwhile)
+  if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; hand(''); } // (run, or off to the high scores, meanwhile)
   const row = playable(), n = row.length;
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
     const edge = 40, by = held.px < edge ? -(edge - held.px) / edge : held.px > W - edge ? (held.px - (W - edge)) / edge : 0;
