@@ -94,6 +94,7 @@ and squashes as it lands.
 | `song.zip` | the music: the song and its recordings, loaded as it is (`music.loadZip`); a new version comes from the [editor](https://github.com/ahackel/stardrift)'s *Export for a game*, saved over it |
 | `engine/` | a copy of the Stardrift engine's code (`engine/VERSION` says which commit; its recordings come in `song.zip`); `npm run engine` refreshes it |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable app: offline files, name, icons, landscape |
+| `app/` | the iOS app (Capacitor): `npm install` and `npm run sync` there copy the game's files into `www/` and the Xcode project (`ios/`), `npm run open` opens it in Xcode |
 
 ## License
 

@@ -505,8 +505,9 @@ function toggleMute() {
 // the installed app show only the game anyway (the page's CSS).
 const APP = matchMedia('(pointer: coarse), (display-mode: standalone), (display-mode: fullscreen)');
 const isFull = () => !!document.fullscreenElement || stage.classList.contains('full');
-// installed, the app is full screen already; on a phone without the API (iPhone) the game fills the screen anyway
-const CAN_FULL = !matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches && (document.fullscreenEnabled || !APP.matches);
+// installed (or in the App Store app: window.Capacitor), the app is full screen already; on a phone without the API
+// (iPhone) the game fills the screen anyway
+const CAN_FULL = !window.Capacitor && !matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches && (document.fullscreenEnabled || !APP.matches);
 function toggleFull() {
   if (isFull()) {
     stage.classList.remove('full');
