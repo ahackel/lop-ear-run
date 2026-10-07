@@ -17,7 +17,7 @@ import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by pat
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
-  JUMP, GRAVITY, hill, strides, rgb, luma } from './art.js';
+  JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt } from './art.js';
 import { course, pace, drain, hardness, nightAt, landOf, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
@@ -197,10 +197,23 @@ function songOf(k) {
 const inRun = () => state === 'run' || state === 'paused';
 const KINDS = Object.keys(ANIMALS);
 const renamed = (k) => (k === 'sabre' ? 'elephant' : k); // (kept in this browser under an animal's old name: the sabre-tooth became the elephant)
-// the next animal one way or the other, from k, among those that can be played
-const nextKind = (k, d) => { let i = KINDS.indexOf(k); do i = (i + d + KINDS.length) % KINDS.length; while (!unlocked(KINDS[i])); return KINDS[i]; };
+// the next animal one way or the other, from k, along the title's row
+const nextKind = (k, d) => { const row = playable(); return row[(row.indexOf(k) + d + row.length) % row.length]; };
 const chooseNext = (d) => choose(nextKind(kind, d));
-const playable = () => KINDS.filter(unlocked); // the ones on the title (the others stay a surprise)
+// the order the player put the animals in, dragged about on the title (see grabbing; lop.order, in this browser)
+let order = [];
+{ const o = keptJSON('order'); if (Array.isArray(o)) order = o.map(renamed).filter((k, i, a) => ANIMALS[k] && a.indexOf(k) === i); }
+// the ones on the title (the others stay a surprise), in that order; one not in it (unlocked since) after the one before
+// it among the animals
+function playable() {
+  const row = order.filter(unlocked);
+  for (const k of KINDS) {
+    if (!unlocked(k) || row.includes(k)) continue;
+    const before = KINDS.slice(0, KINDS.indexOf(k)).reverse().find((b) => row.includes(b));
+    row.splice(before ? row.indexOf(before) + 1 : 0, 0, k);
+  }
+  return row;
+}
 
 // The animals come one by one: a run starts with the rabbit, chased by the cat at night; getting away from it till dawn
 // unlocks it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
@@ -396,16 +409,30 @@ stage.addEventListener('pointerdown', (e) => {
   const btn = buttonAt(x, y) || padAt(e);
   if (btn) { pressedBtn = btn.id; return; }
   if (scoresOpen()) { startAudio(); return tapScores(); }
-  if (state === 'title') { // a tap on an animal picks it (the start button runs)
-    const k = y >= 0 && y < VH && playable().find((_, i) => x >= titleX(i) - 2 && x < titleX(i) + 26);
+  if (state === 'title') { // a tap on an animal picks it, pressed and moved it is grabbed (see grabbing; the start button runs)
+    const k = y >= 0 && y < VH && !held && animalAt(x);
     startAudio();
-    if (k && k !== kind) choose(k);
+    if (k) grip = { k, id: e.pointerId, x, y };
     return;
   }
   if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); duck(true); fingers.set(e.pointerId, 'duck'); }
   else { fingers.set(e.pointerId, 'jump'); press(); }
 });
+stage.addEventListener('pointermove', (e) => {
+  if (!grip || e.pointerId !== grip.id) return;
+  const [x, y] = artAt(e);
+  if (held) { held.px = x; held.py = y - SKY; return; } // (in the world: below the sky a tall screen adds)
+  if (Math.hypot(x - grip.x, y - grip.y) < LIFT) return;
+  const [sx, sy] = heldAt(grip.k);
+  held = { k: grip.k, px: x, py: y - SKY, x: placeX(at[grip.k]) + sx, y: GROUND - FOOT + sy, h: holdUp(grip.k) };
+  view.style.cursor = 'grabbing';
+});
 const lift = (e) => {
+  if (grip && e.pointerId === grip.id) { // let go: a grabbed animal drops; one only tapped is picked
+    if (held) letGo();
+    else if (e.type === 'pointerup' && grip.k !== kind) choose(grip.k);
+    grip = null;
+  }
   if (pressedBtn) {
     const btn = e.type === 'pointerup' && (buttonAt(...artAt(e)) || padAt(e));
     if (btn?.id === pressedBtn) { startAudio(); ACTS[btn.id](); }
@@ -762,8 +789,7 @@ const headAt = () => { const sp = animalSprite(); return [RUN_X + sp.head[0], an
 function update(dt) {
   drawn = {};
   blinkT += dt;
-  const sel = playable().indexOf(kind);
-  carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
+  updateRow(dt);
   { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? W / 2 - 13 : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); } // (on the title: where it settles, so sliding there does not fling its ears)
   if (state === 'ko') koT += dt;
   if (AUTO && state === 'ko' && koT > 3) start();
@@ -959,20 +985,124 @@ const stars = Array.from({ length: 100 }, () => ({ x: Math.floor(scenery() * W),
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(scenery() * GROUND_LOOP), kind: scenery() < 0.15 ? 'tuft' : scenery() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(scenery() * 4) }));
 let stageBg = null, stageInk = null;
-// the title's animals in a row, the one picked in the middle: the row slides to it (carousel: where it is now)
+// the title's animals in a row, the one picked in the middle: the row slides to it (carousel: where it is now, in
+// places); each animal slides to its own place too (at), as the order changes or a gap opens for a grabbed one
 let carousel = null;
-const titleX = (i) => Math.round(W / 2 - 13 + (i - carousel) * 34);
+const at = {};
+const placeX = (p) => Math.round(W / 2 - 13 + (p - carousel) * 34); // a place in the row → x on the screen
+const placeAt = (x) => (x - (W / 2 - 13)) / 34 + carousel; // … and back
+const animalAt = (x) => playable().find((k) => k !== dropped?.k && at[k] !== undefined && x >= placeX(at[k]) - 2 && x < placeX(at[k]) + 26);
+
+// grabbing an animal on the title (Dungeon Keeper's hand): pressed and moved a little, it is picked up by the middle of
+// its back and hangs from the hand about level, tipping as it is carried about and squirming (see holdUp in art.js);
+// the others run aside to open a gap where it would go; held near an edge, the row scrolls under it. Let go, it drops, rights itself, lands with
+// a squash and a puff of dust in its new place, and is picked. (grip: pressed, not yet moved; held: picked up, x, y
+// where the hand holds it, px, py the pointer, h how it hangs; dropped: falling, then landing)
+let grip = null, held = null, dropped = null;
+const heldBody = {}; // (its ears and tail)
+const LIFT = 3; // (moved this far, in art pixels: a grab, not a tap)
+const SQUASH_SECS = 0.2;
+const RUN = 2.2; // how fast the others run to their places (places a second)
+const runs = {}; // (an animal running to its place: how far in its stride, which way)
+// the place a held animal would go to
+const gapAt = (n) => Math.max(0, Math.min(n - 1, Math.round(placeAt(held.x - heldAt(held.k)[0]))));
+function letGo() {
+  const k = held.k, row = playable().filter((o) => o !== k);
+  row.splice(gapAt(row.length + 1), 0, k);
+  order = row;
+  if (!ALL) keep('order', JSON.stringify(order)); // (?all: nothing saved)
+  at[k] = placeAt(held.x - heldAt(k)[0]);
+  held.h.falling = true;
+  dropped = { k, h: held.h, y: held.y, vy: 0, squash: 0, landed: false };
+  held = null;
+  view.style.cursor = '';
+  pick(k);
+}
+function updateRow(dt) {
+  if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; view.style.cursor = ''; } // (run, or off to the high scores, meanwhile)
+  const row = playable(), n = row.length;
+  if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
+    const edge = 40, by = held.px < edge ? -(edge - held.px) / edge : held.px > W - edge ? (held.px - (W - edge)) / edge : 0;
+    carousel = Math.max(0, Math.min(n - 1, carousel + by * 8 * dt));
+  } else {
+    const sel = row.indexOf(kind);
+    carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
+  }
+  // each to its place (past the gap, one on), running there
+  const others = held ? row.filter((k) => k !== held.k) : row, gap = held ? gapAt(n) : n;
+  others.forEach((k, i) => {
+    const p = i < gap ? i : i + 1, r = runs[k] || (runs[k] = { phase: 0, dir: 1, on: false });
+    if (at[k] === undefined) at[k] = p;
+    const d = p - at[k];
+    r.on = Math.abs(d) > 0.001 && !(dropped?.k === k && !dropped.landed);
+    if (!r.on) return;
+    at[k] += Math.sign(d) * Math.min(Math.abs(d), RUN * dt);
+    r.dir = Math.sign(d);
+    r.phase = (r.phase + dt * strides(k, RUN * 34)) % 1;
+  });
+  if (held) { // where it is held follows the hand (quickly: it has some weight), never so low it would touch the ground
+    const py = Math.min(held.py, GROUND - hangDepth(held.k) - 2);
+    held.x += (held.px - held.x) * Math.min(1, dt * 30);
+    held.y += (py - held.y) * Math.min(1, dt * 30);
+    swing(held.h, [held.x, held.y], dt);
+    moveHung(heldBody, held.h, held.x, held.y, dt);
+  } else if (dropped) { // falling to the ground, righting itself on the way; landing with a squash and a puff of dust
+    const d = dropped, [sx, sy] = heldAt(d.k), x = placeX(at[d.k]), floor = GROUND - FOOT + sy;
+    if (!d.landed) {
+      d.vy += GRAVITY * dt; d.y = Math.min(floor, d.y + d.vy * dt);
+      swing(d.h, [x + sx, d.y], dt);
+      moveHung(heldBody, d.h, x + sx, d.y, dt);
+      if (d.y >= floor && Math.abs(d.h.ang) < 0.12) { // (down, and upright)
+        d.landed = true; d.squash = SQUASH_SECS; d.hard = Math.min(1, 0.3 + d.vy / 600); // (from higher: flatter)
+        for (let i = 0; i < 8; i++) {
+          const side = i % 2 ? 1 : -1;
+          parts.push({ x: x + 13 + side * (6 + rnd() * 6), y: GROUND - 1, vx: side * (25 + rnd() * 35), vy: -15 - rnd() * 30, life: 0.35, color: COLOR.FAINT });
+        }
+      }
+    } else if ((d.squash -= dt) <= 0) dropped = null;
+    if (dropped?.landed) moveBody(heldBody, d.k, 'idle', 0, x, GROUND - FOOT, 0, dt);
+  }
+}
+// the grabbed animal: hanging from the hand (a shadow under it on the ground), falling, or landing
+function drawGrabbed(pal) {
+  const g = held || dropped;
+  if (!g) return;
+  const blink = blinking(blinkT + 0.7);
+  if (dropped?.landed) { // flat as it lands, then up again
+    const x = placeX(at[g.k]), s = 0.3 * g.hard * Math.max(0, g.squash / SQUASH_SECS);
+    ctx.save();
+    ctx.translate(x + 13, GROUND);
+    ctx.scale(1 + s, 1 - s);
+    animal(g.k, 'idle', 0, { blink, body: heldBody }).draw(ctx, -13, -FOOT, pal);
+    ctx.restore();
+    return;
+  }
+  const x = held ? held.x : placeX(at[g.k]) + heldAt(g.k)[0], y = g.y, [sp, pin] = hung(g.h, { blink, body: heldBody });
+  const up = GROUND - (y - pin[1] + sp.oy + sp.h); // (how high its lowest point is)
+  if (up > 1) { // its shadow: smaller the higher it is
+    const w = Math.max(4, Math.round(16 - up / 4));
+    ctx.globalAlpha = 0.25; ctx.fillStyle = pal[COLOR.INK];
+    ctx.fillRect(Math.round(x) - w / 2, GROUND - 1, w, 1);
+    ctx.globalAlpha = 1;
+  }
+  sp.draw(ctx, x - pin[0], y - pin[1], pal);
+}
 
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
-// faded behind
-function standing(k, i, on, pal) {
-  const x = titleX(i);
+// faded behind (p: its place in the row)
+function standing(k, p, on, pal) {
+  const x = placeX(p), r = runs[k];
   if (x < -26 || x > W) return;
   ctx.globalAlpha = on ? 1 : 0.4;
-  (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x, GROUND - FOOT, pal);
+  if (r?.on) { // running to its place (the way it goes)
+    const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
+    if (r.dir < 0) { ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); }
+    animal(k, 'run', st.frame, { blink: on && blinking() }).draw(ctx, x, y, pal);
+    if (r.dir < 0) ctx.restore();
+  } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x, GROUND - FOOT, pal);
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
-  if (!on) return;
+  if (!on || held) return; // (the arrow: not while one is held)
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
@@ -1128,7 +1258,8 @@ function scene(pal) {
   }
 
   if (state === 'title') {
-    playable().forEach((k, i) => standing(k, i, k === kind, pal));
+    for (const k of playable()) if (k !== held?.k && k !== dropped?.k) standing(k, at[k], k === kind, pal);
+    drawGrabbed(pal);
   }
   else {
     if (state === 'ko') dizzyBirds(pal, true);
@@ -1165,8 +1296,8 @@ function hud(pal) {
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 10, pal[COLOR.INK], 'center', 2, LOGO);
     const pick = playable().length > 1;
-    if (TOUCH) { if (pick) help('TAP AN ANIMAL TO PICK IT', pal); }
-    else help(pick ? '< > OR CLICK TO PICK - SPACE TO RUN' : 'SPACE TO RUN', pal);
+    if (TOUCH) { if (pick) help('TAP AN ANIMAL TO PICK IT - DRAG TO MOVE IT', pal); }
+    else help(pick ? '< > OR CLICK TO PICK - DRAG TO MOVE - SPACE TO RUN' : 'SPACE TO RUN', pal);
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8 && fresh) help(`NEW HIGH SCORE! ${TOUCH ? 'TAP' : 'SPACE OR CLICK'} TO ENTER YOUR NAME`, pal, pal[7]);

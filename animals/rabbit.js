@@ -15,8 +15,8 @@ export const build = {
   ],
   dots: [{ name: 'blush', on: 'head', at: [2.5, 2], color: 'PINK' }],
   legs: {
-    hindNear: { on: 'hip', at: [0, 2], thigh: 4, shin: 6.5, r: 1.3, bend: 1 },
-    frontNear: { on: 'chest', at: [2.5, 0.5], thigh: 2.3, shin: 2.3, r: 1.2, bend: -1 },
+    hindNear: { on: 'hip', at: [0, 2], thigh: 3.2, shin: 4.6, r: 1.3, bend: 1 },
+    frontNear: { on: 'chest', at: [2.5, 0.5], thigh: 2.8, shin: 2.8, r: 1.2, bend: -1 },
   },
   chains: {
     tail: { on: 'hip', at: [-4.7, -1], angle: 1.2, links: 1, length: 0.5, r: 1.9, stiffness: 900, damping: 16, weight: 80 },

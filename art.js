@@ -358,7 +358,8 @@ function poseOf(rig, name, frame) {
 const posed = (rig, name, frame) => posedAs(rig, poseOf(rig, name, frame));
 function posedAs(rig, p) {
   const J = { ...rig.joints, ...p.joints }, a = Math.atan2(J.chest[1] - J.hip[1], J.chest[0] - J.hip[0]);
-  const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0) };
+  const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0),
+    box: p.turn ? jointFrame(minus(p.turn.pivot, turn(p.turn.pivot, p.turn.angle)), p.turn.angle) : null }; // (box: what is on no joint, turned with the whole body: see hung)
   return { p, J, F, a, torso: { ...rig.torso, ...p.torso } };
 }
 // a pose between two (u: 0 the first, 1 the second): the joints, the paws, the head's turn, the torso and the chains' rest
@@ -537,7 +538,7 @@ function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = 
   // a shape with its frame (its turn worked out once), its box in the box's coordinates, and how much nearer than its
   // distance that box may be (an ellipse's distance is short of the true one off its long axis): see near
   const placed = (s) => {
-    const f = s.on ? F[s.on] : null, [a, b, c, d] = extent(s), q = [[a, b], [c, b], [a, d], [c, d]].map((v) => toWorld(f, v));
+    const f = s.on ? F[s.on] : F.box, [a, b, c, d] = extent(s), q = [[a, b], [c, b], [a, d], [c, d]].map((v) => toWorld(f, v));
     const e = s.ellipse && Math.min(s.ellipse[2], s.ellipse[3]) / Math.max(s.ellipse[2], s.ellipse[3]);
     return { s, f, cos: f ? Math.cos(f.a) : 1, sin: f ? Math.sin(f.a) : 0, k: e || 1,
       box: [Math.min(...q.map((v) => v[0])), Math.min(...q.map((v) => v[1])), Math.max(...q.map((v) => v[0])), Math.max(...q.map((v) => v[1]))] };
@@ -579,7 +580,7 @@ function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = 
     (c.front ? front : soft).push({ joined: c.joined, line: c.line, overEye: c.overEye, color: NAMED[c.color] || fur, parts, marks: (c.marks || []).map(([t, color, mr]) => [along(t), NAMED[color], mr]) });
   }
   const tops = [...(rig.top || []), ...(p.top || [])].map((t) => ({ color: NAMED[t.color] || fur, shapes: t.shapes.map(placed), paint: t.paint || [] }));
-  const dots = (p.dots || rig.dots || []).map((d) => [toWorld(d.on ? F[d.on] : null, d.at), NAMED[d.color] || OUT]);
+  const dots = (p.dots || rig.dots || []).map((d) => [toWorld(d.on ? F[d.on] : F.box, d.at), NAMED[d.color] || OUT]);
 
   // the frame's bounds: every shape's box (turned with its frame), one more pixel for the outline
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -673,6 +674,98 @@ function drawRig(rig, P, pose, blink, chains, S = 1, [dx, dy] = [0, 0], floor = 
     mask = mask.slice(0, cut.px.length); g = cut;
   }
   return sprite(g, mask, { ox: ox + dx, oy: oy + dy + down, head: [(eye[0] - 1) * S + dx, (eye[1] - 6) * S + dy + down] });
+}
+
+// ------------------------------------------------------------------------------------------------------ held up
+// An animal picked up by the middle of its back (on the title, see the game): it hangs from the hand about level, its
+// head and its hips drooping a little; the hand moving tips it (it swings back level: a short pendulum, its weight
+// under the hand); it squirms now and then; its legs dangle (each paw a weight on a spring, paddling), its ears and tail
+// swing (moveHung). Dropped (falling), it rights itself on the way down. h: the state of the one held (holdUp), stepped
+// by swing, drawn by hung.
+const HANG_G = 900, HANG_L = 10, HANG_TIP = 80; // (its weight; how far under the hand it seems to hang: how fast it swings back level; how little the hand tips it)
+const pivotOf = (rig) => plus(mix(rig.joints.hip, rig.joints.chest, 0.5), [0, -Math.max(2, (rig.torso?.r || 0) * 0.8)]); // (the middle of its back)
+export const heldAt = (kind) => pivotOf(RIGS[kind]); // (in its box)
+export const holdUp = (kind) => ({ kind, ang: 0, angV: 0, t: 0, sag: 0, paws: {}, at: null, v: null, falling: false });
+// the pose it hangs in: the hips and the head drooping (sag), the head nodding, all turned about the hand; the paws
+// where they swing to
+function hangPose(rig, h) {
+  const piv = pivotOf(rig), J = rig.joints, a = Math.round(h.ang * 50) / 50, sag = Math.round(h.sag * 8) / 8; // (to a few steps: frames drawn are kept)
+  const rot = (q) => plus(piv, turn(minus(q, piv), a));
+  const paws = {};
+  for (const name in rig.legs) paws[name] = (h.paws[name]?.p || [0, 0]).map((v) => Math.round(v * 4) / 4);
+  return { joints: { hip: rot(plus(J.hip, [0, 1.5 * sag])), chest: rot(plus(J.chest, [0, 0.5 * sag])), head: rot(plus(J.head, [0, 2.5 * sag])) },
+    headAngle: Math.round((a + 0.6 * sag + (h.nod || 0)) * 50) / 50, paws, turn: { pivot: piv, angle: a } };
+}
+// one step, the hand at x, y on the screen
+export function swing(h, [x, y], dt) {
+  const rig = RIGS[h.kind], piv = pivotOf(rig), v = h.at ? times(minus([x, y], h.at), 1 / dt) : [0, 0], dv = h.v ? minus(v, h.v) : [0, 0];
+  h.at = [x, y]; h.v = v; h.t += dt;
+  const t = h.t, squirm = h.falling ? 0 : 0.55 + 0.45 * Math.sin(t * 1.9); // (in fits)
+  h.sag += ((h.falling ? 0 : 1) - h.sag) * Math.min(1, dt * 8);
+  if (h.falling) h.angV += (-h.ang * 600 - h.angV * 45) * dt; // righting itself
+  else { // tipped by the hand moving (its weight left behind), swinging back level
+    const a = h.ang;
+    h.angV += (dv[0] * Math.cos(a) + dv[1] * Math.sin(a)) / HANG_TIP;
+    h.angV += ((-HANG_G * Math.sin(a)) / HANG_L + squirm * (3 * Math.sin(t * 3.7) + 2 * Math.sin(t * 5.9 + 2))) * dt;
+    h.angV *= Math.exp(-3.5 * dt);
+  }
+  h.ang += h.angV * dt;
+  if (Math.abs(h.ang) > 0.9) { h.ang = Math.sign(h.ang) * 0.9; if (h.angV * h.ang > 0) h.angV *= -0.3; } // (no further: it is held)
+  h.nod = squirm * 0.12 * Math.sin(t * 6.1);
+  // the paws: each a weight on a spring, hanging under its leg's root (standing, when falling), paddling
+  const P = posedAs(rig, hangPose(rig, h)), stand = poseOf(rig, 'hurt', 0).paws || {};
+  Object.keys(rig.legs).forEach((name, i) => {
+    const L = rig.legs[name], root = toWorld(P.F[L.on], L.at), len = L.thigh + L.shin;
+    const rest = h.falling ? plus(piv, turn(minus(stand[name] || plus(root, [0, len * 0.9]), piv), h.ang))
+      : plus(root, [squirm * 1.3 * Math.sin(t * 11 + i * 1.7), len * 0.95 + squirm * 0.8 * Math.cos(t * 11 + i * 1.7)]);
+    const q = h.paws[name] || (h.paws[name] = { p: rest, v: [0, 0] });
+    q.v = minus(q.v, dv); // (left behind as the hand moves)
+    q.v = plus(q.v, times(minus(times(minus(rest, q.p), 500), times(q.v, 28)), dt));
+    q.p = plus(q.p, times(q.v, dt));
+    const d = minus(q.p, root), m = Math.hypot(d[0], d[1]); // (no further than the leg reaches)
+    if (m > len) { q.p = plus(root, times(d, len / m)); q.v = times(q.v, 0.5); }
+  });
+}
+// its ears and tail, swung as the hand moves (as moveBody does for an animal standing or running)
+export function moveHung(body, h, x, y, dt) {
+  const rig = RIGS[h.kind], P = posedAs(rig, hangPose(rig, h)), at = minus([x, y], pivotOf(rig));
+  if (body.kind !== h.kind || dt > 0.2) { body.kind = h.kind; body.chains = {}; body.move = null; }
+  for (const name in rig.chains) {
+    const c = chainRest(rig, P, name);
+    let pts = body.chains[name];
+    if (!pts || pts.length !== c.links + 1) pts = body.chains[name] = restPoints(c).map((q) => ({ p: plus(q, at), v: [0, 0] }));
+    const from = pts[0].p, to = plus(c.root, at), n = Math.ceil(dt * 120);
+    for (let i = 1; i <= n; i++) stepChain(pts, c, mix(from, to, i / n), dt / n, 0);
+  }
+  body.at = at;
+}
+// the animal held, as it hangs → [its sprite, where the hand holds it] (to draw it at the hand less that)
+export function hung(h, { blink = false, body = null } = {}) {
+  const rig = RIGS[h.kind], pose = hangPose(rig, h), P = posedAs(rig, pose), chains = {};
+  const live = body?.kind === h.kind && body.chains && body.at;
+  for (const name in rig.chains) {
+    const pts = live && body.chains[name] ? body.chains[name].map((q) => minus(q.p, body.at)) : restPoints(chainRest(rig, P, name));
+    chains[name] = pts.map(([x, y]) => [Math.round(x * 4) / 4, Math.round(y * 4) / 4]);
+  }
+  const [k, d] = growth(SIZE[h.kind] || 0), key = `${h.kind} hung ${blink} ${JSON.stringify([pose.joints, pose.headAngle, pose.paws, chains])}`;
+  let s = rigFrames.get(key);
+  if (!s) {
+    s = drawRig(rig, P, 'hung', blink, chains, k, d, 1e6);
+    rigFrames.set(key, s);
+    if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
+  }
+  return [s, plus(times(pivotOf(rig), k), d)];
+}
+// how far an animal hanging still reaches below the hand (so the hand keeps it off the ground)
+const depths = {};
+export function hangDepth(kind) {
+  if (depths[kind] === undefined) {
+    const h = holdUp(kind);
+    for (let i = 0; i < 60; i++) swing(h, [0, 0], 1 / 60);
+    const [s, pin] = hung(h);
+    depths[kind] = Math.ceil(s.oy + s.h - pin[1]);
+  }
+  return depths[kind];
 }
 
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
