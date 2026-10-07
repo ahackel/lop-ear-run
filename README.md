@@ -71,8 +71,13 @@ Once per checkout, `git config core.hooksPath tools/hooks`: at each commit the h
 was made, and which engine it plays), which the credits screen shows.
 
 In the address: `?music` shows the music's moods and calls under the game, `?all` opens every animal for a visit, `?auto` runs by itself, `?fps` shows the frames a second and the
-work of a frame (on average and at most, in ms: a frame has 16.7 at 60) and the canvas's size, `?scale=3` draws the game
-3 screen pixels an art pixel (fewer than the screen has: the page scales it up).
+work of a frame (on average and at most, in ms: a frame has 16.7 at 60) and the canvas's size, and since the start the
+frames that took other than a 60th of a second's steps (UNEVEN) and those over 50 ms while running (LONG), `?scale=3`
+draws the game 3 screen pixels an art pixel (fewer than the screen has: the page scales it up), `?hz=120` draws up to 120
+frames a second where the browser gives that many (not in Safari on an iPhone or iPad, nor in the iOS app: 60 there),
+`?log` writes each frame that came late or early, or took long, to the console with what happened just before it (in the
+iOS app: Xcode's console; a debugger attached holds up a frame now and then, so smoothness is judged with the app opened
+from the home screen).
 
 The animals are edited in the workshop: with `npm run dev` running, open http://localhost:8323/tools/workshop.html.
 Drag the handles on the joints, shapes, legs, tails and ears, pick colors and layers in the list, watch the animal run in

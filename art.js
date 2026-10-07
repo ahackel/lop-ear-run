@@ -103,28 +103,42 @@ function wordsOf(pal) {
   }
   return out;
 }
-// canvases given back by sprites no longer kept (a rig's frames come and go: a new canvas for each would be slow, and
-// without OffscreenCanvas, Safari before 16.4, a new element each time)
-const spare = [];
+// canvases given back by sprites no longer kept, by size (a rig's frames come and go, one a frame while its ears and tail
+// swing). A canvas is made a little bigger than its sprite (to the next 16 pixels) and never resized, so one given back
+// takes the next frame as it is: no canvas made or thrown away for each, nor, without OffscreenCanvas (Safari before
+// 16.4), a new element each time
+const spare = new Map();
+export const made = { sprites: 0, canvases: 0 }; // (how many sprites have been drawn into canvases, and canvases made: see ?log in game.js)
+const roomy = (n) => Math.ceil(n / 16) * 16;
 // a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette), free() }; drawn into a canvas per palette, on
 // first use (free: its canvases given back). ox, oy (in extra): where its grid starts from where it is placed (a rig's
 // frame, bigger than the box: see the rigs)
 function sprite(g, mask, extra) {
   let canvases = {};
-  const ox = extra?.ox || 0, oy = extra?.oy || 0;
+  const ox = extra?.ox || 0, oy = extra?.oy || 0, size = `${roomy(g.w)} ${roomy(g.h)}`;
   return {
     w: g.w, h: g.h, px: g.px, mask, ...extra,
-    free() { for (const k in canvases) if (spare.length < 64) spare.push(canvases[k]); canvases = {}; },
+    free() {
+      let list = spare.get(size);
+      if (!list) spare.set(size, (list = []));
+      for (const k in canvases) if (list.length < 64) list.push(canvases[k]);
+      canvases = {};
+    },
     draw(ctx, x, y, pal) {
       let c = canvases[pal.bg];
       if (!c) {
-        c = canvases[pal.bg] = spare.pop() || (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(g.w, g.h) : document.createElement('canvas')); // (Safari before 16.4: none)
-        c.width = g.w; c.height = g.h;
+        c = canvases[pal.bg] = spare.get(size)?.pop();
+        if (!c) {
+          const w = roomy(g.w), h = roomy(g.h);
+          c = canvases[pal.bg] = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }); // (Safari before 16.4: none)
+          made.canvases++;
+        }
+        made.sprites++;
         const cx = c.getContext('2d'), img = cx.createImageData(g.w, g.h), out = new Uint32Array(img.data.buffer), word = wordsOf(pal);
         for (let i = 0; i < g.px.length; i++) if (g.px[i]) out[i] = word[g.px[i]];
-        cx.putImageData(img, 0, 0);
+        cx.putImageData(img, 0, 0); // (all of its corner, the clear pixels too: what was there before is gone)
       }
-      ctx.drawImage(c, snap(x + ox), snap(y + oy), g.w, g.h);
+      ctx.drawImage(c, 0, 0, g.w, g.h, snap(x + ox), snap(y + oy), g.w, g.h); // (its corner of the canvas)
     },
   };
 }

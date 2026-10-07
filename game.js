@@ -17,7 +17,7 @@ import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by pat
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
-  JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted } from './art.js';
+  JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted, made } from './art.js';
 import { course, pace, drain, hardness, nightAt, landOf, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
@@ -68,7 +68,7 @@ const POWERS = {
 };
 const powered = () => (power > 0 ? POWERS[kind] : {}); // the super power on now (none: {})
 const T = () => ANIMALS[kind]; // the animal's dials (see art.js)
-const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?scale)
+const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?scale, ?hz, ?log)
 
 // what this browser keeps (localStorage, lop.<name>; in a private window perhaps nothing): get, set (null: removed)
 const kept = (k) => { try { return localStorage.getItem(`lop.${k}`); } catch { return null; } };
@@ -85,6 +85,7 @@ let mood = null;
 const calls = []; // the last calls to the music, newest first, as game code would write them
 
 function call(name, ...args) {
+  note(name === 'sting' ? `sting ${args[0]}` : name);
   calls.unshift(`music.${name}(${args.map((a) => JSON.stringify(a).replace(/"/g, "'").replace(/'(\w+)':/g, '$1: ')).join(', ')})`);
   calls.length = Math.min(calls.length, 5);
   if (audio === 'on') music[name](...args);
@@ -224,7 +225,11 @@ let open = ['rabbit'];
   const u = keptJSON('unlocked'), far = Array.isArray(u) ? Math.max(0, ...u.map(renamed).map((k) => KINDS.indexOf(k))) : 0;
   open = KINDS.slice(0, far + 1);
 }
-const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device)
+const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device; ?hz=120: up to 120, see frame)
+// ?log: each frame that came late or early, took other than a frame's steps (x2; ?hz=120: x1), or long, on the
+// console (in the iOS app: Xcode's), with what happened just before it (see frame)
+const LOG = Q.has('log'), notes = [];
+const note = (what) => { if (LOG) notes.push(what); };
 const ALL = Q.has('all'); // ?all: every animal open, for this visit (nothing saved)
 function unlocked(k) { return ALL || open.includes(k); }
 // the one unlocked last: in this run (gained: after the knock-out and the high scores, the title, to pick it there) and
@@ -321,6 +326,7 @@ function knockOut(why) {
   state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = duckHeld = false; power = 0;
   if (chase && !chase.caught) chase.leaving = true; // (one that caught it stays)
   if (!AUTO) fresh = record(kind, score());
+  if (fresh && TOUCH) stage.addEventListener('touchend', nameOnLift);
   call('sting', fresh ? 'fanfare' : 'alert'); // (into the high scores: a fanfare)
   updateMood({ within: 0 });
 }
@@ -346,12 +352,14 @@ function press() {
 // off the ground: not while ducking (or in a belly slide)
 function jump() {
   if (ducking) return;
+  note('jump');
   vAlt = JUMP * T().jump * (superHop() ? 1.25 : 1);
   call('sting', 'jump');
 }
 // ducking: held (a key, a finger; in the air: falling fast), or a belly slide
 function duck(held = duckHeld) {
   if (held && !duckHeld && power > 0 && kind === 'gorilla') return drum(); // (its power: it drums instead)
+  if (held !== duckHeld) note(held ? 'duck' : 'unduck');
   duckHeld = held;
   ducking = duckHeld || (power > 0 && kind === 'otter');
 }
@@ -402,9 +410,9 @@ const stage = document.getElementById('stage');
 // where a pointer is, in the game's pixels from the top left of the screen (outside it: below 0 or past W, VH)
 let viewRect = view.getBoundingClientRect(); // (kept: see fit, and scrolling; reading it in a press could make the browser lay the page out)
 addEventListener('scroll', () => { viewRect = view.getBoundingClientRect(); }, { passive: true });
-const artAt = (e) => { const r = viewRect; return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * VH]; };
+const artAt = (e) => { const r = viewRect; return [viewL + ((e.clientX - r.left) / r.width) * (viewR - viewL), ((e.clientY - r.top) / r.height) * (view.height / SCALE)]; };
 stage.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
+  note('touch');
   const [x, y] = artAt(e);
   stage.setPointerCapture(e.pointerId);
   const btn = buttonAt(x, y) || padAt(e);
@@ -419,7 +427,8 @@ stage.addEventListener('pointerdown', (e) => {
   }
   if (e.pointerType === 'touch' && x < W / 2 && state === 'run') { startAudio(); duck(true); fingers.set(e.pointerId, 'duck'); }
   else { fingers.set(e.pointerId, 'jump'); press(); }
-});
+}, { passive: true });
+stage.addEventListener('mousedown', (e) => e.preventDefault()); // (a mouse: nothing selected or focused as it presses)
 stage.addEventListener('pointermove', (e) => {
   if (!grip || e.pointerId !== grip.id) return;
   const [x, y] = artAt(e);
@@ -431,15 +440,16 @@ stage.addEventListener('pointermove', (e) => {
   const bx = placeX(at[grip.k]), on = x >= bx - 2 && x < bx + 28 && y - SKY >= GROUND - 24 && y - SKY <= GROUND + 2;
   if (on && y > grip.y - (grip.pet ? 6 : LIFT)) { if (grip.pet || Math.abs(x - grip.x) >= LIFT) pet(grip, x); return; } // (petting, a hand may wander up a little)
   // (a finger: it hangs further below it, so as to be seen, and is lifted only once it would hang clear of the ground)
-  const below = e.pointerType === 'touch' ? (FINGER * W) / viewRect.width : 0;
+  const below = e.pointerType === 'touch' ? (FINGER * (viewR - viewL)) / viewRect.width : 0;
   grip.moved = true;
   if (below && y - SKY + below > GROUND - hangDepth(grip.k) - 2) return;
   const [sx, sy] = heldAt(grip.k);
   delete jumps[grip.k]; // (caught in the air)
   held = { k: grip.k, px: x, py: y - SKY + below, below, x: placeX(at[grip.k]) + sx, y: GROUND - FOOT + sy, h: holdUp(grip.k) };
   hand('grabbing');
-});
+}, { passive: true });
 const lift = (e) => {
+  note('lift');
   if (grip && e.pointerId === grip.id) { // let go: a grabbed animal drops; one only tapped is picked
     if (held) letGo();
     else if (e.type === 'pointerup' && !grip.pet && !grip.moved) { // a tap (not one pulled at, not yet lifted)
@@ -459,7 +469,7 @@ const lift = (e) => {
   if (what === 'duck' && ![...fingers.values()].includes('duck')) duck(false);
   if (what === 'jump') release();
 };
-stage.addEventListener('pointerup', lift);
+stage.addEventListener('pointerup', lift, { passive: true });
 // after a knock-out with a new high score, a press (a key, a click; on a phone the tap, as it ends: a phone shows a
 // dialog only then) asks for the name in the browser's own dialog, then opens the high scores
 function nameIt() {
@@ -469,14 +479,17 @@ function nameIt() {
   wake(); // (the dialog may have stopped the audio)
   showScores(entry);
 }
-stage.addEventListener('touchend', (e) => {
-  if (!TOUCH || state !== 'ko' || !fresh || koT <= 0.8 || board) return;
+// (listened to only while a name is due: a listener that may cancel a touch makes iOS wait for the page at each touch,
+// and the frame after it comes late; the others are passive)
+function nameOnLift(e) {
+  if (state !== 'ko' || !fresh) return stage.removeEventListener('touchend', nameOnLift);
+  if (koT <= 0.8 || board) return;
   e.preventDefault();
   nameIt();
-});
-stage.addEventListener('pointercancel', lift);
+}
+stage.addEventListener('pointercancel', lift, { passive: true });
 // phones count a touch as a gesture (that may start audio) only when it ends: start (or resume) the audio there too
-addEventListener('pointerup', () => { startAudio(); wake(); });
+addEventListener('pointerup', () => { startAudio(); wake(); }, { passive: true });
 // the audio again (not while paused) where the browser stopped it: suspended, or interrupted (iOS: by a call, Siri, a
 // dialog of its own)
 function wake() {
@@ -557,6 +570,7 @@ const ACTS = {
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
+let viewL = 0, viewR = W; // the world's x at the screen's left and right edges (see fit: a little less than all of it, or a little more)
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
   if (inRun()) return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
@@ -854,7 +868,7 @@ function update(dt) {
   }
 
   // the world moves left
-  while (state === 'run' && dist >= ahead.at) { place(ahead); ahead = track.next(); }
+  while (state === 'run' && dist + Math.max(0, viewR - W) >= ahead.at) { place(ahead); ahead = track.next(); } // (where the screen shows past the world: there already)
   for (const o of obstacles) {
     o.x -= dx + o.fly * dt;
     if (o.smashed) { o.x += o.vx * dt; o.y += o.vy * dt; o.vy += 600 * dt; } // bowled over: tumbling away
@@ -864,7 +878,7 @@ function update(dt) {
     y.x += 170 * dt; y.phase = (y.phase + dt * strides('yak', speed + 170)) % 1;
     for (const o of obstacles) if (!o.smashed && !o.over && o.x < y.x + 24 && o.x + o.sprite.w > y.x + 4) smash(o, true);
   }
-  herd = herd.filter((y) => y.x < W + 10);
+  herd = herd.filter((y) => y.x < Math.max(W, viewR) + 10);
   for (const p of spits) { // spit, flying at what it was aimed at
     const o = p.to, tx = o.x + o.sprite.w / 2, ty = o.y + (o.kind === 'branch' ? o.sprite.h - 4 : o.sprite.h / 2), d = Math.hypot(tx - p.x, ty - p.y);
     if (o.smashed || d < 5) { if (!o.smashed) smash(o); p.done = true; continue; }
@@ -872,11 +886,12 @@ function update(dt) {
     if (rnd() < dt * 30) parts.push({ x: p.x, y: p.y, vx: -20, vy: 0, life: 0.2, color: COLOR.FAINT });
   }
   spits = spits.filter((p) => !p.done);
-  obstacles = obstacles.filter((o) => o.x > -o.sprite.w && o.y < H);
+  const gone = Math.min(0, viewL); // (off the screen's left edge, past the world's on a wider screen)
+  obstacles = obstacles.filter((o) => o.x > gone - o.sprite.w && o.y < H);
   for (const f of food) f.x -= dx;
-  food = food.filter((f) => f.x > -14);
-  if (gold) { gold.x -= dx; if (gold.x < -14) gold = null; }
-  for (const c of clouds) { c.x -= dx * 0.15; if (c.x < -20) { c.x = W + sky() * 80; c.y = 8 + sky() * 30 - sky() * SKY * 0.7; } }
+  food = food.filter((f) => f.x > gone - 14);
+  if (gold) { gold.x -= dx; if (gold.x < gone - 14) gold = null; }
+  for (const c of clouds) { c.x -= dx * 0.15; if (c.x < gone - 20) { c.x = Math.max(W, viewR) + sky() * 80; c.y = 8 + sky() * 30 - sky() * SKY * 0.7; } }
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
@@ -1004,7 +1019,7 @@ function updateBits(dt) {
 
 // ------------------------------------------------------------------------------------------------------------- draw
 const scenery = random(1); // (the stars, the ground's bits: the same every time too)
-const stars = Array.from({ length: 100 }, () => ({ x: Math.floor(scenery() * W), y: 50 - Math.floor(scenery() * 210), p: scenery() * 6 })); // (up into the sky a tall screen adds)
+const stars = Array.from({ length: 100 }, () => ({ x: Math.floor(scenery() * (W + 40)) - 20, y: 50 - Math.floor(scenery() * 210), p: scenery() * 6 })); // (up into the sky a tall screen adds)
 const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(scenery() * GROUND_LOOP), kind: scenery() < 0.15 ? 'tuft' : scenery() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(scenery() * 4) }));
 let stageBg = null, stageInk = null;
@@ -1173,7 +1188,7 @@ function drawGrabbed(pal) {
 // faded behind (p: its place in the row)
 function standing(k, p, on, pal) {
   const x = placeX(p), r = runs[k];
-  if (x < -26 || x > W) return;
+  if (x < viewL - 26 || x > viewR) return;
   const pt = pets[k];
   ctx.globalAlpha = on ? 1 : 0.4 + 0.6 * (pt?.joy || 0); // (one petted lights up)
   const jp = jumps[k];
@@ -1258,13 +1273,13 @@ function draw() {
   }
   // a quake shakes the screen (by a screen pixel)
   const q = shake > 0 ? Math.round((rnd() - 0.5) * 2) * SCALE : 0;
-  vctx.setTransform(SCALE, 0, 0, SCALE, q, (SKY * SCALE) + (q && (rnd() < 0.5 ? -q : q)));
+  vctx.setTransform(SCALE, 0, 0, SCALE, OX + q, (SKY * SCALE) + (q && (rnd() < 0.5 ? -q : q)));
   if (f < 1) scene(a);
   if (f > 0) {
     ctx = secondCtx;
     scene(b);
     ctx = vctx;
-    ctx.globalAlpha = f; ctx.drawImage(second, 0, -SKY, W, VH); ctx.globalAlpha = 1;
+    ctx.globalAlpha = f; ctx.drawImage(second, -OX / SCALE, -SKY, second.width / SCALE, second.height / SCALE); ctx.globalAlpha = 1; // (pixel for pixel)
   }
   // the writing in whichever palette stands out more against the sky as it is now (blended, it would fade away)
   const stands = (p) => Math.abs(luma(p[COLOR.INK]) - luma(bg));
@@ -1276,13 +1291,15 @@ function draw() {
 // the ground: its line, the bits on it and under it (→ where it has scrolled to, in screen pixels)
 function ground(pal) {
   ctx.fillStyle = pal[COLOR.INK];
+  ctx.fillRect(Math.floor(viewL), GROUND, Math.ceil(viewR - viewL) + 1, 1);
+  // the specks and tufts fainter than the line and what lies on it: at speed they jump several pixels a frame, and the
+  // eye goes to the obstacles first
+  ctx.fillStyle = pal[COLOR.DIM];
   ctx.beginPath();
-  ctx.rect(0, GROUND, W, 1);
-  const scroll = snap(groundX);
+  const scroll = snap(groundX), from = Math.floor(viewL) - 6; // (from: a tuft going off on the left still shows)
   for (const b of groundBits) {
-    let x = snap(((b.x - scroll) % GROUND_LOOP + GROUND_LOOP) % GROUND_LOOP);
-    if (x > GROUND_LOOP - 6) x -= GROUND_LOOP; // (going off on the left)
-    if (x >= W) continue;
+    const x = from + snap(((b.x - scroll - from) % GROUND_LOOP + GROUND_LOOP) % GROUND_LOOP);
+    if (x >= viewR) continue;
     if (b.kind === 'dot') ctx.rect(x, GROUND + b.y, 1, 1);
     else if (b.kind === 'dash') ctx.rect(x, GROUND + b.y, 3, 1);
     else { ctx.rect(x, GROUND - 1, 1, 1); ctx.rect(x + 2, GROUND - 2, 1, 2); ctx.rect(x + 4, GROUND - 1, 1, 1); }
@@ -1294,7 +1311,7 @@ function ground(pal) {
 // the world, in one palette
 function scene(pal) {
   ctx.fillStyle = pal.bg;
-  ctx.fillRect(0, -SKY, W, VH);
+  ctx.fillRect(Math.floor(viewL) - 1, -SKY - 1, Math.ceil(viewR - viewL) + 3, VH + 2); // (and round it: a quake shakes it a pixel)
   if (board) return ground(pal); // (the high scores: on the plain sky and the ground, see hud)
   if (pal === PALETTES.night) { // the stars and the moon
     ctx.fillStyle = pal[COLOR.INK];
@@ -1307,7 +1324,7 @@ function scene(pal) {
   ctx.fillStyle = pal[COLOR.FAINT];
   const hills = snap(hillX), from = Math.floor(hills);
   ctx.beginPath();
-  for (let x = 0; x <= W; x++) { // (each column of the hills keeps its height; they slide by screen pixels)
+  for (let x = Math.floor(viewL); x <= Math.ceil(viewR); x++) { // (each column of the hills keeps its height; they slide by screen pixels)
     const h = hill(x + from);
     ctx.rect(x - (hills - from), Math.round(GROUND - h), 1, Math.round(h));
   }
@@ -1395,14 +1412,17 @@ function hud(pal) {
 
   atTop(() => {
     drawButtons(pal);
-    if (FPS) text(ctx, rate.shown, W - safeR - 3, 21, pal[COLOR.INK], 'right'); // (under the day)
+    if (FPS) { text(ctx, rate.shown, W - safeR - 3, 21, pal[COLOR.INK], 'right'); text(ctx, `UNEVEN ${rate.uneven}  LONG ${rate.long} (${Math.round(rate.longest)} MS)`, W - safeR - 3, 28, pal[COLOR.INK], 'right'); } // (under the day)
   });
 }
 // drawn from the top of the screen (under a status bar), not of the world (see fit: the sky added above it)
 function atTop(draw) { ctx.translate(0, safeT - SKY); draw(); ctx.translate(0, SKY - safeT); }
 
-// the canvases in screen pixels, a whole number per art pixel: the art is drawn in art pixels, scaled up (not blurred),
-// and what moves is placed to the screen pixel (see snap), so it glides instead of stepping a big pixel at a time
+// the canvases in screen pixels, one for one (the browser scales nothing: what moves, moves evenly), a whole number per
+// art pixel: the art is drawn in art pixels, scaled up (not blurred), and what moves is placed to the screen pixel (see
+// snap), so it glides instead of stepping a big pixel at a time. The world in the middle: on a screen a little narrower
+// than whole pixels allow, a few art pixels of its sides are cut off (where a phone's round corners are anyway); on one
+// a little wider, the sky and the ground go on past them (viewL, viewR)
 const FORCE = +Q.get('scale') || 0; // ?scale=3: drawn 3 screen pixels an art pixel (the page scales it up)
 // (a probe for how much of the screen's sides a notch or round corners may cover, in CSS pixels: the screen less those,
 // so it changes size when they change; in the iOS app they can come after the page has loaded, with no resize)
@@ -1410,53 +1430,69 @@ const inset = document.createElement('div');
 inset.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; top: env(safe-area-inset-top); right: env(safe-area-inset-right); bottom: env(safe-area-inset-bottom); left: env(safe-area-inset-left)';
 document.body.append(inset);
 function fit() {
+  // the canvas's pixels (a CSS pixel: the screen's pixels in it, or with ?scale as many as make the world that wide), art
+  // pixels (as many of them as come nearest the world's width, but the world's height fits), the world's left edge (OX)
+  const r = (viewRect = view.getBoundingClientRect()), w = r.width || W, cs = getComputedStyle(inset);
+  const dpp = FORCE ? (FORCE * W) / w : devicePixelRatio, cw = Math.round(w * dpp), ch = Math.round((r.height || H) * dpp);
+  const scale = FORCE || Math.max(1, Math.min(Math.round(cw / W), Math.floor(ch / H)));
+  OX = Math.round((cw - W * scale) / 2);
+  viewL = -OX / scale; viewR = (cw - OX) / scale;
+  const art = dpp / scale, artX = (x) => x * art + viewL; // (art pixels a CSS pixel; a CSS x on the canvas → the world's)
   // the game fills the screen's width on a phone (see index.html): what is drawn at its sides keeps clear of the notch
-  const r = (viewRect = view.getBoundingClientRect()), cs = getComputedStyle(inset), art = W / (r.width || W);
-  safeL = Math.max(0, Math.ceil((parseFloat(cs.left) - r.left) * art));
-  safeR = Math.max(0, Math.ceil((parseFloat(cs.right) - (document.documentElement.clientWidth - r.right)) * art));
+  // (and of what is cut off)
+  safeL = Math.max(0, Math.ceil(artX(Math.max(0, parseFloat(cs.left) - r.left))));
+  safeR = Math.max(0, Math.ceil(W - artX(w - Math.max(0, parseFloat(cs.right) - (document.documentElement.clientWidth - r.right)))));
   const top = parseFloat(cs.top) - r.top; // (and a little more: the status bar fades out below its edge)
   safeT = top > 0 ? Math.ceil(top * art) + 5 : 0;
   RUN_X = 30 + safeL; // (the animal, and the one chasing it, where they were before the game went under the notch)
-  const px = r.width / W || 1; // (CSS pixels an art pixel)
+  const px = 1 / art; // (CSS pixels an art pixel)
   document.documentElement.style.setProperty('--px', px); // (the pads)
   // a screen taller than the world (a phone, full screen): the world in the middle, as much more sky above it as room
   // below it (where the pads are), up to where the branches' trunks end
-  const more = Math.max(0, Math.round((W * r.height) / (r.width || W)) - H);
-  SKY = Math.min(Math.floor(more / 2), TRUNK); VH = H + more;
+  VH = Math.ceil(ch / scale);
+  SKY = Math.min(Math.floor((VH - H) / 2), TRUNK);
   // under the ground: the line of help at the bottom (5 art pixels under it on every screen, clear of a phone's home bar
   // too), the pads' row between
   helpY = VH - SKY - 10;
   padRow = Math.max(GROUND + 2, Math.round((GROUND + 1 + helpY - 2 - PAD) / 2));
   stage.style.setProperty('--pad-top', `${view.offsetTop + (SKY + padRow) * px}px`);
-  const scale = FORCE || Math.max(1, Math.round((view.clientWidth * devicePixelRatio) / W));
-  if (fitted === `${scale} ${VH} ${SKY}`) return;
-  fitted = `${scale} ${VH} ${SKY}`;
+  if (fitted === `${cw} ${ch} ${scale}`) return;
+  fitted = `${cw} ${ch} ${scale}`;
   setScale(SCALE = scale);
-  for (const c of [view, second]) { c.width = W * scale; c.height = VH * scale; }
-  for (const cx of [vctx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, 0, SKY * scale); cx.imageSmoothingEnabled = false; }
+  for (const c of [view, second]) { c.width = cw; c.height = ch; }
+  for (const cx of [vctx, secondCtx]) { cx.setTransform(scale, 0, 0, scale, OX, SKY * scale); cx.imageSmoothingEnabled = false; }
 }
-let SCALE = 1, fitted = ''; // (screen pixels an art pixel; the size fitted to)
+let SCALE = 1, OX = 0, fitted = ''; // (screen pixels an art pixel; how many from the canvas's left edge the world's is; the size fitted to)
 new ResizeObserver(fit).observe(view);
 new ResizeObserver(fit).observe(inset);
 addEventListener('resize', fit); // (turned the other way round: the notch on the other side)
 fit();
 
 // fixed steps, so a slow frame never lets the animal pass through a cactus; at most a quarter second caught up. At most
-// 60 frames a second (a faster screen, 120 Hz: every other one), each due a 60th of a second after the one before
-const STEP = 1 / 120, FRAME = 1000 / 60;
-let last = performance.now(), behind = 0, due = 0, readied = null, ready = null;
-// (?fps: each second, the frames drawn in it, the work of a frame on average and at most, in ms)
-const rate = { frames: 0, since: 0, work: 0, worst: 0, shown: '' };
+// 60 frames a second (a faster screen, 120 Hz: every other one; ?hz=120: each one, where the browser gives that many),
+// each due a 60th (a 120th) of a second after the one before. A frame takes as many steps as the time since the last one
+// holds, rounded, and half of what that leaves over on to the next: so a 60th of a second is always two steps, though
+// WebKit gives frames' times to the millisecond (16, 17), and a frame that came late, a 120th (after a touch, on an
+// iPhone), takes three and the next one, early, one; all of it kept, the leftover could settle at half a step, and the
+// frames take three steps and one by turns
+const HZ = Q.get('hz') === '120' ? 120 : 60, STEP = 1 / 120, FRAME = 1000 / HZ;
+let last = performance.now(), over = 0, due = 0, readied = null, ready = null;
+// (?fps: each second, the frames drawn in it, the work of a frame on average and at most, in ms; since the start, the
+// frames that took other than a frame's steps, and those over 50 ms while running (LONG) with the longest)
+const rate = { frames: 0, since: 0, work: 0, worst: 0, shown: '', uneven: 0, long: 0, longest: 0 };
 function frame(now) {
   if (now < due - 4) { requestAnimationFrame(frame); return; } // (too soon: the screen's next one)
   due = now - due > FRAME ? now + FRAME : due + FRAME; // (behind: from now on)
-  const began = performance.now();
-  behind = Math.min(0.25, behind + (now - last) / 1000);
+  const began = performance.now(), ms = now - last, time = Math.min(250, ms + over), steps = Math.round(time / (STEP * 1000));
+  over = (time - steps * STEP * 1000) / 2;
   last = now;
-  for (; behind >= STEP; behind -= STEP) if (state !== 'paused') { update(STEP); updateBits(STEP); }
+  if (FPS) rate.uneven += steps !== 120 / HZ;
+  if (FPS && state === 'run' && ms > 50) { rate.long++; rate.longest = Math.max(rate.longest, ms); } // (running, a frame held three times over or more)
+  for (let i = 0; i < steps; i++) if (state !== 'paused') { update(STEP); updateBits(STEP); }
   if (readied !== kind) { readied = kind; ready = readying(kind); }
   if (ready?.next().done) ready = null; // (the animal made ready to run, a piece a frame: see readying)
   draw();
+  if (LOG) log(now, ms, steps, performance.now() - began);
   if (FPS) {
     const work = performance.now() - began;
     rate.frames++; rate.work += work; rate.worst = Math.max(rate.worst, work);
@@ -1466,6 +1502,26 @@ function frame(now) {
     }
   }
   requestAnimationFrame(frame);
+}
+// (?log: see LOG; and every 10 seconds, how many frames there were and how many it wrote about. held: a timer runs every
+// few milliseconds, and the longest it went without running since the frame before (long: the page itself was held
+// up, by its own work or by collecting its garbage; short: the screen waited); msgs: the music's messages since)
+const told = { at: 0, frames: 0, lines: 0, work: 0, made: 0, canvases: 0, notes: '', held: 0, pulse: 0, msgs: 0 };
+if (LOG) {
+  const tick = () => { const t = performance.now(); told.held = Math.max(told.held, t - (told.pulse || t)); told.pulse = t; setTimeout(tick, 4); };
+  tick();
+  music.on('*', () => { told.msgs++; });
+}
+function log(now, ms, steps, work) {
+  if (!told.at) { told.at = now; console.log(`LOP start ${view.width}x${view.height} scale ${SCALE} dpr ${devicePixelRatio} hz ${HZ} ${navigator.userAgent}`); }
+  const fresh = made.sprites - told.made, what = notes.join(' ');
+  told.frames++; told.made = made.sprites;
+  if (steps !== 120 / HZ || Math.abs(ms - FRAME) > 4 || work > 8) {
+    told.lines++;
+    console.log(`LOP ${ms.toFixed(1)} ms x${steps} work ${work.toFixed(1)} (before ${told.work.toFixed(1)}) held ${told.held.toFixed(0)} msgs ${told.msgs} new ${fresh} ${state} speed ${Math.round(speed || 0)}${what ? ` | ${what}` : ''}${told.notes ? ` | before: ${told.notes}` : ''}`);
+  }
+  told.work = work; told.notes = what; notes.length = 0; told.held = 0; told.msgs = 0;
+  if (now - told.at >= 10000) { console.log(`LOP 10 s: ${told.frames} frames, ${told.lines} written, ${made.canvases - told.canvases} canvases made`); told.at = now; told.frames = told.lines = 0; told.canvases = made.canvases; }
 }
 updateMood();
 requestAnimationFrame(frame);
