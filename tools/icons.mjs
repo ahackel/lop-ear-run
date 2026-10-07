@@ -3,7 +3,8 @@
 // Each icon is filled by the picture, scaled by as many whole pixels as still show the rabbit, the line and its bits
 // (the favicon: the line, the bits cut off; the maskable icon: smaller, in the middle, which Android keeps whatever
 // shape it crops to); the line runs on to its edges. Where a background is a must (the maskable icon, and the iPhone's,
-// which turns transparency black) it is the sky.
+// which turns transparency black) it is the sky. The iOS app's icon (app/ios/…/AppIcon.appiconset) is the iPhone's at
+// 1024 px, without an alpha channel (the App Store turns one away).
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import { animal, PALETTES } from '../art.js';
@@ -35,15 +36,15 @@ function color(x, y, bg) {
 }
 
 // an icon size pixels square: what shows (see shown) in its middle, each logical pixel scale pixels (none given: as
-// many as fit)
-function png(size, { scale, bg = null, bits = true } = {}) {
+// many as fit; opaque: no alpha channel, for a background on every pixel)
+function png(size, { scale, bg = null, bits = true, opaque = false } = {}) {
   const v = shown(bits), k = scale || Math.floor(size / v.h), offX = Math.round(size / 2 - v.cx * k), offY = Math.round(size / 2 - v.cy * k);
-  const raw = Buffer.alloc(size * (size * 4 + 1));
+  const n = opaque ? 3 : 4, raw = Buffer.alloc(size * (size * n + 1));
   for (let Y = 0; Y < size; Y++) {
-    raw[Y * (size * 4 + 1)] = 0;
+    raw[Y * (size * n + 1)] = 0;
     for (let X = 0; X < size; X++) {
-      const hex = color(Math.floor((X - offX) / k), Math.floor((Y - offY) / k), bg), i = Y * (size * 4 + 1) + 1 + X * 4;
-      if (hex) { raw[i] = parseInt(hex.slice(1, 3), 16); raw[i + 1] = parseInt(hex.slice(3, 5), 16); raw[i + 2] = parseInt(hex.slice(5, 7), 16); raw[i + 3] = 255; }
+      const hex = color(Math.floor((X - offX) / k), Math.floor((Y - offY) / k), bg), i = Y * (size * n + 1) + 1 + X * n;
+      if (hex) { raw[i] = parseInt(hex.slice(1, 3), 16); raw[i + 1] = parseInt(hex.slice(3, 5), 16); raw[i + 2] = parseInt(hex.slice(5, 7), 16); if (!opaque) raw[i + 3] = 255; }
     }
   }
   const chunk = (type, data) => {
@@ -52,7 +53,7 @@ function png(size, { scale, bg = null, bits = true } = {}) {
     return out;
   };
   const head = Buffer.alloc(13);
-  head.writeUInt32BE(size, 0); head.writeUInt32BE(size, 4); head[8] = 8; head[9] = 6; // 8 bit RGBA
+  head.writeUInt32BE(size, 0); head.writeUInt32BE(size, 4); head[8] = 8; head[9] = opaque ? 2 : 6; // 8 bit RGB(A)
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 const CRC = Array.from({ length: 256 }, (_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1; return n >>> 0; });
@@ -62,4 +63,5 @@ mkdirSync(new URL('../icons/', import.meta.url), { recursive: true });
 for (const [name, size, how] of [['icon-192', 192], ['icon-512', 512], ['maskable-512', 512, { scale: 12, bg: SKY }], ['apple-touch-icon', 180, { bg: SKY }], ['favicon', 64, { bits: false }]]) {
   writeFileSync(new URL(`../icons/${name}.png`, import.meta.url), png(size, how));
 }
-console.log('icons/ written');
+writeFileSync(new URL('../app/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png', import.meta.url), png(1024, { bg: SKY, opaque: true }));
+console.log('icons/ and the iOS app icon written');

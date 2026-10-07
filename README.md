@@ -63,7 +63,7 @@ npm test           # the song plays every mood and stinger; every animal is tall
                    # every day and with every animal; nothing newer than Safari 15 without a fallback
 node tools/course.mjs  # the courses, day by day: how fast, how close, food against tiredness, where energy runs out
 npm run engine     # copies the engine from ../stardrift-engine into engine/ (or: node tools/engine.mjs <path>)
-npm run icons      # draws icons/ from the game's own pixel art
+npm run icons      # draws icons/ (and the iOS app's icon) from the game's own pixel art
 npm run rigs       # writes every animal's build the way the workshop saves it
 ```
 
