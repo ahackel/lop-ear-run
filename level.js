@@ -4,11 +4,11 @@
 // not what comes). Each piece of the course has its own random numbers (seeded by the animal and its number), so one
 // that comes out differently (the sly fox finds more food) changes nothing after it.
 //
-// It gets harder all the way, with no top: faster, closer together, more crows, branches and packs, less food, more
-// tiring (hardness: days run, in steps of a day and a night, and a head start for each animal after the rabbit, on top
-// of its own dials in art.js). Whatever comes can be got past: the gap before an obstacle leaves room to land from
-// the jump before it (or stand up from a duck) and jump, duck or stay low in time, at the speed of a night's chase
-// (see fair; tools/test.mjs checks it by playing every course through).
+// It gets harder all the way, with no top: faster (ever more slowly near a top speed: see pace), closer together, more
+// crows, branches and packs, less food, more tiring (hardness: days run, in steps of a day and a night, and a head
+// start for each animal after the rabbit, on top of its own dials in art.js). Whatever comes can be got past: the gap
+// before an obstacle leaves room to land from the jump before it (or stand up from a duck) and jump, duck or stay low
+// in time, at the speed of a night's chase (see fair; tools/test.mjs checks it by playing every course through).
 //   course(kind) → { next() → piece }   piece: { at, items, food, gold }, at: the distance (art pixels) where its left
 //                                         edge comes in at the right of the screen; items (obstacles), food and gold
 //                                         from there (dx)
@@ -42,8 +42,12 @@ export const dayOf = (kind, s) => Math.floor(s / cycle(kind)) + 1;
 export const landOf = (day) => LANDS[(day - 1) % LANDS.length]; // (each day's obstacles: see LANDS)
 export const nightAt = (kind, day) => { const from = (day - 1) * cycle(kind) + DAY; return { from, hunt: from + HUNT * T(kind).speed, to: day * cycle(kind) }; };
 // how fast the world goes by, d art pixels into a run (before the chase, a bump, a super power): speeding up as it
-// runs, up to a top that rises with every day
-export const pace = (kind, d) => Math.min(Math.sqrt(START_SPEED ** 2 + 2 * ACCEL * d), MAX_SPEED + DAY_SPEED * hardness(kind, d * SCORE_PER_PX)) * T(kind).speed;
+// runs, up to a top that rises with every day, and past KNEE ever more slowly, never reaching TOP (an animal's own
+// speed too): at 60 frames a second the eye follows what comes up to some 1½ screens a second (the chase on top), and
+// faster it is a smear (whatever the screen does: the frame is held while the eye moves on)
+export const KNEE = 300, TOP = 400;
+const bend = (v) => (v <= KNEE ? v : KNEE + (TOP - KNEE) * (1 - Math.exp((KNEE - v) / (TOP - KNEE))));
+export const pace = (kind, d) => bend(Math.min(Math.sqrt(START_SPEED ** 2 + 2 * ACCEL * d), MAX_SPEED + DAY_SPEED * hardness(kind, d * SCORE_PER_PX)) * T(kind).speed);
 // energy lost per second (of 100)
 export const drain = (kind, s) => DRAIN * T(kind).drain * (1 + DAY_DRAIN * hardness(kind, s));
 // how often food comes with an obstacle (on average: see course)

@@ -144,7 +144,7 @@ ok(!stuck.length, `every course can be got past, six days and nights${stuck.map(
 const ramp = KINDS.filter((k) => { const d = days(k, 6); return d.some((x, i) => i && (x.speed <= d[i - 1].speed || x.drain <= d[i - 1].drain)) || d[5].every >= d[0].every * 0.8; });
 ok(!ramp.length, `every day is faster and more tiring, obstacles closer by the sixth${ramp.length ? ` — not: ${ramp}` : ''}`);
 const ends = KINDS.map((k) => [k, starves(k, 0.8)]);
-ok(ends.every(([, d], i) => d && d >= 2.4 && d <= 8 && (!i || d <= ends[i - 1][1] + 0.5)) && ends[0][1] - ends[ends.length - 1][1] >= 2,
+ok(ends.every(([, d], i) => d && d >= 2.2 && d <= 8 && (!i || d <= ends[i - 1][1] + 0.5)) && ends[0][1] - ends[ends.length - 1][1] >= 2,
   `eating 4 in 5, energy runs out after the first night and by day 8, sooner with every animal (${ends.map(([k, d]) => `${k} ${d}`).join(', ')})`);
 const dial = (f) => KINDS.every((k, i) => !i || f(k) > f(KINDS[i - 1]));
 ok(dial((k) => pace(k, 20000)) && dial((k) => drain(k, 0)) && dial((k) => -meals(k, 0)),
