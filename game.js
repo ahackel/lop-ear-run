@@ -17,7 +17,7 @@ import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by pat
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
   FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
-  JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt } from './art.js';
+  JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted } from './art.js';
 import { course, pace, drain, hardness, nightAt, landOf, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
@@ -422,7 +422,9 @@ stage.addEventListener('pointermove', (e) => {
   if (!grip || e.pointerId !== grip.id) return;
   const [x, y] = artAt(e);
   if (held) { held.px = x; held.py = y - SKY; return; } // (in the world: below the sky a tall screen adds)
-  if (Math.hypot(x - grip.x, y - grip.y) < LIFT) return;
+  // on the animal, moved sideways: it is petted (see pet); pulled up, or off it: picked up
+  const bx = placeX(at[grip.k]), on = x >= bx - 2 && x < bx + 28 && y - SKY >= GROUND - 24 && y - SKY <= GROUND + 2;
+  if (on && y > grip.y - (grip.pet ? 6 : LIFT)) { if (grip.pet || Math.abs(x - grip.x) >= LIFT) pet(grip, x); return; } // (petting, a hand may wander up a little)
   const [sx, sy] = heldAt(grip.k);
   held = { k: grip.k, px: x, py: y - SKY, x: placeX(at[grip.k]) + sx, y: GROUND - FOOT + sy, h: holdUp(grip.k) };
   view.style.cursor = 'grabbing';
@@ -430,7 +432,7 @@ stage.addEventListener('pointermove', (e) => {
 const lift = (e) => {
   if (grip && e.pointerId === grip.id) { // let go: a grabbed animal drops; one only tapped is picked
     if (held) letGo();
-    else if (e.type === 'pointerup' && grip.k !== kind) choose(grip.k);
+    else if (e.type === 'pointerup' && grip.k !== kind && !grip.pet) choose(grip.k);
     grip = null;
   }
   if (pressedBtn) {
@@ -1018,7 +1020,40 @@ function letGo() {
   view.style.cursor = '';
   pick(k);
 }
+// petting: rubbed back and forth along its back, an animal likes it more and more (joy, 0…1: how far it was rubbed),
+// and less again once left alone; every other stroke (a turn of the hand) a heart floats up from its head, with a
+// little chime now and then
+const pets = {}; // (k → { joy, t, strokes })
+let chimed = 0;
+function pet(g, x) {
+  const p = pets[g.k] || (pets[g.k] = { joy: 0, t: 0, strokes: 0 });
+  if (!g.pet) { g.pet = true; g.lastX = g.from = g.x; g.dir = 0; }
+  const d = Math.sign(x - g.lastX);
+  if (d) { p.lean = d; p.still = 0; } // (leaning the way the hand goes)
+  if (d && d !== g.dir) { // the hand turns: a stroke (once it went some way)
+    if (g.dir && Math.abs(g.lastX - g.from) >= 3 && ++p.strokes % 2 === 0 && p.joy >= 0.5) heartUp(g.k);
+    g.dir = d; g.from = g.lastX;
+  }
+  p.joy = Math.min(1, p.joy + Math.abs(x - g.lastX) / 60);
+  p.petting = true;
+  g.lastX = x;
+}
+function heartUp(k) {
+  const sp = petted(k, k === kind ? idleFrame(k, blinkT) : 0, pets[k].joy, pets[k].t, pets[k].lean), x = placeX(at[k]);
+  floats.push({ sprite: heart, x: x + sp.head[0] + rnd() * 4 - 4, y: GROUND - FOOT + sp.head[1] - 2, life: 0.9, rise: 16 });
+  if (blinkT - chimed > 1.2) { chimed = blinkT; call('sting', 'reward'); }
+}
+function updatePets(dt) {
+  for (const k in pets) {
+    const p = pets[k];
+    p.t += dt;
+    if ((p.still = (p.still || 0) + dt) > 0.12) p.lean = 0; // (the hand stopped)
+    if (!(grip?.pet && grip.k === k)) p.petting = false;
+    if (!p.petting && (p.joy -= dt * 0.5) <= 0) delete pets[k];
+  }
+}
 function updateRow(dt) {
+  updatePets(dt);
   if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; view.style.cursor = ''; } // (run, or off to the high scores, meanwhile)
   const row = playable(), n = row.length;
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
@@ -1093,8 +1128,10 @@ function drawGrabbed(pal) {
 function standing(k, p, on, pal) {
   const x = placeX(p), r = runs[k];
   if (x < -26 || x > W) return;
-  ctx.globalAlpha = on ? 1 : 0.4;
-  if (r?.on) { // running to its place (the way it goes)
+  const pt = pets[k];
+  ctx.globalAlpha = on ? 1 : 0.4 + 0.6 * (pt?.joy || 0); // (one petted lights up)
+  if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
+  else if (r?.on) { // running to its place (the way it goes)
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
     if (r.dir < 0) { ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); }
     animal(k, 'run', st.frame, { blink: on && blinking() }).draw(ctx, x, y, pal);
@@ -1296,8 +1333,8 @@ function hud(pal) {
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 10, pal[COLOR.INK], 'center', 2, LOGO);
     const pick = playable().length > 1;
-    if (TOUCH) { if (pick) help('TAP AN ANIMAL TO PICK IT - DRAG TO MOVE IT', pal); }
-    else help(pick ? '< > OR CLICK TO PICK - DRAG TO MOVE - SPACE TO RUN' : 'SPACE TO RUN', pal);
+    if (TOUCH) help(pick ? 'TAP TO PICK - LIFT TO MOVE - RUB TO PET' : 'RUB TO PET', pal);
+    else help(pick ? '< > OR CLICK TO PICK - LIFT TO MOVE - RUB TO PET - SPACE TO RUN' : 'RUB TO PET - SPACE TO RUN', pal);
   } else if (state === 'ko') {
     text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (koT > 0.8 && fresh) help(`NEW HIGH SCORE! ${TOUCH ? 'TAP' : 'SPACE OR CLICK'} TO ENTER YOUR NAME`, pal, pal[7]);

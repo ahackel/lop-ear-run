@@ -212,6 +212,7 @@ export function animal(kind, pose, frame = 0, { blink = false, body = null, scal
 function eyes(g, pose, [x, y], blink) {
   if (pose === 'ko') for (const [dx, dy] of [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]]) g.dot(x + dx, y + dy, OUT);
   else if (pose === 'hurt') { g.dot(x - 1, y - 1, OUT); g.dot(x, y, OUT); g.dot(x - 1, y + 1, OUT); } // >
+  else if (pose === 'happy') { g.dot(x - 1, y + 1, OUT); g.dot(x, y, OUT); g.dot(x + 1, y + 1, OUT); } // ^ (shut, smiling: being petted)
   else { g.dot(x, y + 1, OUT); if (!blink) g.dot(x, y, OUT); }
 }
 
@@ -766,6 +767,35 @@ export function hangDepth(kind) {
     depths[kind] = Math.ceil(s.oy + s.h - pin[1]);
   }
   return depths[kind];
+}
+
+// -------------------------------------------------------------------------------------------------------- petted
+// An animal being petted (on the title): sitting as it does (its idle frame), its head ducked into the hand, its ears
+// laid back, its tail wagging, its eyes shut happily once it likes it enough, leaning (a pixel or so, its paws where
+// they are) the way the hand goes. joy: how much it likes it (0…1), t: the time (the wag), lean: -1, 0, 1. Kept as
+// rigFrame keeps frames (joy and the wag in a few steps)
+export function petted(kind, frame, joy, t, lean = 0) {
+  const rig = RIGS[kind], base = poseOf(rig, 'idle', frame), J = { ...rig.joints, ...base.joints };
+  const j = Math.round(joy * 4) / 4, wag = Math.round(Math.sin(t * 16) * j * 6) / 10;
+  const key = `${kind} petted ${frame} ${j} ${wag} ${lean}`;
+  let s = rigFrames.get(key);
+  if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; }
+  const chains = { ...base.chains };
+  for (const name in rig.chains) {
+    const c = { ...rig.chains[name], ...base.chains?.[name] };
+    if (c.ear) chains[name] = { ...base.chains?.[name], tip: [c.tip[0] - 2 * j, c.tip[1] + 1.5 * j] }; // (laid back)
+    else if (c.on === 'hip') chains[name] = { ...base.chains?.[name], angle: (c.angle || 0) + wag }; // (a tail)
+  }
+  const piv = [13, FOOT], a = lean * 0.07, rot = (q) => plus(piv, turn(minus(q, piv), a)); // (about its feet)
+  const P = posedAs(rig, { ...base, joints: { hip: rot(J.hip), chest: rot(J.chest), head: rot([J.head[0], J.head[1] + 0.8 * j]) },
+    headAngle: (base.headAngle || 0) + 0.2 * j + a, chains, turn: { pivot: piv, angle: a } });
+  const rest = {};
+  for (const name in rig.chains) rest[name] = restPoints(chainRest(rig, P, name)).map(([x, y]) => [Math.round(x * 4) / 4, Math.round(y * 4) / 4]);
+  const n = SIZE[kind] || 0, [k, d] = growth(n);
+  s = drawRig(rig, P, j >= 0.5 ? 'happy' : 'idle', false, rest, k, d, FOOT + 1, n > 0);
+  rigFrames.set(key, s);
+  if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
+  return s;
 }
 
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
