@@ -113,19 +113,22 @@ function wordsOf(pal) {
 const spare = new Map();
 export const made = { sprites: 0, canvases: 0 }; // (how many sprites have been drawn into canvases, and canvases made: see ?log in game.js)
 const roomy = (n) => Math.ceil(n / 16) * 16;
-// the pixels a sprite is put into its canvas with, one for each size of canvas, kept (as the canvas: not one a frame)
-const images = new Map();
-function imageFor(size, cx, w, h) {
-  let it = images.get(size);
-  if (!it) { const img = cx.createImageData(w, h); images.set(size, (it = { img, out: new Uint32Array(img.data.buffer) })); }
-  return it;
+// the pixels a sprite is put into its canvas with: one, kept and grown to the biggest sprite yet (its corner is put: not
+// one made a frame)
+let image = null;
+function imageFor(cx, w, h) {
+  if (!image || image.img.width < w || image.img.height < h) {
+    const img = cx.createImageData(Math.max(w, image?.img.width || 0), Math.max(h, image?.img.height || 0));
+    image = { img, out: new Uint32Array(img.data.buffer) };
+  }
+  return image;
 }
 // a sprite: { w, h, px (palette indices), mask, draw(ctx, x, y, palette), free() }; drawn into a canvas per palette, on
 // first use (free: its canvases given back). ox, oy (in extra): where its grid starts from where it is placed (a rig's
 // frame, bigger than the box: see the rigs)
 function sprite(g, mask, extra) {
   let canvases = {};
-  const ox = extra?.ox || 0, oy = extra?.oy || 0, size = `${roomy(g.w)} ${roomy(g.h)}`;
+  const ox = extra?.ox || 0, oy = extra?.oy || 0, W = roomy(g.w), H = roomy(g.h), size = `${W} ${H}`;
   return {
     w: g.w, h: g.h, px: g.px, mask, ...extra,
     free() {
@@ -139,12 +142,11 @@ function sprite(g, mask, extra) {
       if (!c) {
         c = canvases[pal.bg] = spare.get(size)?.pop();
         if (!c) {
-          const w = roomy(g.w), h = roomy(g.h);
-          c = canvases[pal.bg] = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }); // (Safari before 16.4: none)
+          c = canvases[pal.bg] = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H }); // (Safari before 16.4: none)
           made.canvases++;
         }
         made.sprites++;
-        const cx = c.getContext('2d'), rw = roomy(g.w), { img, out } = imageFor(size, cx, rw, roomy(g.h)), word = wordsOf(pal), px = g.px;
+        const cx = c.getContext('2d'), { img, out } = imageFor(cx, g.w, g.h), rw = img.width, word = wordsOf(pal), px = g.px;
         for (let y = 0, i = 0; y < g.h; y++) for (let x = 0, o = y * rw; x < g.w; x++, i++, o++) out[o] = px[i] ? word[px[i]] : 0;
         cx.putImageData(img, 0, 0, 0, 0, g.w, g.h); // (its corner, the clear pixels too: what was there before is gone)
       }
@@ -299,16 +301,14 @@ function sdCapsule(x, y, c) {
   const ax = c[0], ay = c[1], dx = c[2] - ax, dy = c[3] - ay, t = clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
   return Math.hypot(x - ax - t * dx, y - ay - t * dy) - c[4];
 }
-function sdTriangle(x, y, tri) { // (Inigo Quilez's; its three edges one after another)
-  const ax = tri[0][0], ay = tri[0][1], bx = tri[1][0], by = tri[1][1], cx = tri[2][0], cy = tri[2][1];
-  const e0x = bx - ax, e0y = by - ay, e1x = cx - bx, e1y = cy - by, e2x = ax - cx, e2y = ay - cy;
-  const s = Math.sign(e0x * e2y - e0y * e2x);
-  let d = Infinity, w = Infinity, vx = x - ax, vy = y - ay, t = clamp((vx * e0x + vy * e0y) / (e0x * e0x + e0y * e0y), 0, 1);
-  d = Math.min(d, (vx - e0x * t) ** 2 + (vy - e0y * t) ** 2); w = Math.min(w, s * (vx * e0y - vy * e0x));
-  vx = x - bx; vy = y - by; t = clamp((vx * e1x + vy * e1y) / (e1x * e1x + e1y * e1y), 0, 1);
-  d = Math.min(d, (vx - e1x * t) ** 2 + (vy - e1y * t) ** 2); w = Math.min(w, s * (vx * e1y - vy * e1x));
-  vx = x - cx; vy = y - cy; t = clamp((vx * e2x + vy * e2y) / (e2x * e2x + e2y * e2y), 0, 1);
-  d = Math.min(d, (vx - e2x * t) ** 2 + (vy - e2y * t) ** 2); w = Math.min(w, s * (vx * e2y - vy * e2x));
+function sdTriangle(x, y, tri) { // (Inigo Quilez's)
+  const a = tri[0], b = tri[1], c = tri[2], s = Math.sign((b[0] - a[0]) * (a[1] - c[1]) - (b[1] - a[1]) * (a[0] - c[0]));
+  let d = Infinity, w = Infinity;
+  for (let i = 0; i < 3; i++) { // (each edge: from its corner to the next)
+    const p = tri[i], q = tri[(i + 1) % 3], ex = q[0] - p[0], ey = q[1] - p[1], vx = x - p[0], vy = y - p[1];
+    const t = clamp((vx * ex + vy * ey) / (ex * ex + ey * ey), 0, 1);
+    d = Math.min(d, (vx - ex * t) ** 2 + (vy - ey * t) ** 2); w = Math.min(w, s * (vx * ey - vy * ex));
+  }
   return -Math.sqrt(d) * Math.sign(w);
 }
 function sdBox(x, y, b) { // (b[4]: its corners rounded)
@@ -425,6 +425,26 @@ function restPoints(c) {
   for (let i = 0, d = c.dir; i < c.links; i++, d = turn(d, c.curl)) pts.push(plus(pts[i], times(d, c.length / c.links)));
   return pts;
 }
+// a body's chains stepped (two steps a frame), their roots slid to where the pose has them, the box at x, y
+function stepChains(body, rig, P, x, y, dt, wind) {
+  for (const name in rig.chains) {
+    const c = chainRest(rig, P, name);
+    let pts = body.chains[name];
+    if (!pts || pts.length !== c.links + 1) pts = body.chains[name] = restPoints(c).map((q) => ({ p: plus(q, [x, y]), v: [0, 0] }));
+    const fx = pts[0].p[0], fy = pts[0].p[1], tx = c.root[0] + x, ty = c.root[1] + y, n = Math.ceil(dt * 120);
+    for (let i = 1; i <= n; i++) { const t = i / n; stepChain(pts, c, fx + (tx - fx) * t, fy + (ty - fy) * t, dt / n, wind); }
+  }
+}
+// the chains to draw, in the box, to a quarter pixel (frames are kept by them): where the body has them, or at rest
+const quarter = (v) => Math.round(v * 4) / 4;
+function chainsAt(rig, P, body) {
+  const chains = {}, at = body?.at;
+  for (const name in rig.chains) {
+    const pts = body?.chains[name];
+    chains[name] = pts ? pts.map((q) => [quarter(q.p[0] - at[0]), quarter(q.p[1] - at[1])]) : restPoints(chainRest(rig, P, name)).map((q) => [quarter(q[0]), quarter(q[1])]);
+  }
+  return chains;
+}
 
 // the moving parts of an animal on screen (body: kept by the game, one per animal it draws): its chains, stepped by how
 // the animal moves. x, y: where its box is now; wind: how fast the world goes by (the air streams past the runner)
@@ -432,14 +452,7 @@ export function moveBody(body, kind, pose, frame, x, y, wind, dt) {
   const rig = RIGS[kind], was = body.at || [x, y];
   if (body.kind !== kind || dt > 0.2 || Math.hypot(x - was[0], y - was[1]) > 40) { body.kind = kind; body.chains = {}; body.move = null; body.landed = Infinity; } // (a new start)
   ease(body, rig, pose, frame, dt);
-  const P = bodyPosed(rig, kind, pose, frame, body)[0];
-  for (const name in rig.chains) {
-    const c = chainRest(rig, P, name);
-    let pts = body.chains[name];
-    if (!pts || pts.length !== c.links + 1) pts = body.chains[name] = restPoints(c).map((q) => ({ p: plus(q, [x, y]), v: [0, 0] }));
-    const fx = pts[0].p[0], fy = pts[0].p[1], tx = c.root[0] + x, ty = c.root[1] + y, n = Math.ceil(dt * 120);
-    for (let i = 1; i <= n; i++) stepChain(pts, c, fx + (tx - fx) * (i / n), fy + (ty - fy) * (i / n), dt / n, wind);
-  }
+  stepChains(body, rig, bodyPosed(rig, kind, pose, frame, body)[0], x, y, dt, wind);
   body.at = [x, y];
 }
 // a move eased into from the one before (from: that move and its frame; since: how long ago), and from one keyframe to
@@ -475,8 +488,8 @@ const DRAG = 9, WIND = 0.15;
 // (In x and y, each point's p and v changed where they are: two steps a frame, every link, nothing made. The sums are
 // plus, minus, times, turn, unit and mix written out, in their order: the same numbers to the last bit)
 function stepChain(pts, c, rx, ry, h, wind) {
-  const p0 = pts[0], cos = Math.cos(c.curl), sin = Math.sin(c.curl);
-  p0.v[0] = (rx - p0.p[0]) * (1 / h); p0.v[1] = (ry - p0.p[1]) * (1 / h); p0.p[0] = rx; p0.p[1] = ry;
+  const p0 = pts[0], cos = Math.cos(c.curl), sin = Math.sin(c.curl), ih = 1 / h;
+  p0.v[0] = (rx - p0.p[0]) * ih; p0.v[1] = (ry - p0.p[1]) * ih; p0.p[0] = rx; p0.p[1] = ry;
   const seg = c.length / c.links, airX = -wind * WIND;
   let restX = c.dir[0], restY = c.dir[1], prevX = 0, prevY = 0;
   for (let i = 1; i < pts.length; i++) {
@@ -484,17 +497,16 @@ function stepChain(pts, c, rx, ry, h, wind) {
     let dX = restX, dY = restY;
     if (i > 1) { // (the link before: a quarter of its turn on to this one)
       const tX = prevX * cos - prevY * sin, tY = prevX * sin + prevY * cos, mX = restX + (tX - restX) * 0.25, mY = restY + (tY - restY) * 0.25;
-      const inv = 1 / (Math.hypot(mX, mY) || 1);
-      dX = mX * inv; dY = mY * inv;
+      const mInv = 1 / (Math.hypot(mX, mY) || 1);
+      dX = mX * mInv; dY = mY * mInv;
     }
     const k = c.stiffness * (1 - (0.45 * (i - 1)) / Math.max(1, c.links - 1)), wantX = upP[0] + dX * seg, wantY = upP[1] + dY * seg;
     const accX = (wantX - qp[0]) * k + (upV[0] - qv[0]) * c.damping + (airX - qv[0]) * DRAG + 0;
     const accY = (wantY - qp[1]) * k + (upV[1] - qv[1]) * c.damping + (0 - qv[1]) * DRAG + c.weight;
-    const wasX = qp[0], wasY = qp[1];
     qv[0] = qv[0] + accX * h; qv[1] = qv[1] + accY * h;
     const nX = qp[0] + qv[0] * h - upP[0], nY = qp[1] + qv[1] * h - upP[1], inv = 1 / (Math.hypot(nX, nY) || 1);
     const pX = upP[0] + nX * inv * seg, pY = upP[1] + nY * inv * seg; // moved, then kept at the link's length
-    qv[0] = (pX - wasX) * (1 / h); qv[1] = (pY - wasY) * (1 / h); qp[0] = pX; qp[1] = pY;
+    qv[0] = (pX - qp[0]) * ih; qv[1] = (pY - qp[1]) * ih; qp[0] = pX; qp[1] = pY;
     const lX = pX - upP[0], lY = pY - upP[1], lInv = 1 / (Math.hypot(lX, lY) || 1);
     prevX = lX * lInv; prevY = lY * lInv;
     const r = restX * cos - restY * sin; restY = restX * sin + restY * cos; restX = r;
@@ -554,13 +566,8 @@ function growth(n, scale = 1) {
   return [k, [Math.round(13 * scale * (1 - k)), Math.round((FOOT - 0.5) * scale * (1 - k))]];
 }
 function rigFrame(kind, pose, frame, blink, body, scale = 1, n = grown(kind, pose)) {
-  const rig = RIGS[kind], [P, eased] = bodyPosed(rig, kind, pose, frame, body), chains = {};
-  const live = body?.kind === kind && body.chains && body.at;
-  for (const name in rig.chains) {
-    const at = body?.at; // (where the body has them, in the box: to a quarter pixel; or at rest)
-    chains[name] = live && body.chains[name] ? body.chains[name].map((q) => [Math.round((q.p[0] - at[0]) * 4) / 4, Math.round((q.p[1] - at[1]) * 4) / 4])
-      : restPoints(chainRest(rig, P, name)).map((q) => [Math.round(q[0] * 4) / 4, Math.round(q[1] * 4) / 4]);
-  }
+  const rig = RIGS[kind], [P, eased] = bodyPosed(rig, kind, pose, frame, body);
+  const chains = chainsAt(rig, P, body?.kind === kind && body.chains && body.at ? body : null);
   const key = `${kind} ${pose} ${frame} ${eased} ${blink} ${scale} ${n} ${JSON.stringify(chains)}`;
   let s = rigFrames.get(key);
   if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; } // (the most recent last)
@@ -773,24 +780,13 @@ export function swing(h, [x, y], dt) {
 export function moveHung(body, h, x, y, dt) {
   const rig = RIGS[h.kind], P = posedAs(rig, hangPose(rig, h)), at = minus([x, y], pivotOf(rig));
   if (body.kind !== h.kind || dt > 0.2) { body.kind = h.kind; body.chains = {}; body.move = null; }
-  for (const name in rig.chains) {
-    const c = chainRest(rig, P, name);
-    let pts = body.chains[name];
-    if (!pts || pts.length !== c.links + 1) pts = body.chains[name] = restPoints(c).map((q) => ({ p: plus(q, at), v: [0, 0] }));
-    const fx = pts[0].p[0], fy = pts[0].p[1], tx = c.root[0] + at[0], ty = c.root[1] + at[1], n = Math.ceil(dt * 120);
-    for (let i = 1; i <= n; i++) stepChain(pts, c, fx + (tx - fx) * (i / n), fy + (ty - fy) * (i / n), dt / n, 0);
-  }
+  stepChains(body, rig, P, at[0], at[1], dt, 0);
   body.at = at;
 }
 // the animal held, as it hangs → [its sprite, where the hand holds it] (to draw it at the hand less that)
 export function hung(h, { blink = false, body = null } = {}) {
-  const rig = RIGS[h.kind], pose = hangPose(rig, h), P = posedAs(rig, pose), chains = {};
-  const live = body?.kind === h.kind && body.chains && body.at;
-  for (const name in rig.chains) {
-    const at = body?.at; // (where the body has them, in the box: to a quarter pixel; or at rest)
-    chains[name] = live && body.chains[name] ? body.chains[name].map((q) => [Math.round((q.p[0] - at[0]) * 4) / 4, Math.round((q.p[1] - at[1]) * 4) / 4])
-      : restPoints(chainRest(rig, P, name)).map((q) => [Math.round(q[0] * 4) / 4, Math.round(q[1] * 4) / 4]);
-  }
+  const rig = RIGS[h.kind], pose = hangPose(rig, h), P = posedAs(rig, pose);
+  const chains = chainsAt(rig, P, body?.kind === h.kind && body.chains && body.at ? body : null);
   const [k, d] = growth(SIZE[h.kind] || 0), key = `${h.kind} hung ${blink} ${JSON.stringify([pose.joints, pose.headAngle, pose.paws, chains])}`;
   let s = rigFrames.get(key);
   if (!s) {
@@ -832,9 +828,7 @@ export function petted(kind, frame, joy, t, lean = 0) {
   const piv = [13, FOOT], a = lean * 0.07, rot = (q) => plus(piv, turn(minus(q, piv), a)); // (about its feet)
   const P = posedAs(rig, { ...base, joints: { hip: rot(J.hip), chest: rot(J.chest), head: rot([J.head[0], J.head[1] + 0.8 * j]) },
     headAngle: (base.headAngle || 0) + 0.2 * j + a, chains, turn: { pivot: piv, angle: a } });
-  const rest = {};
-  for (const name in rig.chains) rest[name] = restPoints(chainRest(rig, P, name)).map(([x, y]) => [Math.round(x * 4) / 4, Math.round(y * 4) / 4]);
-  const n = SIZE[kind] || 0, [k, d] = growth(n);
+  const rest = chainsAt(rig, P), n = SIZE[kind] || 0, [k, d] = growth(n);
   s = drawRig(rig, P, j >= 0.5 ? 'happy' : 'idle', false, rest, k, d, FOOT + 1, n > 0);
   rigFrames.set(key, s);
   if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
