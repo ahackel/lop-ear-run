@@ -16,9 +16,9 @@
 import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
-  FOOD, face, FACE_W, cloud, moon, heart, star, golden, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
+  FOOD, face, FACE_W, cloud, moon, heart, star, sun, golden, flushed, shadow, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
   JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted, made } from './art.js';
-import { course, pace, drain, hardness, nightAt, landOf, random, seedOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
+import { course, pace, drain, hardness, nightAt, landOf, random, seedOf, chaserOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
 import { BUILT, ENGINE } from './version.js';
 
@@ -43,6 +43,10 @@ const FEAST = 4; // food eaten one after another (no bump, none missed) is worth
 // what is ahead is blown away; boost: runs that much faster; doubles: scores double; shakes off the chaser, saying so).
 // The rest, where it happens (the kind's own checks)
 const POWER_SECS = 8; // (where golden food comes: level.js)
+// so they are not missed, on the animal (the eye is on it, not on the bars): a power's last ENDING seconds (it
+// flickers, faster and faster, its sparkles thinning, the seconds counted over its head); energy under LOW (it sweats,
+// the food glints), under VERY_LOW (it sweats more, and flushes red a moment every second)
+const ENDING = 3, LOW = 30, VERY_LOW = 15;
 const POWERS = {
   rabbit: { name: 'SUPER HOP!' }, // jumps higher, and once more in the air
   guineapig: { name: 'POPCORN!' }, // hops by itself (see autopilot), and for joy
@@ -139,6 +143,7 @@ let herd, herdT, spits, spitT, drumT; // the yak's stampede (the herd running by
 const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
 let clouds, sky, hillX, groundX; // the clouds, where the next comes from, how far the hills and the ground have gone (as they were, every run)
 let fresh = null; // a knock-out's new entry in the high scores, to name
+let rec = null; // the run being written down (see the runs)
 let beat = 0; // the best score when the run started (0: passed, or none to pass)
 const far = () => Math.floor(dist * SCORE_PER_PX); // how far the run went: when night, crows, the chase come
 const score = () => Math.floor(dist * SCORE_PER_PX * T().mult + bonus); // what it scores: harder animals count more
@@ -161,10 +166,12 @@ blinkT = 0;
 
 function start() {
   gained = null;
+  rec = AUTO ? null : newRec();
   beat = best(); // the best so far: passing it plays a fanfare
   if (kind === newKind) { newKind = null; keep('new', null); } // (no longer new)
   reset();
   state = 'run';
+  reached(1);
   updateMood();
   call('sting', 'go');
   banner('DAY 1', 30); banner(landOf(1).name, 38);
@@ -217,13 +224,33 @@ function playable() {
   return row;
 }
 
-// The animals come one by one: a run starts with the rabbit, chased by the cat at night; getting away from it till dawn
-// unlocks it (lop.unlocked, in this browser). The fox, last, is chased by a wolf.
-const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit'; // (the dino, last, by the rabbit)
+// The animals come one by one: a run starts with the rabbit, chased by the guinea pig at night; getting away from it
+// till dawn unlocks it (lop.unlocked, in this browser). The special ones are not in the chase (see chaserOf in level.js):
+// one joins at the dawn that gives every animal before it three suns (a sun for every day a run of it reached, the
+// first too, up to three: its best, lop.suns).
 let open = ['rabbit'];
-{ // (every one before the furthest unlocked: the newer animals came in between the others)
-  const u = keptJSON('unlocked'), far = Array.isArray(u) ? Math.max(0, ...u.map(renamed).map((k) => KINDS.indexOf(k))) : 0;
-  open = KINDS.slice(0, far + 1);
+{ // (every one that is not special before the furthest unlocked: the newer animals came in between the others; and
+  // every one unlocked, special or not)
+  const u = (keptJSON('unlocked') || []).map(renamed).filter((k) => ANIMALS[k]);
+  const far = Math.max(0, ...u.filter((k) => !ANIMALS[k].special).map((k) => KINDS.indexOf(k)));
+  open = KINDS.filter((k, i) => (i <= far && !ANIMALS[k].special) || u.includes(k));
+}
+const SUNS = 3;
+const won = keptJSON('suns') || Object.fromEntries(Object.entries(keptJSON('stars') || {}).map(([k, n]) => [k, n + 1])); // kind → the most suns a run of it got (lop.stars, before: its dawns)
+const sunsOf = (k) => Math.min(SUNS, won[k] || 0);
+// the special one to come (the first not unlocked yet), if any
+const nextSpecial = () => KINDS.find((k) => ANIMALS[k].special && !unlocked(k));
+// a run reached a day (the first as it starts, then at each dawn): its suns; a special one joins once every one before
+// it has them all
+function reached(d) {
+  if (AUTO || d <= sunsOf(kind)) return;
+  won[kind] = Math.min(SUNS, d);
+  keep('suns', JSON.stringify(won));
+  for (const k of KINDS) {
+    if (!ANIMALS[k].special || unlocked(k)) continue;
+    if (KINDS.slice(0, KINDS.indexOf(k)).every((b) => unlocked(b) && sunsOf(b) >= SUNS)) unlock(k, 22);
+    break; // (only the next one: the one after needs this one's suns too)
+  }
 }
 const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device; ?hz=120: up to 120, see frame)
 // ?log: each frame that came late or early, took other than a frame's steps (x2; ?hz=120: x1), or long, on the
@@ -238,18 +265,20 @@ let gained = null, newKind = null;
 const keptKind = (name) => { const k = renamed(kept(name)); return ANIMALS[k] && unlocked(k) ? k : null; };
 newKind = keptKind('new');
 kind = keptKind('animal') || kind;
-function unlock(k) {
+function unlock(k, y = 30) {
   open.push(k);
   gained = newKind = k;
+  if (rec) rec.unlocked.push(k);
   keep('unlocked', JSON.stringify(open)); keep('new', k);
   call('sting', 'discovery');
-  banner(`${ANIMALS[k].name} UNLOCKED!`, 30, 2.5);
+  banner(ANIMALS[k].special ? `THE ${ANIMALS[k].name} JOINS YOU!` : `${ANIMALS[k].name} UNLOCKED!`, y, 2.5);
 }
 // words in the middle of the screen for a while, standing (rise: or rising)
 const banner = (text, y, life = 2, rise = 0) => floats.push({ text, x: W / 2 - textWidth(text) / 2, y, life, rise });
 
 // home: back to the title, from wherever (a run is given up)
 function goHome() {
+  if (inRun()) endRec('home'); // (given up)
   if (board) closeScores();
   if (state === 'title') return;
   if (state === 'paused' && audio === 'on') music.play();
@@ -271,6 +300,7 @@ function bump(o) {
     return;
   }
   if (!power) energy = Math.max(0, energy - BUMP * T().bump); // (a super power keeps the energy)
+  if (rec) { if (o.piece) o.piece.hit = true; rec.bumps.push([+rec.secs.toFixed(1), far(), o.duck ? 'duck' : 'jump', chase && !chase.leaving ? 1 : 0, Math.round(energy)]); }
   streak = 0;
   safe = SAFE_SECS; hurtT = 0.35; slow = 1;
   if (chase && !chase.leaving) { if (chase.heat > 0.05) chase.catching = true; chase.heat = 1; } // the chaser closes in
@@ -299,9 +329,14 @@ function startPower() {
   updateMood({ within: 0 });
   banner(POWERS[kind].name, 28, 1.6, 12);
   sparkle(16, 140);
-  if (powered().shakes && chase && !chase.leaving) { chase.leaving = true; floats.push({ text: powered().shakes, x: safeL + 4, y: GROUND - 32, life: 1.2 }); }
+  if (powered().shakes && chase?.seen && !chase.leaving) shaken();
 }
 // golden sparks around the animal
+// a power shakes off the chaser (once it has been seen: see the chase), saying so
+function shaken() {
+  chase.leaving = true;
+  floats.push({ text: powered().shakes, x: safeL + 4, y: GROUND - 32, life: 1.2 });
+}
 function sparkle(n, v = 40) {
   for (let i = 0; i < n; i++) {
     const a = rnd() * Math.PI * 2;
@@ -318,11 +353,13 @@ function dawn() {
   if (joins) unlock(c);
   else call('sting', away ? 'escape' : 'dawn');
   day++; night = hunted = false;
+  reached(day);
   banner(`DAY ${day}`, joins ? 40 : 30); // (under the unlock)
   banner(landOf(day).name, joins ? 48 : 38); // (the land its obstacles come from now)
 }
 
 function knockOut(why) {
+  endRec(why === 'TOO TIRED!' ? 'tired' : why.startsWith('CAUGHT') ? 'caught' : 'bumped');
   state = 'ko'; koT = 0; koWhy = why; energy = 0; ducking = duckHeld = false; power = 0;
   if (chase && !chase.caught) chase.leaving = true; // (one that caught it stays)
   if (!AUTO) fresh = record(kind, score());
@@ -510,6 +547,7 @@ function pause() {
 // of the game (the home screen's and the App Store's) would play over it. Back in sight it comes back (a run: on a tap)
 let away = false;
 function hide() {
+  if (rec) keep('runNow', JSON.stringify(recNow('left'))); // (the app may be closed while away: the run so far is kept)
   pause();
   if (audio === 'on' && state !== 'paused' && !away) { away = true; music.pause(); }
 }
@@ -559,7 +597,8 @@ const ICONS = {
 const ACTS = {
   sound: toggleMute,
   scores: () => { if (board && !board.credits) leaveScores(); else { closeScores(); showScores(fresh); fresh = null; } },
-  credits: () => { if (board?.credits) leaveScores(); else { closeScores(); board = { credits: true }; updateMood(); } },
+  credits: () => { if (board?.credits) leaveScores(); else { closeScores(); board = { credits: true, runs: (keptJSON('runs') || []).length }; updateMood(); } },
+  share: () => shareRuns(),
   full: toggleFull,
   home: goHome,
   prev: () => chooseNext(-1),
@@ -574,12 +613,13 @@ let viewL = 0, viewR = W; // the world's x at the screen's left and right edges 
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
   if (naming) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'named', text: 'OK', x: W / 2 - 15, y: NAME_BOX.y + 25, w: 31, h: 13 }]; // (see drawName)
-  if (inRun()) return [{ id: 'sound', x: safeL + 60, y: 2 }, { id: 'home', x: safeL + 60 + BTN + 2, y: 2 }];
+  if (inRun()) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'home', x: safeL + 4 + BTN + 2, y: 2 }]; // (the bars: in the middle, see bar)
   const ids = ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
   // on the title, the button that runs (under the writing, over the animals: in the world, from the top of the screen)
   // in the row of the pads, in the middle: on the title the button that runs, on the high scores the one back
   const mid = board ? { id: 'back', text: 'BACK' } : state === 'title' ? { id: 'start', text: 'START' } : null;
+  if (board?.credits && board.runs) row.push({ id: 'share', text: 'SHARE', x: W / 2 + 2, y: SKY - safeT + 41, w: 31, h: 11 }); // (the runs: see drawCredits)
   return mid ? [...row, { ...mid, x: W / 2 - 15, y: SKY - safeT + padRow + 2, w: 31, h: 13 }] : row;
 }
 // under the ground, from the top in the world: the row of the pads (and the start button), between the ground and the
@@ -662,6 +702,72 @@ function drawButton(x, y, icon, on, pal, { w = BTN, h = BTN, text: words } = {})
   ctx.fill();
 }
 
+// ---------------------------------------------------------------------------------------------------------- the runs
+// Every run is written down, to balance the game by (tools/balance.html reads them): kept in this browser (lop.runs, the
+// last RUNS_KEPT), sent to the dev server when the game comes from it (see sendRuns), shared from the credits (see
+// shareRuns). A run:
+//   { id, at (when it started), build, app (in the iOS app), kind, end ('tired' | 'bumped' | 'caught' | 'home': given
+//     up | 'left': the app closed while away), secs (running, not paused), points (how far), score, dawns, energy (left),
+//     unlocked: [kinds], jump: [obstacles to jump, run into], duck: [to duck under, run into], food: [eaten, missed],
+//     gold: [got, missed], days: [{ secs, jump, duck }], bumps: [[secs, points, 'jump' | 'duck', chased (1), energy]] }
+// (an obstacle counts once it is behind the animal, a pack as one; not while a super power is on, nor one smashed)
+const RUNS_KEPT = 2000;
+const newRec = () => ({ id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e8).toString(36)}`, at: new Date().toISOString(), build: BUILT, app: !!window.Capacitor, kind,
+  secs: 0, unlocked: [], jump: [0, 0], duck: [0, 0], food: [0, 0], gold: [0, 0], days: [], bumps: [] });
+function tally() {
+  for (const o of obstacles) {
+    if (!o.last || o.counted || o.over || o.x + o.sprite.w >= RUN_X) continue;
+    o.counted = true;
+    if (power || o.smashed) continue;
+    const need = o.duck ? 'duck' : 'jump', d = rec.days[day - 1];
+    rec[need][0]++; d[need][0]++;
+    if (o.piece.hit) { rec[need][1]++; d[need][1]++; }
+  }
+}
+// the run as it is (ended so)
+const recNow = (end) => ({ ...rec, end, secs: +rec.secs.toFixed(1), points: far(), score: score(), dawns: day - 1, energy: Math.round(Math.max(0, energy)),
+  days: rec.days.map((d) => ({ ...d, secs: +d.secs.toFixed(1) })) });
+function endRec(end) {
+  if (!rec) return;
+  keepRun(recNow(end));
+  rec = null;
+  keep('runNow', null);
+  sendRuns();
+}
+function keepRun(r) {
+  const all = keptJSON('runs') || [];
+  all.push(r);
+  keep('runs', JSON.stringify(all.slice(-RUNS_KEPT)));
+}
+{ const left = keptJSON('runNow'); if (left) { keepRun(left); keep('runNow', null); } } // (a run the app was closed in)
+// the game from the dev server (npm run dev, on this computer or another in the house): each run goes to it as well
+// (POST runs: data/runs.jsonl, see tools/serve.mjs), those not sent yet (lop.runsSent: the last that was)
+const DEV = !window.Capacitor && /^(localhost|127\.0\.0\.1|.+\.local|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})$/.test(location.hostname);
+function sendRuns() {
+  if (!DEV) return;
+  const all = keptJSON('runs') || [], out = all.slice(all.findIndex((r) => r.id === kept('runsSent')) + 1);
+  if (!out.length) return;
+  fetch('runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) })
+    .then((r) => { if (r.ok) keep('runsSent', out[out.length - 1].id); }).catch(() => {});
+}
+sendRuns();
+// all the runs, as a file: shared (a phone, the app: AirDrop, Mail, Files…), else saved (a computer), else copied
+async function shareRuns() {
+  const json = JSON.stringify({ game: 'lop-hop', shared: new Date().toISOString(), runs: keptJSON('runs') || [] });
+  const name = `lop-hop-runs-${new Date().toISOString().slice(0, 10)}.json`;
+  const say = (what) => { if (board) board.said = what; };
+  try {
+    const file = new File([json], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return say('RUNS SHARED'); }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  if (!TOUCH) {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([json], { type: 'application/json' })), download: name });
+    a.click();
+    return say('RUNS SAVED');
+  }
+  try { await navigator.clipboard.writeText(json); say('RUNS COPIED'); } catch { say('NO WAY TO SHARE HERE'); }
+}
+
 // ------------------------------------------------------------------------------------------------- the music panel
 const status = document.getElementById('status'), moodsEl = document.getElementById('moods'), callsEl = document.getElementById('calls');
 let section = '–';
@@ -675,7 +781,7 @@ let callsShown = true; // (the calls written out: once a frame at most, see draw
 function showCalls() { if (!callsShown) { callsShown = true; callsEl.textContent = calls.join('\n'); } }
 
 // ------------------------------------------------------------------------------------------------------ high scores
-// one table of ten, every animal in it, kept in this browser (localStorage lop.scores: [{ name, score, kind, date }]). A
+// one table of ten, every animal in it, kept in this browser (localStorage lop.scores: [{ name, score, kind, date, suns }]). A
 // knock-out that makes the table goes in at once, under the last name given; then the name is asked (see nameIt).
 const TOP = 10;
 let scores = [], lastName = '';
@@ -691,7 +797,7 @@ const saveScores = () => keep('scores', JSON.stringify(scores));
 // → the new entry, if the score makes the table (below those it ties with)
 function record(k, s) {
   if (s <= 0 || (scores.length >= TOP && s <= scores[TOP - 1].score)) return null;
-  const entry = { name: lastName || '???', score: s, kind: k, date: new Date().toISOString().slice(0, 10) };
+  const entry = { name: lastName || '???', score: s, kind: k, date: new Date().toISOString().slice(0, 10), suns: Math.min(SUNS, day) };
   const at = scores.findIndex((e) => s > e.score);
   scores.splice(at < 0 ? scores.length : at, 0, entry);
   scores.length = Math.min(scores.length, TOP);
@@ -699,12 +805,16 @@ function record(k, s) {
   return entry;
 }
 
-// The high scores screen is drawn in the game, like the rest: rank, the animal's face, name, score; the new entry
-// marked. Its name is asked before (see openName).
+// The high scores screen is drawn in the game, like the rest: one column of rank, the animal's face, name, suns (the
+// days the run reached: none on an entry from before they were kept; stars, its dawns, for a while), score; the new
+// entry marked, the animal sitting beside it. Its name is asked before (see openName).
 let board = null; // the screen on show: { entry: the new one (marked) }
 const scoresOpen = () => !!board;
-const NAME_LEN = 10, ROW = 9, COLS = [57, 157]; // a row's height; the columns' left edges (rank, face, name, score: 96 wide)
-const rowAt = (i) => [COLS[Math.floor(i / 5)], 14 + (i % 5) * ROW];
+const NAME_LEN = 10, ROW = 9, SCORE_ROW = 7, SCORES_X = W / 2 - 67; // a row's height (the credits; the high scores'); the column's left edge (120 wide)
+const rowAt = (i) => [SCORES_X, 8 + i * SCORE_ROW]; // (the last clear of the grass)
+// suns in a row from x (13 wide; those not won dim)
+function drawSuns(x, y, n, pal, of = SUNS) { for (let i = 0; i < of; i++) sun.draw(ctx, x + i * 5, y, i < n ? pal : shadow(pal)); }
+const sunsIn = (e) => e.suns ?? (e.stars === undefined ? undefined : Math.min(SUNS, e.stars + 1)); // (a high score's)
 
 function showScores(entry = null) {
   board = { entry };
@@ -766,20 +876,21 @@ function drawName(pal) {
 // Escape goes back)
 function drawBoard(pal) {
   (board.credits ? drawCredits : drawScores)(pal);
-  if (gained && state === 'ko' && !board.credits) help(`${ANIMALS[gained].name} UNLOCKED!`, pal, pal[7]); // (after a run: see hud)
-  animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, W / 2 - 13, GROUND - FOOT, pal);
+  if (gained && state === 'ko' && !board.credits) help(`${ANIMALS[gained].name} ${ANIMALS[gained].special ? 'JOINS YOU' : 'UNLOCKED'}!`, pal, pal[7]); // (after a run: see hud)
+  animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, board.credits ? W / 2 - 13 : SCORES_X + 132, GROUND - FOOT, pal);
 }
 function drawScores(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
-  text(ctx, 'HIGH SCORES', W / 2, 4, ink, 'center');
+  text(ctx, 'HIGH SCORES', SCORES_X + 60, 1, ink, 'center');
   for (let i = 0; i < TOP; i++) {
     const [x, y] = rowAt(i), e = scores[i], mark = e && e === board.entry;
-    if (mark) { ctx.fillStyle = pal[7]; ctx.fillRect(x - 2, y - 3, 98, 10); }
+    if (mark) { ctx.fillStyle = pal[7]; ctx.fillRect(x - 2, y - 1, 124, 7); }
     const c = mark ? pal.bg : e ? ink : dim;
     text(ctx, `${i + 1}.`, x + 11, y, c, 'right');
-    if (e) face(e.kind)?.draw(ctx, x + 13, y - 2, pal);
+    if (e) face(e.kind)?.draw(ctx, x + 13, y - 1, pal);
     text(ctx, e ? e.name : '-', x + 15 + FACE_W, y, c);
-    if (e) text(ctx, e.score, x + 93, y, c, 'right');
+    if (e && sunsIn(e) !== undefined) drawSuns(x + 71, y + 1, sunsIn(e), pal);
+    if (e) text(ctx, e.score, x + 120, y, c, 'right');
   }
 }
 
@@ -793,7 +904,9 @@ function drawCredits(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
   text(ctx, 'CREDITS', W / 2, 4, ink, 'center');
   CREDITS.forEach(([what, who], i) => { text(ctx, what, W / 2 - 4, 16 + i * ROW, dim, 'right'); text(ctx, who, W / 2 + 4, 16 + i * ROW, ink); });
-  text(ctx, 'THANKS FOR PLAYING!', W / 2, 16 + (CREDITS.length + 1) * ROW, pal[7], 'center');
+  if (board.runs) text(ctx, `${board.runs} RUN${board.runs > 1 ? 'S' : ''} KEPT`, W / 2 - 3, 44, dim, 'right'); // (and SHARE: see buttons)
+  if (board.said) help(board.said, pal, pal[7]);
+  text(ctx, 'THANKS FOR PLAYING!', W / 2, 16 + (CREDITS.length + 1) * ROW + 1, pal[7], 'center');
   const v = 16 + (CREDITS.length + 3) * ROW; // which build this is, either side of the animal sitting in the middle
   text(ctx, `VERSION ${BUILT}`, W / 2 - 32, v, dim, 'right');
   text(ctx, `ENGINE ${ENGINE.toUpperCase()}`, W / 2 + 32, v, dim);
@@ -808,7 +921,8 @@ const help = (s, pal, color = pal[COLOR.DIM]) => text(ctx, s, W / 2, helpY, colo
 // run under; food now and then, on the ground or up in the air (more for the sly fox); golden food over an obstacle
 function place(p) {
   const x = W - (dist - p.at);
-  for (const it of p.items) obstacles.push({ kind: it.kind, sprite: it.sprite, x: x + it.dx, y: it.y, fly: it.fly, duck: it.duck, over: it.over });
+  const piece = { hit: false }; // (what is jumped or ducked at once: run into or not, see tally)
+  p.items.forEach((it, i) => obstacles.push({ kind: it.kind, sprite: it.sprite, x: x + it.dx, y: it.y, fly: it.fly, duck: it.duck, over: it.over, piece, last: i === p.items.length - 1 }));
   for (const f of p.food) if (!f.sly || (power && kind === 'fox')) food.push({ x: x + f.dx, y: f.y });
   if (p.gold) gold = { x: x + p.gold.dx, y: p.gold.y };
 }
@@ -870,6 +984,7 @@ function update(dt) {
   if (state !== 'run' && state !== 'ko') return;
 
   if (state === 'run') {
+    if (rec) { rec.secs += dt; (rec.days[day - 1] ||= { secs: 0, jump: [0, 0], duck: [0, 0] }).secs += dt; }
     if (AUTO || (power && kind === 'guineapig')) autopilot(!AUTO);
     duck();
     queued = Math.max(0, queued - dt);
@@ -923,11 +1038,12 @@ function update(dt) {
     if (rnd() < dt * 30) parts.push({ x: p.x, y: p.y, vx: -20, vy: 0, life: 0.2, color: COLOR.FAINT });
   }
   spits = spits.filter((p) => !p.done);
+  if (rec && state === 'run') tally();
   const gone = Math.min(0, viewL); // (off the screen's left edge, past the world's on a wider screen)
   obstacles = obstacles.filter((o) => o.x > gone - o.sprite.w && o.y < H);
   for (const f of food) f.x -= dx;
   food = food.filter((f) => f.x > gone - 14);
-  if (gold) { gold.x -= dx; if (gold.x < gone - 14) gold = null; }
+  if (gold) { gold.x -= dx; if (gold.x < gone - 14) { gold = null; if (rec && state === 'run') rec.gold[1]++; } }
   for (const c of clouds) { c.x -= dx * 0.15; if (c.x < gone - 20) { c.x = Math.max(W, viewR) + sky() * 80; c.y = 8 + sky() * 30 - sky() * SKY * 0.7; } }
   hillX += dx * 0.08;
   groundX = (groundX + dx) % GROUND_LOOP;
@@ -941,8 +1057,11 @@ function update(dt) {
     else if (!chase.caught) {
       if (power) chase.catching = false;
       chase.heat = Math.max(0, chase.heat - dt / (RECOVER + DAY_RECOVER * Math.min(6, hardness(kind, far()))));
-      const to = safeL + (power ? CRUISE_X - 12 : chase.catching ? CATCH_X : CRUISE_X + ((CATCH_X - CRUISE_X) / 2) * chase.heat); // (right of a notch)
+      // (it comes into sight first, a power or not: the night's banner says it is after the animal; then a power holds
+      // it back, or shakes it off)
+      const to = safeL + (power && chase.seen ? CRUISE_X - 12 : chase.catching ? CATCH_X : CRUISE_X + ((CATCH_X - CRUISE_X) / 2) * chase.heat); // (right of a notch)
       chase.x += Math.max(-10 * dt, Math.min(40 * dt, to - chase.x));
+      if (chase.x >= safeL + CRUISE_X - 0.5) chase.seen = true;
       if (state === 'run' && chase.catching && chase.x >= safeL + CATCH_X - 0.5) { // caught
         speed = 0; chase.caught = true;
         return knockOut(`CAUGHT BY THE ${ANIMALS[chaserOf(kind)].name}!`);
@@ -951,10 +1070,12 @@ function update(dt) {
   }
   if (state !== 'run') return;
 
-  // a super power wears off (a little warning first: the animal flashes slower)
+  // tired: sweat drops off its head (blue), blown back
+  if (energy < LOW && rnd() < dt * (energy < VERY_LOW ? 6 : 2.5)) { const [hx, hy] = headAt(); parts.push({ x: hx - 1, y: hy - 3, vx: -20 - rnd() * 30, vy: -50 - rnd() * 30, life: 0.45, color: COLOR.ICE, h: 2 }); }
+  // a super power wears off (a warning first: see ENDING)
   if (power) {
     power = Math.max(0, power - dt);
-    if (rnd() < dt * 30) sparkle(1);
+    if (rnd() < dt * 30 * Math.min(1, power / ENDING)) sparkle(1);
     if (kind === 'dino') { // giant: what its big body touches tumbles away
       const [x, y, w, h] = giantBox();
       for (const o of obstacles) if (!o.smashed && o.x < x + w && o.x + o.sprite.w > x && o.y < y + h && o.y + o.sprite.h > y) smash(o);
@@ -991,7 +1112,7 @@ function update(dt) {
       if (rnd() < dt * 40) parts.push({ x: RUN_X + 2, y: animalY() + 6 + rnd() * 8, vx: -30 - rnd() * 40, vy: -10 - rnd() * 20, life: 0.6, color: COLOR.LEAF });
       for (const o of obstacles) if (o.kind === 'crow') o.y -= 50 * dt;
     }
-    if (powered().shakes && chase) chase.leaving = true; // (it comes, and turns away)
+    if (powered().shakes && chase?.seen && !chase.leaving) shaken(); // (it comes, is seen, and turns away)
     if (!power) { duck(kind === 'guineapig' ? false : duckHeld); call('sting', 'powerdown'); updateMood({ within: 0 }); } // (a belly slide ends; popcorn lets go of its own ducking)
   }
 
@@ -1004,19 +1125,20 @@ function update(dt) {
     if (d < 120 && d > 1) { f.x += (tx / d) * 160 * dt; f.y += (ty / d) * 160 * dt; }
   }
   const reaches = (f) => f.x + meal.w > RUN_X + 3 && f.x < RUN_X + 22 && f.y + meal.h > ay + 3 && f.y < ay + FOOT; // (its mouth: food comes to it)
-  if (gold && reaches(gold)) { gold = null; startPower(); }
+  if (gold && reaches(gold)) { gold = null; startPower(); if (rec) rec.gold[0]++; }
   food = food.filter((f) => {
     if (!reaches(f)) {
-      if (!f.missed && f.x + meal.w <= RUN_X + 3) { f.missed = true; streak = 0; } // (gone by: a feast ends)
+      if (!f.missed && f.x + meal.w <= RUN_X + 3) { f.missed = true; streak = 0; if (rec) rec.food[1]++; } // (gone by: a feast ends)
       return true;
     }
     energy = Math.min(100, energy + MEAL * (power && kind === 'bear' ? 2 : 1));
+    if (rec) rec.food[0]++;
     streak++;
     const worth = 25 * Math.min(streak, FEAST);
     bonus += worth;
     call('sting', 'reward');
     floats.push({ text: streak > 1 ? `+${worth} X${streak}` : '+25', x: f.x, y: f.y - 6, life: 0.8 }, { sprite: heart, x: f.x + (streak > 1 ? 34 : 14), y: f.y - 6, life: 0.8 });
-    for (let i = 0; i < 6; i++) parts.push({ x: f.x + 3, y: f.y + 3, vx: (rnd() - 0.5) * 90, vy: -rnd() * 80, life: 0.5, color: COLOR.BERRY });
+    for (let i = 0; i < 6; i++) parts.push({ x: f.x + 3, y: f.y + 3, vx: (rnd() - 0.5) * 90, vy: -rnd() * 80, life: 0.5, color: COLOR.LEAF }); // (never red, from an animal: it could look like blood)
     return false;
   });
 
@@ -1153,18 +1275,18 @@ function updateRow(dt) {
   updatePets(dt);
   updateJumps(dt);
   if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; hand(''); } // (run, or off to the high scores, meanwhile)
-  const row = playable(), n = row.length;
+  const row = playable(), n = row.length, lead = coming() ? row.indexOf(kind) : -1; // (a place left of the picked one: see coming)
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
     const edge = 40, by = held.px < edge ? -(edge - held.px) / edge : held.px > W - edge ? (held.px - (W - edge)) / edge : 0;
     carousel = Math.max(0, Math.min(n - 1, carousel + by * 8 * dt));
   } else {
-    const sel = row.indexOf(kind);
+    const sel = row.indexOf(kind) + (lead >= 0 ? 1 : 0);
     carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
   }
   // each to its place (past the gap, one on), running there
   const others = held ? row.filter((k) => k !== held.k) : row, gap = held ? gapAt(n) : n;
   others.forEach((k, i) => {
-    const p = i < gap ? i : i + 1, r = runs[k] || (runs[k] = { phase: 0, dir: 1, on: false });
+    const p = (i < gap ? i : i + 1) + (lead >= 0 && i >= lead ? 1 : 0), r = runs[k] || (runs[k] = { phase: 0, dir: 1, on: false });
     if (at[k] === undefined) at[k] = p;
     const d = p - at[k];
     r.on = Math.abs(d) > 0.001 && !(dropped?.k === k && !dropped.landed);
@@ -1221,8 +1343,25 @@ function drawGrabbed(pal) {
   sp.draw(ctx, x - pin[0], y - pin[1], pal);
 }
 
+// on the title, the ones to come, as shadows: the one that would chase the picked one (if it is not unlocked yet),
+// standing right behind it, left of it (a place is kept for it there: see updateRow); and the next special one, at
+// the end of the row, the three suns it needs over it
+const coming = () => { const c = chaserOf(kind); return state === 'title' && !board && !held && !dropped && !ALL && !unlocked(c) ? c : null; };
+function toCome(pal) {
+  const c = coming(), sp = nextSpecial(), placed = playable().map((k) => at[k]).filter((p) => p !== undefined);
+  if (c && at[kind] !== undefined) {
+    const x = placeX(at[kind] - 1);
+    animal(c, 'idle', 0).draw(ctx, x, GROUND - FOOT, shadow(pal, COLOR.DIM));
+    text(ctx, '?', x + 13, GROUND - 31, pal[COLOR.DIM], 'center');
+  }
+  if (sp && sp !== c && placed.length) {
+    const x = placeX(Math.max(...placed) + 1);
+    animal(sp, 'idle', 0).draw(ctx, x, GROUND - FOOT, shadow(pal, COLOR.DIM));
+    drawSuns(x + 6, GROUND - 30, 0, pal);
+  }
+}
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
-// faded behind (p: its place in the row)
+// faded behind (p: its place in the row), its suns over it
 function standing(k, p, on, pal) {
   const x = placeX(p), r = runs[k];
   if (x < viewL - 26 || x > viewR) return;
@@ -1238,6 +1377,7 @@ function standing(k, p, on, pal) {
     animal(k, 'run', st.frame, { blink: on && blinking() }).draw(ctx, x, y, pal);
     if (r.dir < 0) ctx.restore();
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x, GROUND - FOOT, pal);
+  if (k !== newKind && !board) drawSuns(x + 6, GROUND - 30, sunsOf(k), pal);
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
   if (!on || held || jp) return; // (the arrow: not while one is held, or it jumps)
@@ -1246,9 +1386,9 @@ function standing(k, p, on, pal) {
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
 }
 
-// a bar at the top left, at y: an icon, a frame, filled that much (0…1) in a color
+// a bar at the top, in the middle, at y: an icon, a frame, filled that much (0…1) in a color
 function bar(pal, icon, y, full, color) {
-  const x = safeL;
+  const x = Math.round((safeL + W - safeR) / 2) - 30; // (in the middle of the screen, where the eye passes more often than in a corner)
   icon.draw(ctx, x + 6, y, pal);
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(x + 13, y, 42, 5);
@@ -1259,7 +1399,7 @@ function bar(pal, icon, y, full, color) {
 }
 // the energy: a heart and a bar that turns red (and blinks) when it runs low
 function energyBar(pal) {
-  const low = energy < 30;
+  const low = energy < LOW;
   if (!(low && state === 'run' && Math.floor(blinkT * 4) % 2)) bar(pal, heart, 5, energy / 100, low ? COLOR.BERRY : COLOR.ENERGY);
 }
 // what is left of a super power, under the energy: a star and a golden bar (blinking in its last two seconds)
@@ -1374,7 +1514,12 @@ function scene(pal) {
   // what lies on the ground moves with it, rounded with it to the same screen pixel (on its own, it could be one off)
   const onGround = (x) => snap(x + groundX) - scroll;
   const meal = FOOD[ANIMALS[kind].food];
-  for (const f of food) meal.draw(ctx, onGround(f.x), f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1)), pal);
+  const hungry = state === 'run' && energy < LOW; // (the food glints, bobs higher: see LOW)
+  for (const f of food) {
+    const x = onGround(f.x), y = f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1) * (hungry ? 2 : 1));
+    meal.draw(ctx, x, y, pal);
+    if (hungry && (blinkT * 2.5 + f.x * 0.013) % 1 < 0.3) { ctx.fillStyle = pal[7]; ctx.fillRect(x + meal.w, y - 3, 1, 3); ctx.fillRect(x + meal.w - 1, y - 2, 3, 1); }
+  }
   if (gold) { // golden, with a glint going round it
     const x = onGround(gold.x), y = gold.y + Math.round(Math.sin(blinkT * 5));
     meal.draw(ctx, x, y, golden(pal));
@@ -1400,22 +1545,30 @@ function scene(pal) {
   if (state === 'title') {
     for (const k of playable()) if (k !== held?.k && k !== dropped?.k) standing(k, at[k], k === kind, pal);
     drawGrabbed(pal);
+    toCome(pal);
   }
   else {
     if (state === 'ko') dizzyBirds(pal, true);
     ctx.globalAlpha = safe > 0 && state === 'run' && Math.floor(safe * 10) % 2 ? 0.35 : 1;
-    const flashing = power > 0 && Math.floor(power / (power > 2 ? 0.1 : 0.25)) % 2 === 0; // slower in the last two seconds
+    // golden while a power is on; at its end flickering, faster and faster; almost out of energy, flushed red a moment
+    // every second
+    const flashing = power > ENDING || (power > 0 && Math.floor(power / (0.06 + (0.14 * power) / ENDING)) % 2 === 0);
+    const red = !power && state === 'run' && energy < VERY_LOW && blinkT % 1 < 0.15;
     if (power && kind === 'cheetah') { // sprint: a blur behind it
       for (const [d, a] of [[12, 0.15], [6, 0.3]]) { ctx.globalAlpha = a; animalSprite().draw(ctx, RUN_X - d, animalY(), pal); }
       ctx.globalAlpha = 1;
     }
     const [gx, gy, , , s] = giantBox();
-    animalSprite(s).draw(ctx, gx, gy, flashing ? golden(pal) : pal); // (the giant: drawn bigger, still smooth)
+    animalSprite(s).draw(ctx, gx, gy, flashing ? golden(pal) : red ? flushed(pal) : pal); // (the giant: drawn bigger, still smooth)
     ctx.globalAlpha = 1;
     if (state === 'ko') dizzyBirds(pal, false);
+    if (power > 0 && power <= ENDING && state === 'run') { // the seconds left, over its head (each a little hop as it comes)
+      const [hx, hy] = headAt(), left = Math.ceil(power), hop = power - Math.floor(power) > 0.85 ? 1 : 0;
+      text(ctx, String(left), hx, Math.min(hy, gy) - 12 - hop, pal[7], 'center');
+    }
   }
   let color = null;
-  for (const p of parts) { if (p.color !== color) ctx.fillStyle = pal[color = p.color]; ctx.fillRect(snap(p.x), snap(p.y), 1, 1); }
+  for (const p of parts) { if (p.color !== color) ctx.fillStyle = pal[color = p.color]; ctx.fillRect(snap(p.x), snap(p.y), 1, p.h || 1); }
   for (const f of floats) {
     if (f.sprite) f.sprite.draw(ctx, f.x, Math.round(f.y), pal);
     else text(ctx, f.text, f.x, Math.round(f.y), pal[COLOR.INK]);
@@ -1430,7 +1583,6 @@ function hud(pal) {
     if (state === 'run' || state === 'paused') { energyBar(pal); powerBar(pal); text(ctx, `DAY ${day}`, W - safeR - 6, 12, pal[COLOR.INK], 'right'); }
     const pad = (n) => String(n).padStart(5, '0');
     if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - safeR - 6, 5, pal[COLOR.INK], 'right');
-    if (best()) text(ctx, `HI ${pad(best())}`, W - safeR - 30, 5, pal[COLOR.DIM], 'right');
   });
 
   if (state === 'title') {

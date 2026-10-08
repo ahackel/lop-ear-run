@@ -12,7 +12,7 @@
 //   course(kind) → { next() → piece }   piece: { at, items, food, gold }, at: the distance (art pixels) where its left
 //                                         edge comes in at the right of the screen; items (obstacles), food and gold
 //                                         from there (dx)
-//   pace(kind, d) → speed               hardness(kind, s), drain(kind, s), dayOf(kind, s), nightAt(kind, day)
+//   pace(kind, d) → speed               hardness(kind, s), drain(kind, s), dayOf(kind, s), nightAt(kind, day), chaserOf(kind)
 import { W, GROUND, ANIMALS, DUCK_UNDER, CROW_BOTTOM, JUMP, GRAVITY, FOOD, LANDS, branch, crow, hitbox, stride, jumpFrame } from './art.js';
 
 // ------------------------------------------------------------------------------------------------------------- tuning
@@ -34,6 +34,9 @@ export const GOLD_FIRST = 250, GOLD_SECS = [24, 36], DAY_GOLD = 0.1;
 
 const KINDS = Object.keys(ANIMALS);
 const T = (kind) => ANIMALS[kind];
+// who chases an animal at night (and joins it, the first time it gets away till dawn): the next one that is not
+// special (see ANIMALS); the last, the rabbit
+export const chaserOf = (k) => KINDS.slice(KINDS.indexOf(k) + 1).find((c) => !T(c).special) || 'rabbit';
 const cycle = (kind) => DAY + NIGHT * T(kind).speed; // (points: a day and its night)
 // how much harder than the start (days), s points into a run
 export const hardness = (kind, s) => s / cycle(kind) + KINDS.indexOf(kind) * HEAD;

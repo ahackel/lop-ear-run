@@ -166,10 +166,11 @@ function fromRows(rows, keys) {
 // Every animal faces right in a 26×20 box, its feet on row FOOT, and is a rig (see the rigs below). Moves: run (see
 // stride), jump (see jumpFrame), duck, idle (see idleFrame), hurt, ko; the hedgehog's ball (0-3), drawn on its own.
 export const FOOT = 19;
-// In the order they are unlocked: each is chased by the next, and reaching night with one unlocks
-// the next (the dino, last, is chased by the rabbit). The rabbit is the easy start; each after it is clearly harder than the
-// one before, the dino the hardest, and
-// its score counts more (mult). The dials, as factors: speed (start and top speed), jump (its speed off the ground),
+// In the order they are unlocked: each is chased by the next, and getting away from it till dawn unlocks it; the
+// special ones (every sixth, and the dino, last) are left out of the chase (the one before is chased by the one after):
+// one joins when every animal before it has three stars (see level.js, chaserOf; game.js). The rabbit is the easy start;
+// each after it is clearly harder than the one before, the dino the hardest, and its score counts more (mult). The
+// dials belong to the place (a special one's the place it is in), the jump and gravity to the animal. As factors: speed (start and top speed), jump (its speed off the ground),
 // gravity, drain (energy), meals (how often food comes), bump (what a bump costs), early (crows and branches come that
 // many points sooner), packs (obstacles in groups), tight (the gaps between obstacles).
 const tune = (mult, speed, jump, gravity, drain, meals, bump, early, packs, tight) => ({ mult, speed, jump, gravity, drain, meals, bump, early, packs, tight });
@@ -183,22 +184,22 @@ export const ANIMALS = {
   cat: { name: 'CAT', food: 'fish', ...tune(1.21, 1.04, 1, 1, 1.05, 0.98, 1.04, 0, 1.1, 0.98) },
   dog: { name: 'DOG', food: 'bone', ...tune(1.43, 1.07, 1, 1.05, 1.09, 0.96, 1.09, 50, 1.3, 0.97) },
   pig: { name: 'PIG', food: 'truffle', ...tune(1.53, 1.09, 0.98, 1.05, 1.115, 0.95, 1.11, 75, 1.35, 0.96) },
-  fox: { name: 'FOX', food: 'grapes', ...tune(1.64, 1.11, 1, 1.05, 1.14, 0.94, 1.13, 100, 1.4, 0.95) },
-  hedgehog: { name: 'HEDGEHOG', food: 'apple', ...tune(1.86, 1.13, 0.98, 1, 1.18, 0.935, 1.17, 100, 1.4, 0.94) },
-  squirrel: { name: 'SQUIRREL', food: 'acorn', ...tune(2.07, 1.18, 1, 0.85, 1.23, 0.91, 1.21, 100, 1.6, 0.91) }, // floaty, hungry
-  otter: { name: 'OTTER', food: 'shell', ...tune(2.29, 1.21, 0.97, 1.1, 1.28, 0.89, 1.26, 150, 1.8, 0.9) }, // crows from the start
-  skunk: { name: 'SKUNK', food: 'beetle', ...tune(2.5, 1.25, 1.05, 1.1, 1.32, 0.87, 1.3, 200, 1.9, 0.88) },
-  wolf: { name: 'WOLF', food: 'sausage', ...tune(2.71, 1.29, 1, 1.15, 1.37, 0.85, 1.34, 200, 2.0, 0.86) },
-  boar: { name: 'BOAR', food: 'mushroom', ...tune(2.93, 1.32, 0.95, 1.2, 1.42, 0.83, 1.39, 250, 2.2, 0.85) }, // heavy, low jumps
-  bear: { name: 'BEAR', food: 'berries', ...tune(3.14, 1.36, 0.95, 1.2, 1.46, 0.81, 1.43, 250, 2.3, 0.83) },
-  yak: { name: 'YAK', food: 'hay', ...tune(3.21, 1.37, 0.95, 1.2, 1.47, 0.807, 1.44, 250, 2.33, 0.827) }, // heavy
-  ostrich: { name: 'OSTRICH', food: 'melon', ...tune(3.29, 1.38, 1.06, 1.1, 1.49, 0.803, 1.455, 275, 2.37, 0.82) }, // long legs: high jumps
-  cheetah: { name: 'CHEETAH', food: 'drumstick', ...tune(3.36, 1.39, 1.08, 1.1, 1.51, 0.8, 1.47, 300, 2.4, 0.81) },
-  dromedary: { name: 'DROMEDARY', food: 'date', ...tune(3.46, 1.41, 1, 1.15, 1.535, 0.79, 1.49, 300, 2.45, 0.8) },
-  rhino: { name: 'RHINO', food: 'leaf', ...tune(3.57, 1.43, 0.95, 1.15, 1.56, 0.78, 1.51, 300, 2.5, 0.79) },
-  gorilla: { name: 'GORILLA', food: 'fig', ...tune(3.68, 1.445, 1, 1.2, 1.58, 0.77, 1.535, 300, 2.6, 0.785) },
-  elephant: { name: 'ELEPHANT', food: 'peanut', ...tune(3.79, 1.46, 1, 1.2, 1.6, 0.76, 1.56, 300, 2.7, 0.78) },
-  dino: { name: 'DINO', food: 'roast', ...tune(4.0, 1.5, 1, 1.25, 1.65, 0.74, 1.6, 300, 2.8, 0.76) }, // the hardest
+  cheetah: { name: 'CHEETAH', food: 'drumstick', special: true, ...tune(1.64, 1.11, 1.08, 1.1, 1.14, 0.94, 1.13, 100, 1.4, 0.95) }, // special
+  fox: { name: 'FOX', food: 'grapes', ...tune(1.86, 1.13, 1, 1.05, 1.18, 0.935, 1.17, 100, 1.4, 0.94) },
+  hedgehog: { name: 'HEDGEHOG', food: 'apple', ...tune(2.07, 1.18, 0.98, 1, 1.23, 0.91, 1.21, 100, 1.6, 0.91) },
+  squirrel: { name: 'SQUIRREL', food: 'acorn', ...tune(2.29, 1.21, 1, 0.85, 1.28, 0.89, 1.26, 150, 1.8, 0.9) }, // floaty
+  otter: { name: 'OTTER', food: 'shell', ...tune(2.5, 1.25, 0.97, 1.1, 1.32, 0.87, 1.3, 200, 1.9, 0.88) },
+  skunk: { name: 'SKUNK', food: 'beetle', ...tune(2.71, 1.29, 1.05, 1.1, 1.37, 0.85, 1.34, 200, 2.0, 0.86) },
+  gorilla: { name: 'GORILLA', food: 'fig', special: true, ...tune(2.93, 1.32, 1, 1.2, 1.42, 0.83, 1.39, 250, 2.2, 0.85) }, // special
+  wolf: { name: 'WOLF', food: 'sausage', ...tune(3.14, 1.36, 1, 1.15, 1.46, 0.81, 1.43, 250, 2.3, 0.83) },
+  boar: { name: 'BOAR', food: 'mushroom', ...tune(3.21, 1.37, 0.95, 1.2, 1.47, 0.807, 1.44, 250, 2.33, 0.827) }, // heavy, low jumps
+  bear: { name: 'BEAR', food: 'berries', ...tune(3.29, 1.38, 0.95, 1.2, 1.49, 0.803, 1.455, 275, 2.37, 0.82) },
+  yak: { name: 'YAK', food: 'hay', ...tune(3.36, 1.39, 0.95, 1.2, 1.51, 0.8, 1.47, 300, 2.4, 0.81) }, // heavy
+  ostrich: { name: 'OSTRICH', food: 'melon', ...tune(3.46, 1.41, 1.06, 1.1, 1.535, 0.79, 1.49, 300, 2.45, 0.8) }, // long legs: high jumps
+  elephant: { name: 'ELEPHANT', food: 'peanut', special: true, ...tune(3.57, 1.43, 1, 1.2, 1.56, 0.78, 1.51, 300, 2.5, 0.79) }, // special
+  dromedary: { name: 'DROMEDARY', food: 'date', ...tune(3.68, 1.445, 1, 1.15, 1.58, 0.77, 1.535, 300, 2.6, 0.785) },
+  rhino: { name: 'RHINO', food: 'leaf', ...tune(3.79, 1.46, 0.95, 1.15, 1.6, 0.76, 1.56, 300, 2.7, 0.78) },
+  dino: { name: 'DINO', food: 'roast', special: true, ...tune(4.0, 1.5, 1, 1.25, 1.65, 0.74, 1.6, 300, 2.8, 0.76) }, // special, the hardest (the last)
 };
 
 // where a run is in its stride (phase 0…1) → { frame, lift }: a gait's frame, and how high a leap has the body (a
@@ -1105,8 +1106,8 @@ export const LANDS = [
 // (FACE_S: from its shapes, outlined as ever); FACE_W × FACE_H, its eye at EYE_AT (FACE_AT moves one's cut by [dx, dy]),
 // cut round (no body behind it) and outlined where it is cut
 export const FACE_W = 10;
-const FACE_H = 9;
-const FACE_S = 0.6, EYE_AT = [5, 5], FACE_AT = {}, faces = {};
+const FACE_H = 7; // (a high score's row)
+const FACE_S = 0.6, EYE_AT = [5, 4], FACE_AT = {}, faces = {};
 export function face(kind) {
   if (faces[kind] || !ANIMALS[kind]) return faces[kind];
   const s = rigFrame(kind, 'run', 0, false, null, FACE_S, 0), [dx, dy] = FACE_AT[kind] || [0, 0]; // (s.head: the eye, less [1, 6], drawn bigger by FACE_S)
@@ -1257,12 +1258,35 @@ export function golden(pal) {
   })), bg: `${pal.bg} gold` });
 }
 
+// a palette that draws anything flushed red, as golden does golden (an animal almost out of energy, a flash now and then)
+const reds = {};
+export function flushed(pal) {
+  return (reds[pal.bg] ||= { ...Object.fromEntries(Object.entries(pal).map(([k, hex]) => {
+    if (k === 'bg' || +k === OUT || +k === INK) return [k, hex];
+    const l = luma(hex) / 255;
+    return [k, l > 0.8 ? '#ffc8c8' : l > 0.5 ? '#f07078' : '#c8404a'];
+  })), bg: `${pal.bg} red` });
+}
+
+// a palette that draws anything in one of its colors (a star not yet won: faint; an animal not yet unlocked: dim, so it
+// stands out from the hills)
+const shades = {};
+export function shadow(pal, color = COLOR.FAINT) {
+  return (shades[`${pal.bg} ${color}`] ||= { ...Object.fromEntries(Object.entries(pal).map(([k, hex]) => [k, k === 'bg' ? hex : pal[color]])), bg: `${pal.bg} shadow ${color}` });
+}
 export const star = fromRows([
   '..y..',
   '.yyy.',
   'yyyyy',
   '.yyy.',
   '.y.y.',
+], { y: YELLOW });
+
+// a sun, a dot: a day a run reached, on the title and in the high scores
+export const sun = fromRows([
+  'yyy',
+  'yyy',
+  'yyy',
 ], { y: YELLOW });
 
 export const heart = fromRows([

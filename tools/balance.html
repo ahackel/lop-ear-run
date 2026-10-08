@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Balance</title>
+<link rel="icon" href="../icons/favicon.png">
+<style>
+  :root {
+    --bg: #f4f2ec; --panel: #fffdf8; --line: #ddd8cc; --ink: #2f2d29; --dim: #8a857a; --accent: #d9632b; --accent-soft: #fbe3d6;
+    --bar: #5b8fd6; --warn: #d6455f; --good: #3f9a5a; --bad: #d6455f; --prev: #2b7bd9; --next: #d9632b; --grid: #ebe7dd; --sel: #f1ede3;
+    font: 13px/1.4 system-ui, -apple-system, sans-serif; color: var(--ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #1d1f26; --panel: #262932; --line: #3a3e4a; --ink: #e9e6de; --dim: #9a978f; --accent: #f08a4b; --accent-soft: #4a3326;
+      --bar: #6a9de0; --warn: #ec6a80; --good: #5dbb78; --bad: #ec6a80; --prev: #6aa8f0; --next: #f08a4b; --grid: #31343e; --sel: #2f333e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); }
+  header { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; }
+  nav { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 2px; }
+  nav a { padding: 3px 12px; border-radius: 5px; color: var(--dim); text-decoration: none; }
+  nav a.on { background: var(--panel); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  select, button, input { font: inherit; color: inherit; }
+  button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: var(--dim); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  select, input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; }
+  input[type=number] { width: 70px; text-align: right; }
+  #status { color: var(--dim); margin-left: auto; }
+  #status.busy { color: var(--accent); }
+  main { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 12px; padding: 12px 16px; align-items: start; }
+  @media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  .card h2 { font-size: 13px; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .card h2 .right { margin-left: auto; display: flex; gap: 6px; align-items: center; font-weight: normal; }
+  .note { color: var(--dim); }
+  #ladderCard { grid-column: 1 / -1; }
+  #ladder { display: block; width: 100%; height: auto; user-select: none; }
+  #ladder .col { cursor: pointer; }
+  #ladder .col:hover .hl { fill: var(--sel); }
+  #ladder image { image-rendering: pixelated; }
+  #ladder text { fill: var(--dim); font-size: 9px; }
+  #ladder text.v { fill: var(--ink); }
+  #ladderNote { display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  #ladderNote .warns button { padding: 0 6px; margin-left: 4px; color: var(--warn); }
+  .key { display: inline-flex; gap: 5px; align-items: center; color: var(--dim); }
+  .sw { width: 12px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  #who { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
+  #who canvas { image-rendering: pixelated; width: 88px; height: 60px; background: var(--bg); border-radius: 5px; }
+  #who .name { font-weight: 600; font-size: 14px; }
+  #who .food { display: flex; gap: 5px; align-items: center; color: var(--dim); }
+  #who .food canvas { width: auto; height: 24px; background: none; }
+  #who .nav { margin-left: auto; display: flex; gap: 4px; }
+  .legend { display: flex; gap: 12px; color: var(--dim); font-size: 11px; margin: 2px 0 6px; flex-wrap: wrap; }
+  .tick { display: inline-block; width: 2px; height: 10px; vertical-align: -1px; }
+  .ring { display: inline-block; width: 8px; height: 8px; border: 2px solid var(--dim); border-radius: 50%; vertical-align: 0; }
+  .dial { padding: 5px 0 6px; border-top: 1px solid var(--grid); }
+  .dial .top { display: flex; gap: 6px; align-items: baseline; }
+  .dial .label { font-weight: 600; min-width: 64px; }
+  .dial .help { color: var(--dim); font-size: 11px; flex: 1; }
+  .dial .was { color: var(--accent); font-size: 11px; visibility: hidden; cursor: pointer; }
+  .dial.changed .label { color: var(--accent); }
+  .dial.changed .was { visibility: visible; }
+  .dial .track { position: relative; height: 26px; }
+  .dial .track svg { position: absolute; inset: 0 9px; width: calc(100% - 18px); height: 100%; overflow: visible; }
+  .dial input[type=range] { position: absolute; inset: 0; width: 100%; margin: 0; background: none; accent-color: var(--accent); }
+  .group { margin: 12px 0 2px; color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .group:first-child { margin-top: 0; }
+  .file { color: var(--dim); font-size: 10px; font-family: ui-monospace, monospace; }
+
+  #right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  #tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  #tiles .sub { grid-column: 1 / -1; color: var(--dim); font-size: 11px; margin-top: 4px; }
+  #tiles .sub:first-child { margin-top: 0; }
+  .tile { background: var(--bg); border-radius: 6px; padding: 7px 9px; }
+  .tile .t { color: var(--dim); font-size: 11px; }
+  .tile .n { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .d { font-size: 11px; color: var(--dim); }
+  .tile .d.up { color: var(--good); } .tile .d.down { color: var(--bad); }
+  #charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  #charts svg { display: block; width: 100%; max-width: 440px; height: auto; }
+  #charts text { fill: var(--dim); font-size: 10px; }
+  #charts .title { fill: var(--ink); font-size: 11px; font-weight: 600; }
+  #changes ul { list-style: none; margin: 0; padding: 0; }
+  #changes li { display: flex; gap: 8px; align-items: center; padding: 3px 0; border-top: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  #changes li .what { flex: 1; }
+  #changes li button { padding: 0 7px; }
+  #real { grid-column: 1 / -1; }
+  #real .scroll { overflow-x: auto; }
+  #real table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  #real th { text-align: left; color: var(--dim); font-weight: normal; font-size: 11px; padding: 2px 8px 4px 0; white-space: nowrap; }
+  #real td { padding: 3px 8px 3px 0; border-top: 1px solid var(--grid); white-space: nowrap; }
+  #real tr[data-k] { cursor: pointer; }
+  #real tr.on td { background: var(--sel); }
+  #real .pick { cursor: pointer; border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; }
+  #real .pick:hover { border-color: var(--dim); }
+  .err { color: var(--warn); white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lop Hop balance</h1>
+  <nav><a href="#" id="tabAnimals">Animals</a><a href="#shared" id="tabShared">Shared</a></nav>
+  <span id="status"></span>
+  <button id="resetAll" disabled>Reset all</button>
+</header>
+<main>
+  <section class="card" id="ladderCard">
+    <h2>The ladder <span class="note" id="ladderSub"></span>
+      <span class="right"><label>Show <select id="metric"></select></label></span></h2>
+    <svg id="ladder"></svg>
+    <div id="ladderNote"></div>
+  </section>
+  <section class="card" id="real"></section>
+  <section class="card" id="left"></section>
+  <div id="right">
+    <section class="card"><h2 id="numbersTitle"></h2><div id="tiles"></div></section>
+    <section class="card"><h2>Day by day <span class="note">solid: now · dashed: as it was · red line: out of energy, eating all the food</span></h2><div id="charts"></div></section>
+    <section class="card" id="changes"></section>
+  </div>
+</main>
+<script type="module" src="balance.js"></script>
+</body>
+</html>

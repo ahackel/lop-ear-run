@@ -1,6 +1,8 @@
 // Minimal static dev server. Sends no-store so the browser never runs stale engine code
 // (AudioWorklet module imports are cached aggressively and survive normal reloads). The workshop saves through it:
-// POST /save {kind, build} writes an animal's build into animals/<kind>.js (see tools/rig-format.js).
+// POST /save {kind, build} writes an animal's build into animals/<kind>.js (see tools/rig-format.js). The game sends its
+// runs to it: POST /runs [run, …] adds those not there yet to data/runs.jsonl (a run a line; see the runs in game.js),
+// which the balance page reads (tools/balance.html).
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -24,9 +26,22 @@ async function save(req, res) {
   res.writeHead(200, { 'Content-Type': 'text/plain' }).end(`saved animals/${kind}.js`);
 }
 
+async function runs(req, res) {
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  const sent = JSON.parse(body), file = path.join(root, 'data', 'runs.jsonl');
+  if (!Array.isArray(sent) || sent.some((r) => !r || typeof r.id !== 'string' || typeof r.kind !== 'string')) throw new Error('runs?');
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const had = new Set((await fs.readFile(file, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l).id));
+  const fresh = sent.filter((r) => !had.has(r.id));
+  if (fresh.length) await fs.appendFile(file, fresh.map((r) => `${JSON.stringify(r)}\n`).join(''));
+  res.writeHead(200, { 'Content-Type': 'text/plain' }).end(`${fresh.length} new`);
+}
+
 http.createServer(async (req, res) => {
-  if (req.method === 'POST' && req.url === '/save') {
-    try { await save(req, res); } catch (e) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end(String(e.message || e)); }
+  const act = req.method === 'POST' && { '/save': save, '/runs': runs }[req.url];
+  if (act) {
+    try { await act(req, res); } catch (e) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end(String(e.message || e)); }
     return;
   }
   try {

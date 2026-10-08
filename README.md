@@ -1,6 +1,6 @@
 # Lop Hop
 
-A little endless runner: a lop-eared rabbit hops over bushes, cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is days and nights, each day in a land of its own, with obstacles of its own (the meadow: bushes and sunflowers; the desert: cacti and tumbleweeds; the forest: toadstools, pines and stumps; the mountains: rocks and boulders; the canyon: red rock spires; the snow: snowmen, snowy pines and ice; then round again, its name shown at dawn), and it keeps getting harder, with no top: faster (ever more slowly, near a top speed the eye can still follow), closer obstacles, more crows, branches and packs, less food, more tiring, so even a player who never misses runs out of energy in the end. An animal's course is the same every run (what comes and where), and every obstacle can be got past: there is always room to land and jump, duck or stand up in time. A jump pressed just before landing jumps as the animal lands; one pressed while ducking does nothing (let go of the duck first). Food eaten one after another is worth more (25, 50, 75, 100), until a bump or a missed one. At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Getting away till dawn unlocks that one: twenty-one in all, the rabbit the easy start, each after it a little harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs, and a head start on the run's hardness) and worth more points (×1 to ×4). Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. Every animal has a song of its own: the game's song in its key, mode and pace, with its own voices and a motif of its own (the same three recordings). One table of ten high scores, kept in the browser. Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit hops over bushes, cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is days and nights, each day in a land of its own, with obstacles of its own (the meadow: bushes and sunflowers; the desert: cacti and tumbleweeds; the forest: toadstools, pines and stumps; the mountains: rocks and boulders; the canyon: red rock spires; the snow: snowmen, snowy pines and ice; then round again, its name shown at dawn), and it keeps getting harder, with no top: faster (ever more slowly, near a top speed the eye can still follow), closer obstacles, more crows, branches and packs, less food, more tiring, so even a player who never misses runs out of energy in the end. An animal's course is the same every run (what comes and where), and every obstacle can be got past: there is always room to land and jump, duck or stand up in time. A jump pressed just before landing jumps as the animal lands; one pressed while ducking does nothing (let go of the duck first). Food eaten one after another is worth more (25, 50, 75, 100), until a bump or a missed one. At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Getting away till dawn unlocks that one: twenty-one in all, the rabbit the easy start, each after it a little harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs, and a head start on the run's hardness) and worth more points (×1 to ×4). A run earns a sun for every day it reaches, the first too, up to three (three: it got through two nights), and each animal keeps its best (shown over it on the title). Four are special (the cheetah, the gorilla, the elephant, and the dino, last): they never chase, the animal before one is chased by the one after it; a special one joins at the dawn that gives every animal before it three suns. On the title, the animal that would chase the one picked, not unlocked yet, stands behind it as a shadow, and the next special one waits at the end of the row, the three suns it asks for over it. Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. Every animal has a song of its own: the game's song in its key, mode and pace, with its own voices and a motif of its own (the same three recordings). One table of ten high scores, kept in the browser: the animal, name, the run's suns, score. Every run is written down, for balancing the game (see the balance page below). Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 | Animal | Food | Power |
 |---|---|---|
@@ -9,22 +9,22 @@ A little endless runner: a lop-eared rabbit hops over bushes, cacti, rocks and l
 | cat (×1.21) | fish | nine lives: bounces off what it hits |
 | dog (×1.43) | bone | zoomies: faster, bowls everything over |
 | pig (×1.53) | truffle | truffle snout: what is just ahead is dug up as truffles, to eat on the way |
-| fox (×1.64) | grapes | sly fox: food comes to it, the chaser loses its trail |
-| hedgehog (×1.86) | apple | spike ball: rolls through everything |
-| squirrel (×2.07) | acorn | glide: falls slowly, jumps again in the air |
-| otter (×2.29) | shell | belly slide: under what hangs low, through the rest |
-| skunk (×2.5) | beetle | stink: obstacles fade (it runs through them), crows and the chaser flee |
-| wolf (×2.71) | sausage | howl: what is just ahead is blown away |
-| boar (×2.93) | mushroom | tusk charge: faster, smashes everything (worth double) |
-| bear (×3.14) | blueberries | berry rush: double points, food fills it twice as much |
-| yak (×3.21) | hay | stampede: a herd runs by again and again, trampling what is ahead; the chaser flees |
-| ostrich (×3.29) | melon | fly: keeps flying, its wings beating, while the jump is held |
-| cheetah (×3.36) | drumstick | sprint: very fast, and untouchable |
-| dromedary (×3.46) | date | spit: knocks crows and branches away |
-| rhino (×3.57) | leaf | quake: stomps, everything on the screen flies off |
-| gorilla (×3.68) | fig | chest drum: ducking drums instead, and the next obstacle is knocked over |
-| elephant (×3.79) | peanut | splash: sprays water from its raised trunk, what is just ahead is washed away |
-| dino (×4) | roast leg | giant dino: twice as big, it tramples everything in its way, for double points (the rabbit chases it) |
+| cheetah ★ (×1.64) | drumstick | sprint: very fast, and untouchable |
+| fox (×1.86) | grapes | sly fox: food comes to it, the chaser loses its trail |
+| hedgehog (×2.07) | apple | spike ball: rolls through everything |
+| squirrel (×2.29) | acorn | glide: falls slowly, jumps again in the air |
+| otter (×2.5) | shell | belly slide: under what hangs low, through the rest |
+| skunk (×2.71) | beetle | stink: obstacles fade (it runs through them), crows and the chaser flee |
+| gorilla ★ (×2.93) | fig | chest drum: ducking drums instead, and the next obstacle is knocked over |
+| wolf (×3.14) | sausage | howl: what is just ahead is blown away |
+| boar (×3.21) | mushroom | tusk charge: faster, smashes everything (worth double) |
+| bear (×3.29) | blueberries | berry rush: double points, food fills it twice as much |
+| yak (×3.36) | hay | stampede: a herd runs by again and again, trampling what is ahead; the chaser flees |
+| ostrich (×3.46) | melon | fly: keeps flying, its wings beating, while the jump is held |
+| elephant ★ (×3.57) | peanut | splash: sprays water from its raised trunk, what is just ahead is washed away |
+| dromedary (×3.68) | date | spit: knocks crows and branches away |
+| rhino (×3.79) | leaf | quake: stomps, everything on the screen flies off |
+| dino ★ (×4) | roast leg | giant dino: twice as big, it tramples everything in its way, for double points |
 
 **Play: https://andreashackel.de/lop-hop/** — on a computer, or on a phone held sideways. Add it to the home screen (Share → Add to Home Screen on an iPhone, Install app on Android) and it runs full screen, offline too (online, it always loads the latest version).
 
@@ -86,6 +86,19 @@ before and after faded: a jump, hurt or knocked-out pose can be set by hand (dra
 each keyframe), a run or a crawl tuned by its gait's settings. In the game, an animal eases from one move into the next
 and squashes as it lands.
 
+The balance is tuned on the balance page (http://localhost:8323/tools/balance.html, with `npm run dev`): every animal's
+dials (speed, jump, drain, meals, …) and the numbers all the animals share, each with a slider, and what they come to,
+worked out by the game's own code: how hard it is to get the next animal (how often a player can run into something
+and still get away from it till the first dawn, half the time; and the chance, missing 1 in 33, 17 or 8), how many days
+a player who never misses lasts (eating all the food, or 4 in 5), the score that reaches, how fast it goes, how much
+warning an obstacle gives. The ladder shows all twenty-one in a row, each
+meant to be harder than the one before (one that is not is marked), and what was there before behind it. The changes
+are kept in the browser, not yet written to the files. Under the ladder, your runs: for each animal how many, how long,
+how often day 2 and day 3 (three suns) were reached, the tries it took to get the next one, how often a jump or a duck
+was missed, how much food was eaten, how runs ended. The game writes every run down; played from the dev server (on this computer, or
+an iPad in the house at http://<this computer>.local:8323) they come in by themselves (`data/runs.jsonl`), from the
+app they are shared from the credits (SHARE: AirDrop, Mail, Files…) and dropped onto the balance page.
+
 | Path | |
 |---|---|
 | `index.html` | the page: only the game, on every screen (`?music` on a computer: the music's moods and calls under it) |
@@ -95,6 +108,8 @@ and squashes as it lands.
 | `art.js` | the pixel art, drawn from shapes: the rigs that draw the animals, obstacles, food, a 3×5 font |
 | `animals/` | an animal each: its build (joints, shapes, legs, chains, face: the data the workshop edits) and its moves; `kit.js`: what they share |
 | `tools/workshop.html` | the animal workshop (through `npm run dev`, which saves for it) |
+| `tools/balance.html` | the balance page: the animals' dials and the shared numbers, how hard each animal is (`balance-worker.js` works it out with `course.mjs`), and your runs |
+| `data/runs.jsonl` | the runs played from the dev server, a line each (not in git) |
 | `version.js` | when the build was made, and its engine (written at each commit, `tools/version.mjs`) |
 | `song.zip` | the music: the song and its recordings, loaded as it is (`music.loadZip`); a new version comes from the [editor](https://github.com/ahackel/stardrift)'s *Export for a game*, saved over it |
 | `engine/` | a copy of the Stardrift engine's code (`engine/VERSION` says which commit; its recordings come in `song.zip`); `npm run engine` refreshes it |
