@@ -1041,13 +1041,18 @@ function drawShop(pal) {
   text(ctx, t('shop.once'), W / 2, 21, dim, 'center');
   if (bought) text(ctx, t('shop.owned'), W / 2, 34, pal[7], 'center');
   if (board.said) help(board.said, pal, pal[7]);
-  const paid = KINDS.slice(FREE), gap = 40, loop = paid.length * gap; // the pack's animals running by, the first ahead, round and round
-  paid.forEach((k, i) => {
-    const x = Math.round((((blinkT * 30 - i * gap) % loop) + loop) % loop) - 40;
-    if (x < viewL - 40 || x > viewR) return;
-    const st = stride(k, (blinkT * strides(k, 30) + i * 0.37) % 1);
-    animal(k, 'run', st.frame).draw(ctx, x, GROUND - FOOT - st.lift, pal);
-  });
+  for (const [k, x, st] of parade()) if (x >= viewL - 40 && x <= viewR) animal(k, 'run', st.frame, { body: paraders[k] }).draw(ctx, x, GROUND - FOOT - st.lift, pal);
+}
+// the pack's animals running by in the shop, the first ahead, round and round: [kind, x, its stride] each; their ears,
+// tails and trunks swung as they run (paraders: their bodies, see moveBody; one coming round again starts afresh there)
+const PARADE_GAP = 40, PARADE_SPEED = 30;
+const paraders = {};
+function parade() {
+  const paid = KINDS.slice(FREE), loop = paid.length * PARADE_GAP;
+  return paid.map((k, i) => [k, Math.round((((blinkT * PARADE_SPEED - i * PARADE_GAP) % loop) + loop) % loop) - 40, stride(k, (blinkT * strides(k, PARADE_SPEED) + i * 0.37) % 1)]);
+}
+function updateParade(dt) {
+  for (const [k, x, st] of parade()) moveBody(paraders[k] ||= {}, k, 'run', st.frame, x, GROUND - FOOT - st.lift, 0, dt);
 }
 const LOGO = { O: '75557', P: '75744' }; // (the title's letters: square)
 // what to do, in a line of its own at the bottom of the screen (dim, or in a color)
@@ -1117,6 +1122,7 @@ function update(dt) {
   drawn = {};
   blinkT += dt;
   updateRow(dt);
+  if (board?.shop) updateParade(dt);
   if (launch) { // off to the run
     launch.t += dt; launch.v += 900 * dt; // (some 150 px: to the edge, about)
      launch.x += launch.v * dt; launch.phase = (launch.phase + dt * strides(kind, launch.v)) % 1;
