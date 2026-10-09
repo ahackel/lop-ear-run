@@ -1237,7 +1237,7 @@ let grip = null, held = null, dropped = null, arriving = null; // (arriving: one
 let feed = null, loose = null; // (loose: { x, y, vy, down, eat }: falling, on the ground; being eaten)
 const WALK = 40, TREAT_FALL = 420;
 const mealOf = () => FOOD[ANIMALS[kind].food];
-const treatSpot = () => [placeX(playable().indexOf(kind) + (coming() ? 1 : 0)) + 13, GROUND - 28 - mealOf().h]; // (its middle, its top: over the arrow, at its place: see updateRow; staying there as it goes after one)
+const treatSpot = () => [placeX(playable().indexOf(kind) + (coming() ? 1 : 0)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: where the arrow would be, at its place: see updateRow; staying there as it goes after one)
 const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return (treats[kind] || 0) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
 // what the picked animal reaches for (its middle), if anything; its pose, at x; its mouth then
 const treatAt = () => (feed ? [feed.x, feed.y] : loose ? [loose.x + mealOf().w / 2, loose.y + mealOf().h / 2] : null);
@@ -1249,18 +1249,30 @@ function reachFor(x, [tx, ty], eating = false) {
 }
 // how it goes after a treat held out: in tries, as an idle animation, not all the time. A try: it looks at it, stretches
 // toward it, strains after it a moment (bobbing a little), sinks back; then it rests, still eyeing it, a second or two
-// (some of each try's lengths a little different), and tries again. One let go: after it at once, all out
+// (some of each try's lengths a little different), and tries again. One let go: after it at once, all out. With none
+// out, now and then (every 4 to 10 s) it tries once for its treats over it (begging: looking away again after)
 const reach = { t: 0, rest: 0.25, amount: 0, look: 0, strain: 0.7 };
+let begging = false, begWait = 3;
+const begAt = () => { const [cx, cy] = treatSpot(); return [cx, cy + mealOf().h / 2]; };
+const canBeg = () => state === 'title' && !board && !held && !dropped && !grip && !launch && !arriving && !pets[kind] && !jumps[kind] && !runs[kind]?.on && (treats[kind] || 0) > 0;
 function updateReach(dt) {
-  if (!treatAt()) { reach.t = reach.amount = reach.look = 0; reach.rest = 0.25; return; } // (taken up: a glance, then a first try)
+  if (!treatAt()) {
+    if (begging && !canBeg()) begging = false; // (petted, picked up, off to a run: it stops)
+    if (!begging) {
+      reach.t = reach.amount = reach.look = 0; reach.rest = 0.25;
+      if (canBeg() && (begWait -= dt) <= 0) { begging = true; reach.rest = 0; faceL = false; }
+      return;
+    }
+  } else begging = false;
   if (loose) { reach.amount = Math.min(1, reach.amount + 6 * dt); reach.look = 1; return; }
-  const LOOK = 0.3, UP = 0.45, DOWN = 0.45, t = (reach.t += dt), s = reach.strain;
+  const LOOK = 0.3, UP = 0.45, DOWN = 0.45, t = (reach.t += dt), s = reach.strain, away = begging ? 1 : 0.4; // (away: how far it looks away between tries)
   if (t < reach.rest) { reach.amount = 0; reach.look += (0.6 - reach.look) * Math.min(1, 6 * dt); return; } // resting, eyeing it
   const u = t - reach.rest;
-  if (u < LOOK) { reach.look = 0.6 + 0.4 * ease(u / LOOK); reach.amount = 0.15 * ease(u / LOOK); } // it looks
+  if (u < LOOK) { reach.look = 1 - away + away * ease(u / LOOK); reach.amount = 0.15 * ease(u / LOOK); } // it looks (from eyeing it, or from looking ahead)
   else if (u < LOOK + UP) { reach.look = 1; reach.amount = 0.15 + 0.85 * ease((u - LOOK) / UP); } // it stretches
   else if (u < LOOK + UP + s) reach.amount = 0.9 + 0.1 * Math.cos(((u - LOOK - UP) / s) * Math.PI * 4); // it strains
-  else if (u < LOOK + UP + s + DOWN) { reach.amount = 1 - ease((u - LOOK - UP - s) / DOWN); reach.look = 1 - 0.4 * ease((u - LOOK - UP - s) / DOWN); } // it sinks back
+  else if (u < LOOK + UP + s + DOWN) { reach.amount = 1 - ease((u - LOOK - UP - s) / DOWN); reach.look = 1 - away * ease((u - LOOK - UP - s) / DOWN); } // it sinks back
+  else if (begging) { begging = false; begWait = 4 + rnd() * 6; reach.t = reach.amount = reach.look = 0; } // (begged once: back to sitting about)
   else { reach.t = 0; reach.rest = 1 + rnd() * 1.2; reach.strain = 0.5 + rnd() * 0.6; reach.look = 0.6; }
 }
 const mouthOf = (sp, x) => [faceL ? x + 26 - (sp.head[0] + 4) : x + sp.head[0] + 4, GROUND - FOOT + sp.head[1] + 8];
@@ -1476,7 +1488,7 @@ function standing(k, p, on, pal) {
   const jp = jumps[k];
   if (jp) animal(k, 'jump', jumpFrame(k, jp.v / (JUMP * ANIMALS[k].jump))).draw(ctx, x, GROUND - FOOT - Math.round(jp.alt), pal); // jumping (a double tap)
   else if (grip?.duck && grip.k === k) animal(k, 'duck', 0).draw(ctx, x, GROUND - FOOT, pal); // pushed down
-  else if (on && treatAt() && !r?.on) drawFacing(reachFor(x, treatAt(), loose?.eat > 0.2), x, GROUND - FOOT, pal); // reaching for a treat (eating it)
+  else if (on && (treatAt() || begging) && !r?.on) drawFacing(reachFor(x, treatAt() || begAt(), loose?.eat > 0.2), x, GROUND - FOOT, pal); // reaching for a treat (eating it; begging for one)
   else if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
   else if (r?.on) { // running to its place (the way it goes)
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
@@ -1486,7 +1498,7 @@ function standing(k, p, on, pal) {
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
-  if (!on || held || jp || launch || feed || loose) return; // (the arrow: not while one is held, jumps, runs off, or after a treat)
+  if (!on || held || jp || launch || feed || loose || begging || treats[k] > 0) return; // (the arrow: not while one is held, jumps, runs off, or after a treat; nor over its treats, which mark it)
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);

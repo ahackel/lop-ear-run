@@ -30,14 +30,16 @@ the treats it brings home.
   the bars, and the eat burst different (it goes into the bag, not into the bar).
 - Reaching the den banks them (kept per animal, lop.treats). A knock-out loses them all.
 - As built: a treat is food eaten with more than there is room for in the energy (it still fills it); on the title
-  the treats are over the picked animal (above its arrow), not in a basket (the den is gone).
+  the treats are over the picked animal (in place of its arrow), not in a basket (the den is gone).
 - On the title, a basket by the den with the picked animal's treats (its count). Drag one from it: the animal looks at
   it and stretches toward it (as petting leans); let go near it and it takes it and eats it, hearts float up. Let go
   elsewhere and the treat goes back to the basket.
 - Treats do nothing else (for now): they are for the animal.
-- As built: it goes after one held out in tries, as an idle animation: looks at it, stretches toward it (up on its hind
-  legs for one held high), strains a moment, sinks back, rests a second or two still eyeing it, and tries again; its
-  head stays on its body (less give for the sitting ones). Let go: after it at once.
+- As built: it goes after one held out in tries, as an idle animation: looks at it, stretches toward it (for one held high:
+  up on its hind legs, near upright, the hind legs straightened, the front paws tucked in, as the rabbit sits up),
+  strains a moment, sinks back, rests a second or two still eyeing it, and tries again; its head stays on its body (no
+  further from its chest than at rest; one with a neck, at its end). Let go: after it at once. With none out, now and
+  then (every 4 to 10 s) it tries once for its treats over it, begging.
 
 ## 3. The full moon: where the special ones come from (done)
 

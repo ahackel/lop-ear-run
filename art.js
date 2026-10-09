@@ -389,7 +389,7 @@ const posed = (rig, name, frame) => posedAs(rig, poseOf(rig, name, frame));
 function posedAs(rig, p) {
   const J = { ...rig.joints, ...p.joints }, a = Math.atan2(J.chest[1] - J.hip[1], J.chest[0] - J.hip[0]);
   const F = { spine: jointFrame(J.hip, a, p.flip), hip: jointFrame(J.hip, a, p.flip), chest: jointFrame(J.chest, a, p.flip), head: jointFrame(J.head, p.headAngle || 0),
-    box: p.turn ? jointFrame(minus(p.turn.pivot, turn(p.turn.pivot, p.turn.angle)), p.turn.angle) : null }; // (box: what is on no joint, turned with the whole body: see hung)
+    box: p.turn ? jointFrame(plus(minus(p.turn.pivot, turn(p.turn.pivot, p.turn.angle)), p.turn.by || [0, 0]), p.turn.angle) : null }; // (box: what is on no joint, turned with the whole body, moved by: see hung)
   return { p, J, F, a, torso: { ...rig.torso, ...p.torso } };
 }
 // a pose between two (u: 0 the first, 1 the second): the joints, the paws, the head's turn, the torso and the chains' rest
@@ -837,35 +837,45 @@ export function petted(kind, frame, joy, t, lean = 0) {
 }
 
 // An animal reaching for something (on the title: a treat held out, falling, lying on the ground; tx, ty from the corner
-// of its box, in front of it: the game turns it round for one behind): sitting as it does, its whole body turned about
-// its hind feet toward it (from where its head is, as seen from its feet: one above it, up on its hind legs, the front
-// paws lifted and tucked in, one on two legs already only leaning back; one low in front, leaning down to it), its head
-// turned to it (up, down: as far as a head turns) and stretched toward it, a few pixels the further it is, lower still
-// for one low and near. eating: its eyes shut happily. amount (0…1): how far it is into reaching (0: as it sits), look:
-// how far its head is turned to it. Its head never leaves its body by more than a few pixels, by less for one sitting
-// (its body drawn round, no neck: the cat's). (Kept as rigFrame keeps frames: the pose in a few steps)
+// of its box, in front of it: the game turns it round for one behind): sitting or standing as it does, its body turned
+// about its hip toward it (from where its head is, as seen from its hip: for one above it, up on its hind legs, as near
+// upright as it gets, the hind legs straightened under it (its hip up as far as they reach), the front paws lifted and
+// tucked in, the head kept over the chest; one on two legs already only leaning back; for one low in front, leaning
+// down to it), its head turned to it (up, down: as far as a head turns) and stretched toward it, a few pixels the
+// further it is, lower still for one low and near, but never further from its chest than it is at rest and a pixel (so
+// it stays on its body; one with a neck (on its chest) keeps its head at the neck's end, turned with it, give or take). eating: its eyes shut happily. amount (0…1): how far it is into reaching (0: as it rests), look:
+// how far its head is turned to it. (Kept as rigFrame keeps frames: the pose in a few steps)
+const UPRIGHT = 1.35; // (the most it turns up, in radians)
 export function reaching(kind, tx, ty, eating = false, amount = 1, look = 1) {
   const rig = RIGS[kind], base = poseOf(rig, 'idle', 0), J = { ...rig.joints, ...base.joints }, n = SIZE[kind] || 0, [k, d] = growth(n);
   const x = (tx - d[0]) / k, y = (ty - d[1]) / k; // (in the rig's own pixels)
   const legs = Object.keys(rig.legs || {}), hinds = legs.filter((l) => rig.legs[l].on === 'hip'), fronts = legs.filter((l) => rig.legs[l].on !== 'hip');
-  const feet = hinds.map((l) => base.paws[l]).filter(Boolean);
-  const piv = feet.length ? [feet.reduce((s, q) => s + q[0], 0) / feet.length, Math.max(...feet.map((q) => q[1]))] : [J.hip[0], FOOT];
-  const now = Math.atan2(J.head[1] - piv[1], J.head[0] - piv[0]), want = Math.atan2(y - piv[1], x - piv[0]); // (as seen from its feet)
-  const a = Math.round(clamp(0.85 * (want - now), fronts.length ? -0.95 : -0.3, 0.35) * amount * 10) / 10, up = clamp(-a / 0.95, 0, 1);
-  const rot = (q) => plus(piv, turn(minus(q, piv), a)), q2 = (q) => q.map((v) => Math.round(v * 2) / 2);
-  const near = rot(J.head), low = Math.round(clamp((y - near[1]) / 8, 0, 1) * clamp(1 - (x - near[0] - 6) / 20, 0, 1) * amount * 4) / 4; // (low and near: bending down)
+  const piv = J.hip, now = Math.atan2(J.head[1] - piv[1], J.head[0] - piv[0]), want = Math.atan2(y - piv[1], x - piv[0]); // (as seen from its hip)
+  const a = Math.round(clamp(1.1 * (want - now), fronts.length ? -UPRIGHT : -0.3, 0.35) * amount * 10) / 10, up = clamp(-a / UPRIGHT, 0, 1);
+  // its hip up: as far as the hind legs reach (straightened, to their paws where they are), at most 3
+  const P0 = posedAs(rig, base), rootOf = (l) => base.roots?.[l] || toWorld(P0.F[rig.legs[l].on], rig.legs[l].at);
+  const reachLeft = Math.min(3, ...hinds.filter((l) => base.paws[l]).map((l) => rig.legs[l].thigh + rig.legs[l].shin - 0.4 - Math.hypot(...minus(base.paws[l], rootOf(l)))));
+  const lift = Math.round(Math.max(0, reachLeft) * up * 2) / 2, by = [0, -lift];
+  const rot = (q) => plus(plus(piv, turn(minus(q, piv), a)), by), q2 = (q) => q.map((v) => Math.round(v * 2) / 2);
+  const hip = q2(rot(J.hip)), body = rot(J.chest), neck = minus(J.head, J.chest), rest = Math.hypot(neck[0], neck[1]);
+  const necked = [...(base.ownShapes ? [] : rig.shapes || []), ...(base.shapes || [])].some((x) => x.name === 'neck' && x.on === 'chest');
+  const near = necked ? rot(J.head) : plus(body, turn(neck, -0.6 * a)); // (the head kept over the chest as it turns up; one on a neck, at its end)
+  const low = Math.round(clamp((y - near[1]) / 8, 0, 1) * clamp(1 - (x - near[0] - 6) / 20, 0, 1) * amount * 4) / 4; // (low and near: bending down)
+  const chest = q2(plus(body, [0.5 * low, 1.5 * low]));
   let head = plus(near, [0.8 * low, 2.5 * low]);
   const to = minus([x, y], head), ha = Math.round(clamp(Math.atan2(to[1], Math.max(to[0], 3)), -1.3, 1.1) * look * 5) / 5; // (behind it, it looks up)
-  head = plus(head, times(unit(to), Math.min(3.5, Math.hypot(to[0], to[1]) / 5) * amount));
-  const off = minus(head, near), slack = base.torso?.r === 0 ? 1.5 : 3, far = Math.hypot(off[0], off[1]); // (no further from its body)
-  head = q2(far > slack ? plus(near, times(off, slack / far)) : head);
-  const chest = q2(plus(rot(J.chest), [0.5 * low, 1.5 * low])), hip = q2(rot(J.hip));
+  head = plus(head, times(unit(to), Math.min(3, Math.hypot(to[0], to[1]) / 5) * amount));
+  const nk = minus(head, chest), len = Math.hypot(nk[0], nk[1]); // (no further from its chest than at rest, and a pixel; on a neck, from its end)
+  if (len > rest + 1) head = plus(chest, times(nk, (rest + 1) / len));
+  const off = minus(head, near), far = Math.hypot(off[0], off[1]);
+  head = q2(necked && far > 1.5 ? plus(near, times(off, 1.5 / far)) : head);
   const paws = { ...base.paws };
-  for (const l of fronts) if (base.paws[l]) paws[l] = q2(up ? mix(rot(base.paws[l]), chest, 0.25 * up) : base.paws[l]);
-  const key = `${kind} reach ${JSON.stringify([hip, chest, head, ha, paws])} ${eating}`;
+  for (const l of fronts) if (base.paws[l]) paws[l] = q2(up ? mix(rot(base.paws[l]), chest, 0.55 * up) : base.paws[l]);
+  const roots = base.roots && Object.fromEntries(Object.entries(base.roots).map(([l, q]) => [l, q2(rot(q))])); // (a sitting one's legs, on no joint)
+  const key = `${kind} reach ${JSON.stringify([hip, chest, head, ha, paws, roots])} ${eating}`;
   let s = rigFrames.get(key);
   if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; }
-  const P = posedAs(rig, { ...base, joints: { hip, chest, head }, headAngle: ha, paws, turn: { pivot: piv, angle: a } });
+  const P = posedAs(rig, { ...base, joints: { hip, chest, head }, headAngle: ha, paws, ...(roots && { roots }), turn: { pivot: piv, angle: a, by } });
   s = drawRig(rig, P, eating ? 'happy' : 'idle', false, chainsAt(rig, P), k, d, FOOT + 1, n > 0);
   rigFrames.set(key, s);
   if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
