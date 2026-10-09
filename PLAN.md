@@ -24,11 +24,13 @@ the treats it brings home.
   the run fades in (run again: only the fade in).
 - A newly unlocked animal comes onto the title running in from the left.
 
-## 2. Treats
+## 2. Treats (done)
 
 - Food eaten with a full energy bar is a treat for this animal, carried for the rest of the run: a small counter by
   the bars, and the eat burst different (it goes into the bag, not into the bar).
 - Reaching the den banks them (kept per animal, lop.treats). A knock-out loses them all.
+- As built: a treat is food eaten with more than there is room for in the energy (it still fills it); on the title
+  the treats are over the picked animal (above its arrow), not in a basket (the den is gone).
 - On the title, a basket by the den with the picked animal's treats (its count). Drag one from it: the animal looks at
   it and stretches toward it (as petting leans); let go near it and it takes it and eats it, hearts float up. Let go
   elsewhere and the treat goes back to the basket.

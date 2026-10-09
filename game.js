@@ -47,9 +47,13 @@ const FEAST = 4; // food eaten one after another (no bump, none missed) is worth
 // The rest, where it happens (the kind's own checks)
 const POWER_SECS = 8; // (where golden food comes: level.js)
 // so they are not missed, on the animal (the eye is on it, not on the bars): a power's last ENDING seconds (it
-// flickers, faster and faster, its sparkles thinning, the seconds counted over its head); energy under LOW (it sweats,
+// flickers, faster and faster, its sparkles thinning, the seconds counted over its head, golden, outlined, big); energy under LOW (it sweats,
 // the food glints), under VERY_LOW (it sweats more, and flushes red a moment every second)
 const ENDING = 3, LOW = 30, VERY_LOW = 15;
+// treats: food eaten with too little room for it in the energy (it would fill it past full) fills it and goes into the
+// bag too, carried for the rest of the run (counted by the energy bar), banked at home (lop.treats: kind → how many), all lost in a knock-out; on the
+// title the picked animal's treats are over it, to be dragged to its mouth (it reaches for one), and eaten (hearts)
+const FLY_SECS = 0.5;
 const POWERS = {
   rabbit: { name: 'SUPER HOP!' }, // jumps higher, and once more in the air
   guineapig: { name: 'POPCORN!' }, // hops by itself (see autopilot), and for joy
@@ -80,6 +84,7 @@ const Q = new URLSearchParams(location.search); // (the address's switches: ?aut
 // what this browser keeps (localStorage, lop.<name>; in a private window perhaps nothing): get, set (null: removed)
 const kept = (k) => { try { return localStorage.getItem(`lop.${k}`); } catch { return null; } };
 const keptJSON = (k) => { try { return JSON.parse(kept(k)); } catch { return null; } };
+const treats = keptJSON('treats') || {}; // (see FLY_SECS)
 const keep = (k, v) => { try { if (v === null) localStorage.removeItem(`lop.${k}`); else localStorage.setItem(`lop.${k}`, v); } catch { /* no storage */ } };
 
 // --------------------------------------------------------------------------------------------------------- the music
@@ -142,6 +147,7 @@ let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
 let track, ahead, chase, night, hunted, paling, dark, sunrise, homeAt, homeX, homeV, won, koT, streak, duckHeld, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
+let bag, tossed; // the run's treats, and those flying into the bag (from where they were eaten)
 let herd, herdT, spits, spitT, drumT; // the yak's stampede (the herd running by), the dromedary's spit (in flight), the gorilla's drumming
 const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
 let clouds, sky, hillX, groundX; // the clouds, where the next comes from, how far the hills and the ground have gone (as they were, every run)
@@ -160,7 +166,7 @@ function reset() {
   track = course(kind); ahead = track.next(); chase = null; night = hunted = paling = won = false; dark = sunrise = 0; flash = 0; hundreds = 0;
   homeAt = nightAt(kind, 1).to / SCORE_PER_PX; homeX = homeV = 0; // (where it is home, px into the run; how far it has run off, how fast)
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
-  power = 0; gold = null; airJumps = 0; quake = 0;
+  power = 0; gold = null; airJumps = 0; quake = 0; bag = 0; tossed = [];
   herd = []; herdT = 0; spits = []; spitT = 0; drumT = 0;
   sky = random(seedOf(kind) ^ 0x5c1e5); hillX = groundX = 0; // (the clouds too: as they were)
   clouds = CLOUDS.map((c) => ({ ...c }));
@@ -342,6 +348,7 @@ function arrive() {
   bonus += HOME;
   floats.push({ text: `+${HOME}`, x: RUN_X + 6, y: GROUND - 34, life: 1.2 });
   endRec('dawn');
+  if (bag && !AUTO) { treats[kind] = (treats[kind] || 0) + bag; keep('treats', JSON.stringify(treats)); } // (banked)
   state = 'ko'; koT = 0; koWhy = 'HOME!'; won = true; ducking = duckHeld = false; power = 0;
   if (joins) { unlock(c); chase ||= newChase(); Object.assign(chase, { leaving: false, catching: false, joining: true }); }
   else if (chase) chase.leaving = true;
@@ -453,6 +460,7 @@ stage.addEventListener('pointerdown', (e) => {
   if (naming || scoresOpen()) { startAudio(); return; } // (only their buttons do something)
   if (state === 'title') { // a tap on an animal picks it, a second one (soon after, near it) makes it jump; pressed and moved it is grabbed (see grabbing; the start button runs)
     startAudio();
+    if (onTreat(x, y - SKY) && !held && !launch) { feed = { id: e.pointerId, x, y: y - SKY }; hand('grabbing'); return; } // (a treat taken)
     if (tapped && performance.now() - tapped.t < 350 && Math.abs(x - tapped.x) < 12 && Math.abs(y - tapped.y) < 12) { hop(tapped.k); tapped = null; return; }
     const k = y >= 0 && y < VH && !held && animalAt(x);
     if (k) grip = { k, id: e.pointerId, x, y };
@@ -463,6 +471,7 @@ stage.addEventListener('pointerdown', (e) => {
 }, { passive: true });
 stage.addEventListener('mousedown', (e) => e.preventDefault()); // (a mouse: nothing selected or focused as it presses)
 stage.addEventListener('pointermove', (e) => {
+  if (feed && e.pointerId === feed.id) { const [x, y] = artAt(e); feed.x = x; feed.y = y - SKY; return; } // (a treat carried)
   if (!grip || e.pointerId !== grip.id) return;
   const [x, y] = artAt(e);
   if (held) { held.px = x; held.py = y - SKY + held.below; return; } // (in the world: below the sky a tall screen adds)
@@ -483,6 +492,7 @@ stage.addEventListener('pointermove', (e) => {
 }, { passive: true });
 const lift = (e) => {
   note('lift');
+  if (feed && e.pointerId === feed.id) dropTreat();
   if (grip && e.pointerId === grip.id) { // let go: a grabbed animal drops; one only tapped is picked
     if (held) letGo();
     else if (e.type === 'pointerup' && !grip.pet && !grip.moved) { // a tap (not one pulled at, not yet lifted)
@@ -720,7 +730,7 @@ function tally() {
   }
 }
 // the run as it is (ended so)
-const recNow = (end) => ({ ...rec, end, secs: +rec.secs.toFixed(1), points: far(), score: score(), dawns: won ? 1 : 0, energy: Math.round(Math.max(0, energy)),
+const recNow = (end) => ({ ...rec, end, secs: +rec.secs.toFixed(1), points: far(), score: score(), dawns: won ? 1 : 0, treats: bag, energy: Math.round(Math.max(0, energy)),
   days: rec.days.map((d) => ({ ...d, secs: +d.secs.toFixed(1) })) });
 function endRec(end) {
   if (!rec) return;
@@ -1133,14 +1143,17 @@ function update(dt) {
       if (!f.missed && f.x + meal.w <= RUN_X + 3) { f.missed = true; streak = 0; if (rec) rec.food[1]++; } // (gone by: a feast ends)
       return true;
     }
-    energy = Math.min(100, energy + MEAL * (power && kind === 'bear' ? 2 : 1));
+    const gain = MEAL * (power && kind === 'bear' ? 2 : 1), treat = energy + gain > 100; // (more than there is room for: a treat too)
+    energy = Math.min(100, energy + gain);
+    if (treat) { bag++; tossed.push({ x: f.x, y: f.y, t: 0 }); if (rec) rec.treats = bag; }
     if (rec) rec.food[0]++;
     streak++;
     const worth = 25 * Math.min(streak, FEAST);
     bonus += worth;
     call('sting', 'reward');
-    floats.push({ text: streak > 1 ? `+${worth} X${streak}` : '+25', x: f.x, y: f.y - 6, life: 0.8 }, { sprite: heart, x: f.x + (streak > 1 ? 34 : 14), y: f.y - 6, life: 0.8 });
-    for (let i = 0; i < 6; i++) parts.push({ x: f.x + 3, y: f.y + 3, vx: (rnd() - 0.5) * 90, vy: -rnd() * 80, life: 0.5, color: COLOR.LEAF }); // (never red, from an animal: it could look like blood)
+    floats.push({ text: streak > 1 ? `+${worth} X${streak}` : '+25', x: f.x, y: f.y - 6, life: 0.8 });
+    if (!treat) floats.push({ sprite: heart, x: f.x + (streak > 1 ? 34 : 14), y: f.y - 6, life: 0.8 });
+    for (let i = 0; i < 6; i++) parts.push({ x: f.x + 3, y: f.y + 3, vx: (rnd() - 0.5) * 90, vy: -rnd() * 80, life: 0.5, color: treat ? COLOR.WHITE : COLOR.LEAF }); // (never red, from an animal: it could look like blood; a treat: sparkling white)
     return false;
   });
 
@@ -1173,6 +1186,8 @@ function update(dt) {
 }
 
 function updateBits(dt) {
+  for (const t of tossed) t.t += dt;
+  if (tossed.length) tossed = tossed.filter((t) => t.t < FLY_SECS);
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; p.life -= dt; }
   parts = parts.filter((p) => p.life > 0);
   for (const f of floats) { f.y -= (f.rise ?? 12) * dt; f.life -= dt; }
@@ -1199,6 +1214,24 @@ const animalAt = (x) => playable().find((k) => k !== dropped?.k && at[k] !== und
 // a squash and a puff of dust in its new place, and is picked. (grip: pressed, not yet moved; held: picked up, x, y
 // where the hand holds it, px, py the pointer, h how it hangs; dropped: falling, then landing)
 let grip = null, held = null, dropped = null, arriving = null; // (arriving: one just unlocked, to run in)
+// feeding: a treat dragged from over the picked animal (feed: the pointer, where the treat is, in the world's pixels);
+// the animal leans toward it, reaching (as petting leans); let go at its mouth, eaten: happy, hearts
+let feed = null;
+const treatSpot = () => [placeX(at[kind]) + 13, GROUND - 28 - FOOD[ANIMALS[kind].food].h]; // (its middle, its top: over the arrow)
+const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = FOOD[ANIMALS[kind].food]; return (treats[kind] || 0) > 0 && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
+const reachLean = (x) => (feed ? Math.max(-2, Math.min(2, Math.round(((feed.x - (x + 13)) / 14) * 2) / 2)) : 0);
+const reaching = (x) => petted(kind, idleFrame(kind, blinkT), 0.25, blinkT, reachLean(x));
+function dropTreat() {
+  const x = placeX(at[kind]), sp = reaching(x), hx = x + sp.head[0], hy = GROUND - FOOT + sp.head[1];
+  if (Math.hypot(feed.x - hx, feed.y - hy) < 14) { // eaten
+    treats[kind]--; keep('treats', JSON.stringify(treats));
+    pets[kind] = { joy: 1, t: 0, strokes: 0 };
+    for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: hx - 6 + i * 5, y: hy - 4 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
+    for (let i = 0; i < 5; i++) parts.push({ x: hx, y: hy + 2, vx: (rnd() - 0.5) * 50, vy: -20 - rnd() * 40, life: 0.4, color: COLOR.FAINT });
+    call('sting', 'reward');
+  }
+  feed = null; hand('');
+}
 const heldBody = {}; // (its ears and tail)
 const LIFT = 3; // (moved this far, in art pixels: a grab, not a tap)
 // the mouse's cursor: an open hand petting, a closed one holding an animal, '' the usual (on the stage too: it has the
@@ -1277,7 +1310,7 @@ function updatePets(dt) {
 function updateRow(dt) {
   updatePets(dt);
   updateJumps(dt);
-  if ((grip || held || dropped) && (state !== 'title' || board)) { grip = held = dropped = null; hand(''); } // (run, or off to the high scores, meanwhile)
+  if ((grip || held || dropped || feed) && (state !== 'title' || board)) { grip = held = dropped = feed = null; hand(''); } // (run, or off to the high scores, meanwhile)
   const row = playable(), n = row.length, lead = coming() ? row.indexOf(kind) : -1; // (a place left of the picked one: see coming)
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
     const edge = 40, by = held.px < edge ? -(edge - held.px) / edge : held.px > W - edge ? (held.px - (W - edge)) / edge : 0;
@@ -1368,6 +1401,7 @@ function standing(k, p, on, pal) {
   const jp = jumps[k];
   if (jp) animal(k, 'jump', jumpFrame(k, jp.v / (JUMP * ANIMALS[k].jump))).draw(ctx, x, GROUND - FOOT - Math.round(jp.alt), pal); // jumping (a double tap)
   else if (grip?.duck && grip.k === k) animal(k, 'duck', 0).draw(ctx, x, GROUND - FOOT, pal); // pushed down
+  else if (on && feed && !r?.on) reaching(x).draw(ctx, x, GROUND - FOOT, pal); // reaching for a treat
   else if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
   else if (r?.on) { // running to its place (the way it goes)
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
@@ -1377,6 +1411,12 @@ function standing(k, p, on, pal) {
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
+  const left = (treats[k] || 0) - (on && feed ? 1 : 0);
+  if (on && !board && !launch && !held && left > 0) { // its treats, over it: the food, how many
+    const meal = FOOD[ANIMALS[k].food], s = String(left), w = meal.w + 2 + textWidth(s), tx = Math.round(x + 13 - w / 2);
+    const ty = GROUND - 28 - meal.h;
+    meal.draw(ctx, tx, ty, pal); text(ctx, s, tx + meal.w + 2, ty + Math.floor((meal.h - 5) / 2), pal[COLOR.INK]);
+  }
   if (!on || held || jp || launch) return; // (the arrow: not while one is held, jumps, or runs off)
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
@@ -1398,6 +1438,18 @@ function bar(pal, icon, y, full, color) {
 function energyBar(pal) {
   const low = energy < LOW;
   if (!(low && state === 'run' && Math.floor(blinkT * 4) % 2)) bar(pal, heart, 5, energy / 100, low ? COLOR.BERRY : COLOR.ENERGY);
+  const landed = bag - tossed.length; // (those still flying not yet counted)
+  if (landed > 0) { const [x, y] = bagAt(), meal = FOOD[T().food]; meal.draw(ctx, x, y - Math.floor((meal.h - 5) / 2), pal); text(ctx, String(landed), x + meal.w + 2, y, pal[COLOR.INK]); }
+}
+// where the bag is shown, at the top (right of the energy bar; see bar)
+const bagAt = () => [Math.round((safeL + W - safeR) / 2) - 30 + 58, 5];
+// a treat flying into the bag, from where it was eaten (in an arc), in the world's pixels
+function drawTossed(pal) {
+  const meal = FOOD[T().food], [bx, by] = bagAt(), ty = by + safeT - SKY - Math.floor((meal.h - 5) / 2);
+  for (const t of tossed) {
+    const p = ease(t.t / FLY_SECS);
+    meal.draw(ctx, Math.round(t.x + (bx - t.x) * p), Math.round(t.y + (ty - t.y) * p - Math.sin(Math.PI * p) * 14), pal);
+  }
 }
 // what is left of a super power, under the energy: a star and a golden bar (blinking in its last two seconds)
 function powerBar(pal) {
@@ -1555,6 +1607,7 @@ function scene(pal) {
     for (const k of playable()) if (k !== held?.k && k !== dropped?.k) standing(k, at[k], k === kind, pal);
     drawGrabbed(pal);
     toCome(pal);
+    if (feed) { const meal = FOOD[ANIMALS[kind].food]; meal.draw(ctx, Math.round(feed.x - meal.w / 2), Math.round(feed.y - meal.h / 2), pal); } // (the treat carried)
   }
   else {
     if (state === 'ko' && !won) dizzyBirds(pal, true);
@@ -1573,7 +1626,7 @@ function scene(pal) {
     if (state === 'ko' && !won) dizzyBirds(pal, false);
     if (power > 0 && power <= ENDING && state === 'run') { // the seconds left, over its head (each a little hop as it comes)
       const [hx, hy] = headAt(), left = Math.ceil(power), hop = power - Math.floor(power) > 0.85 ? 1 : 0;
-      text(ctx, String(left), hx, Math.min(hy, gy) - 12 - hop, pal[7], 'center');
+      outlined(String(left), hx, Math.min(hy, gy) - 17 - hop, pal[COLOR.YELLOW], pal[COLOR.INK], 2); // (golden as the power, outlined: legible on any sky)
     }
   }
   let color = null;
@@ -1582,6 +1635,12 @@ function scene(pal) {
     if (f.sprite) f.sprite.draw(ctx, f.x, Math.round(f.y), pal);
     else text(ctx, f.text, f.x, Math.round(f.y), pal[COLOR.INK], 'left', f.size || 1, f.size > 1 ? LOGO : undefined);
   }
+}
+
+// text with a dark edge around it (a pixel of the font's size), centred on x
+function outlined(s, x, y, color, edge, size = 1) {
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) text(ctx, s, x + dx, y + dy, edge, 'center', size);
+  text(ctx, s, x, y, color, 'center', size);
 }
 
 // what is written over the world (and the high scores), in one palette
@@ -1594,6 +1653,7 @@ function hud(pal) {
     if (!(flash > 0 && Math.floor(flash * 8) % 2)) text(ctx, pad(score()), W - safeR - 6, 5, pal[COLOR.INK], 'right');
   });
 
+  if (tossed.length) drawTossed(pal);
   if (state === 'title') {
     text(ctx, 'LOP HOP', W / 2, 10, pal[COLOR.INK], 'center', 2, LOGO);
     const pick = playable().length > 1;
@@ -1603,6 +1663,10 @@ function hud(pal) {
   else if (state === 'ko') {
     if (won) text(ctx, koWhy, W / 2, 20, pal[COLOR.INK], 'center', 2, LOGO); else text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
     if (gained && koT > 0.3 && (koT > 2 || Math.floor(koT * 4) % 2)) text(ctx, `${ANIMALS[gained].name} UNLOCKED!`, W / 2, 33, pal[7], 'center'); // (unlocked in this run: again, blinking at first, so it is not missed)
+    if (won && bag && koT > 0.6) { // the treats brought home
+      const meal = FOOD[T().food], s = `+${bag}`, w = meal.w + 2 + textWidth(s), x = Math.round(W / 2 - w / 2), y = gained ? 42 : 33;
+      meal.draw(ctx, x, y - Math.floor((meal.h - 5) / 2), pal); text(ctx, s, x + meal.w + 2, y, pal[COLOR.INK]);
+    }
     if (settled() && fresh) help(`NEW HIGH SCORE! ${TOUCH ? 'TAP' : 'SPACE OR CLICK'} TO ENTER YOUR NAME`, pal, pal[7]);
     else if (settled() && !fresh && gained) help(`THE ${ANIMALS[gained].name} IS YOURS! ${TOUCH ? 'TAP' : 'SPACE OR TAP'} TO PICK`, pal, pal[7]);
     else if (settled() && !fresh) help(TOUCH ? 'TAP TO RUN AGAIN' : 'SPACE OR TAP TO RUN AGAIN', pal);
