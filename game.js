@@ -16,7 +16,7 @@
 import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
-  FOOD, face, FACE_W, cloud, moon, fullMoon, heart, reaching, moveReaching, star, golden, flushed, shadow, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
+  FOOD, face, FACE_W, cloud, moon, heart, reaching, moveReaching, star, golden, flushed, shadow, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
   JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted, made } from './art.js';
 import { course, pace, drain, hardness, nightAt, random, seedOf, chaserOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
@@ -84,7 +84,11 @@ const T = () => ANIMALS[kind]; // the animal's dials (see art.js)
 // an animal's name, and with its article (THE RABBIT), in the player's language
 const nameOf = (k) => t(`animal.${k}`), theOf = (k) => t(`animal.${k}.the`);
 for (const p of document.querySelectorAll('#rotate p')) p.textContent = t('page.rotate'); // (the page's only words the player sees)
-const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?treats, ?scale, ?hz, ?log, ?reset)
+const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?treats, ?scale, ?hz, ?log, ?reset, ?cheats)
+// ?cheats: a row of buttons at the bottom of the screen, to get somewhere quickly (see CHEATS); its runs are not
+// written down (they would not say how the game plays)
+const CHEATING = Q.has('cheats');
+const query = () => [...Q].map(([k, v]) => (v ? `${k}=${encodeURIComponent(v)}` : k)).join('&'); // (the switches as they were written: ?cheats, not ?cheats=)
 
 // what this browser keeps (localStorage, lop.<name>; in a private window perhaps nothing): get, set (null: removed)
 const kept = (k) => { try { return localStorage.getItem(`lop.${k}`); } catch { return null; } };
@@ -95,7 +99,7 @@ if (Q.has('reset')) {
   const runs = Q.get('reset') !== 'all' ? ['lop.runs', 'lop.runsSent', 'lop.runNow'] : [];
   try { for (const k of Object.keys(localStorage)) if (k.startsWith('lop.') && !runs.includes(k)) localStorage.removeItem(k); } catch { /* no storage */ }
   Q.delete('reset');
-  history.replaceState(null, '', location.pathname + (Q.toString() ? `?${Q}` : '') + location.hash);
+  history.replaceState(null, '', location.pathname + (query() ? `?${query()}` : '') + location.hash);
 }
 const CHEAT_TREATS = Q.has('treats'); // ?treats (=n): every animal n treats (as many as it can have), for this visit (nothing saved)
 const treats = CHEAT_TREATS ? new Proxy({}, { get: (o, k) => (k in o ? o[k] : Math.min(MAX_TREATS, +Q.get('treats') || MAX_TREATS)) }) : keptJSON('treats') || {}; // (see FLY_SECS)
@@ -162,7 +166,6 @@ let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
 let track, ahead, chase, night, hunted, paling, dark, sunrise, homeAt, homeX, homeV, won, koT, streak, duckHeld, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
-let moonKind = null; // (this run's special one, on a full-moon night: see the full moon)
 let bag, tossed; // the run's treats, and those flying into the bag (from where they were eaten)
 let herd, herdT, spits, spitT, drumT; // the yak's stampede (the herd running by), the dromedary's spit (in flight), the gorilla's drumming
 const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
@@ -182,7 +185,7 @@ function reset() {
   track = course(kind); ahead = track.next(); chase = null; night = hunted = paling = won = false; dark = sunrise = 0; flash = 0; hundreds = 0;
   homeAt = nightAt(kind, 1).to / SCORE_PER_PX; homeX = homeV = 0; // (where it is home, px into the run; how far it has run off, how fast)
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
-  power = 0; gold = null; airJumps = 0; quake = 0; bag = 0; tossed = []; moonKind = null;
+  power = 0; gold = null; airJumps = 0; quake = 0; bag = 0; tossed = [];
   herd = []; herdT = 0; spits = []; spitT = 0; drumT = 0;
   sky = random(seedOf(kind) ^ 0x5c1e5); hillX = groundX = 0; // (the clouds too: as they were)
   clouds = CLOUDS.map((c) => ({ ...c }));
@@ -198,13 +201,10 @@ function launchRun() { if (!launch) launch = { t: 0, x: 0, v: 120, phase: 0 }; }
 function start() {
   launch = null; fadeIn = FADE_IN;
   gained = null;
-  rec = AUTO ? null : newRec();
+  rec = AUTO || CHEATING ? null : newRec();
   beat = best(); // the best so far: passing it plays a fanfare
   if (kind === newKind) { newKind = null; keep('new', null); } // (no longer new)
   reset();
-  moonKind = moonDue(); // (the full moon: see moonDue)
-  if (moonable()) keep('moon', moonRuns = moonKind ? 0 : moonRuns + 1);
-  if (rec && moonKind) rec.moon = moonKind;
   state = 'run';
   updateMood();
   call('sting', 'go');
@@ -260,25 +260,25 @@ function playable() {
 }
 
 // The animals come one by one: a run starts with the rabbit, chased by the guinea pig at night; getting away from it
-// till dawn unlocks it (lop.unlocked, in this browser). The special ones are not in the chase (see chaserOf in level.js):
-// one comes on a full-moon night, chasing instead (see the full moon below).
+// till dawn unlocks it (lop.unlocked, in this browser; see chaserOf in level.js).
 let open = ['rabbit'];
-{ // (every one that is not special before the furthest unlocked: the newer animals came in between the others; and
-  // every one unlocked, special or not)
+{ // (every one before the furthest unlocked: the newer animals came in between the others, and the special ones, once
+  // brought by a full moon, are in the chase now)
   const u = (keptJSON('unlocked') || []).map(renamed).filter((k) => ANIMALS[k]);
-  const far = Math.max(0, ...u.filter((k) => !ANIMALS[k].special).map((k) => KINDS.indexOf(k)));
-  open = KINDS.filter((k, i) => (i <= far && !ANIMALS[k].special) || u.includes(k));
+  const far = Math.max(0, ...u.map((k) => KINDS.indexOf(k)));
+  open = KINDS.filter((k, i) => i <= far);
 }
-// The full moon: once every animal before a special one is unlocked, every MOON_EVERY-th run is a full-moon night (the
-// full moon on the title says the next one is: pick an animal to try it with): the special one chases instead of the
-// usual one, faster (the world MOON_CHASE faster again while it is after the animal, falling back MOON_RECOVER times as
-// slowly), and getting home from it, it joins. (lop.moon: the runs since the last full moon, or since one could come)
-const MOON_EVERY = 3, MOON_CHASE = 1.08, MOON_RECOVER = 1.5;
-let moonRuns = +kept('moon') || 0;
-const nextSpecial = () => KINDS.find((k) => ANIMALS[k].special && !unlocked(k));
-const moonable = () => { const sp = nextSpecial(); return !AUTO && sp && KINDS.slice(0, KINDS.indexOf(sp)).every(unlocked) ? sp : null; }; // (the one a full moon would bring)
-const moonDue = () => (moonRuns >= MOON_EVERY - 1 ? moonable() : null);
-const hunter = () => moonKind || chaserOf(kind); // who chases the animal tonight
+const hunter = () => chaserOf(kind); // who chases the animal tonight
+// the ones that have chased an animal (come into sight at night: lop.met): only such a one, not unlocked yet, stands
+// behind the one it chases on the title, as a shadow (see coming); the others are a surprise
+const met = (keptJSON('met') || []).map(renamed);
+function meet(k) { if (!met.includes(k)) { met.push(k); keep('met', JSON.stringify(met)); } }
+// the animal pack (in-app purchase, not in the game yet: lop.pack, the BUY cheat): the first FREE animals are free, the
+// rest still unlocked by playing, but padlocked till it is bought: on the title, a padlock over it; it can be picked
+// (its song plays), not run with
+const FREE = 3; // (the rabbit, the guinea pig, the cat)
+let bought = kept('pack') === '1';
+const padlocked = (k) => !bought && !ALL && KINDS.indexOf(k) >= FREE;
 const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device; ?hz=120: up to 120, see frame)
 // ?log: each frame that came late or early, took other than a frame's steps (x2; ?hz=120: x1), or long, on the
 // console (in the iOS app: Xcode's), with what happened just before it (see frame)
@@ -287,7 +287,7 @@ const note = (what) => { if (LOG) notes.push(what); };
 const ALL = Q.has('all'); // ?all: every animal open, for this visit (nothing saved)
 function unlocked(k) { return ALL || open.includes(k); }
 // the one unlocked last: in this run (gained: after the knock-out and the high scores, the title, to pick it there) and
-// until played (newKind, marked NEW on the title)
+// until played (newKind, twinkling on the title)
 let gained = null, newKind = null;
 const keptKind = (name) => { const k = renamed(kept(name)); return ANIMALS[k] && unlocked(k) ? k : null; };
 newKind = keptKind('new');
@@ -309,7 +309,7 @@ function goHome() {
   if (state === 'paused' && audio === 'on') music.play();
   fresh = null;
   arriving = gained; // (it runs in, from the left)
-  gained = null; // (the new one waits on the title, marked NEW, to be picked)
+  gained = null; // (the new one waits on the title, twinkling, to be picked)
   reset();
   state = 'title';
   fingers.clear();
@@ -404,7 +404,7 @@ function knockOut(why, said = t(`end.${why}`)) { // (why: tired, caught or bumpe
 function press() {
   startAudio();
   if (scoresOpen()) return;
-  if (state === 'title') return launchRun();
+  if (state === 'title') return padlocked(kind) ? undefined : launchRun();
   if (state === 'ko') { if (settled()) { if (fresh) { if (!TOUCH) nameIt(); } else if (gained) goHome(); else start(); } return; } // (a new high score is named first, on a phone as the tap ends: see touchend; one unlocked: to the title, to pick it)
   if (state === 'paused') { state = 'run'; if (audio === 'on') music.play(); return; }
   jumpHeld = true;
@@ -641,6 +641,13 @@ const ACTS = {
   start: press,
   back: () => leaveScores(),
   named: () => doneName(true),
+  'cheat.win': () => { if (state === 'run') { floats = []; arrive(); } }, // (the day's words gone: dawn never comes with them)
+  'cheat.power': () => { if (state === 'run') startPower(); },
+  'cheat.energy': () => { if (state === 'run') energy = 100; },
+  'cheat.unlock': () => { const k = KINDS.find((o) => !unlocked(o)); if (k && state === 'title') { unlock(k); gained = null; arriving = k; } },
+  'cheat.buy': () => { bought = true; keep('pack', '1'); },
+  'cheat.food': () => { treats[kind] = MAX_TREATS; keep('treats', JSON.stringify(treats)); },
+  'cheat.reset': () => { Q.set('reset', ''); location.search = query(); },
 };
 const BTN = 11; // a button: 11×11, an icon of 7×7 in a frame
 let SKY = 0, VH = H; // the sky added above the world, where the screen is taller than it; the height of all (see fit)
@@ -648,20 +655,37 @@ let viewL = 0, viewR = W; // the world's x at the screen's left and right edges 
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
   if (naming) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'named', text: 'button.ok', x: W / 2 - 15, y: NAME_BOX.y + 25, w: 31, h: 13 }]; // (see drawName)
-  if (inRun()) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'home', x: safeL + 4 + BTN + 2, y: 2 }]; // (the bars: in the middle, see bar)
+  if (inRun()) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'home', x: safeL + 4 + BTN + 2, y: 2 }, ...cheats()]; // (the bars: in the middle, see bar)
   const ids = ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
   // on the title, the button that runs (under the writing, over the animals: in the world, from the top of the screen)
   // in the row of the pads, in the middle: on the title the button that runs; on the high scores the one back, at the
   // top right
   if (board) row.push({ id: 'back', text: 'button.back', x: W - safeR - 35, y: 2, w: 31, h: BTN });
-  const mid = !board && state === 'title' ? { id: 'start', text: 'button.start' } : null;
+  const mid = !board && state === 'title' && !padlocked(kind) ? { id: 'start', text: 'button.start' } : null;
   if (board?.credits && board.runs) row.push({ id: 'share', text: 'button.share', x: W / 2 + 2, y: SKY - safeT + 41, w: 31, h: 11 }); // (the runs: see drawCredits)
-  return mid ? [...row, { ...mid, x: W / 2 - 15, y: SKY - safeT + padRow + 2, w: 31, h: 13 }] : row;
+  return [...row, ...(mid ? [{ ...mid, x: W / 2 - 15, y: SKY - safeT + padRow + 2, w: 31, h: 13 }] : []), ...cheats()];
 }
 // under the ground, from the top in the world: the row of the pads (and the start button), between the ground and the
 // line of help at the bottom of the screen (see fit)
 let padRow = GROUND + 4, helpY = GROUND + 24;
+// ?cheats: the ones that do something now, in a row at the bottom of the screen, in the middle (the line of help over
+// them: see fit); their words as they are (not the player's: see lang.js)
+const CHEATS = [
+  { id: 'cheat.win', text: 'WIN', when: () => state === 'run' }, // the run won: home at dawn, as if it got through the night
+  { id: 'cheat.power', text: 'POWER', when: () => state === 'run' }, // the animal's super power, as from golden food
+  { id: 'cheat.energy', text: 'ENERGY', when: () => state === 'run' }, // the energy full again
+  { id: 'cheat.unlock', text: 'UNLOCK', when: () => state === 'title' && !ALL && KINDS.some((k) => !unlocked(k)) }, // the next animal, running in
+  { id: 'cheat.buy', text: 'BUY', when: () => state === 'title' && !bought && !ALL }, // the animal pack, as if bought
+  { id: 'cheat.food', text: 'FOOD', when: () => state === 'title' && (treats[kind] || 0) < MAX_TREATS }, // all the treats the picked one can have
+  { id: 'cheat.reset', text: 'RESET', when: () => true }, // the game as the first time (see ?reset), cheats still on
+];
+function cheats() {
+  if (!CHEATING || naming || board) return [];
+  const on = CHEATS.filter((c) => c.when()), w = (c) => textWidth(c.text) + 8, all = on.reduce((a, c) => a + w(c) + 2, -2);
+  let x = W / 2 - all / 2;
+  return on.map((c) => { const b = { id: c.id, text: c.text, x: Math.round(x), y: VH - safeT - BTN - 3, w: w(c), h: BTN, cheat: true }; x += b.w + 2; return b; });
+}
 // on the title, arrows in the bottom corners (pads, see showPad) pick the animal before or after (round the row),
 // whenever there is more than one
 const picking = () => state === 'title' && !board && carousel !== null && playable().length > 1;
@@ -724,8 +748,13 @@ function padAt(e) {
   return null;
 }
 // a button: a frame with rounded corners, an icon in it (inverted while pressed); or, wider ({ w, h, text }), words;
-// or (no icon) empty
-function drawButton(x, y, icon, on, pal, { w = BTN, h = BTN, text: words } = {}) {
+// or (no icon) empty; a cheat's (?cheats): orange, its words white
+function drawButton(x, y, icon, on, pal, { w = BTN, h = BTN, text: words, cheat = false } = {}) {
+  if (cheat) {
+    ctx.fillStyle = pal[on ? 11 : 7];
+    ctx.fillRect(x + 1, y, w - 2, h); ctx.fillRect(x, y + 1, w, h - 2);
+    return text(ctx, words, x + w / 2, y + (h - 5) / 2, pal[COLOR.WHITE], 'center'); // (as they are: not the player's language)
+  }
   const ink = pal[COLOR.INK];
   ctx.fillStyle = ink;
   ctx.fillRect(x + 1, y, w - 2, 1); ctx.fillRect(x + 1, y + h - 1, w - 2, 1);
@@ -912,7 +941,7 @@ function drawName(pal) {
 // Escape goes back)
 function drawBoard(pal) {
   (board.credits ? drawCredits : drawScores)(pal);
-  if (gained && state === 'ko' && !board.credits) help(t(ANIMALS[gained].special ? 'end.joins' : 'end.unlocked', { name: nameOf(gained), the: theOf(gained) }), pal, pal[7]); // (after a run: see hud)
+  if (gained && state === 'ko' && !board.credits) help(t('end.unlocked', { name: nameOf(gained) }), pal, pal[7]); // (after a run: see hud)
   animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, board.credits ? W / 2 - 13 : SCORES_X + 132, GROUND - FOOT, pal);
 }
 function drawScores(pal) {
@@ -1032,7 +1061,7 @@ function update(dt) {
     duck();
     queued = Math.max(0, queued - dt);
     slow = Math.max(0, slow - dt / 1.2);
-    speed = pace(kind, dist) * (chase ? CHASE * (moonKind ? MOON_CHASE : 1) : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
+    speed = pace(kind, dist) * (chase ? CHASE : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
   } else if (won) { // home: the world comes to a stop, the animal runs off to the right; the day comes
     speed *= Math.exp(-4 * dt);
     homeV = Math.min(240, homeV + 400 * dt); homeX += homeV * dt;
@@ -1109,12 +1138,12 @@ function update(dt) {
     else if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
-      chase.heat = Math.max(0, chase.heat - dt / ((RECOVER + DAY_RECOVER * Math.min(6, hardness(kind, far()))) * (moonKind ? MOON_RECOVER : 1)));
+      chase.heat = Math.max(0, chase.heat - dt / ((RECOVER + DAY_RECOVER * Math.min(6, hardness(kind, far())))));
       // (it comes into sight first, a power or not: the night's banner says it is after the animal; then a power holds
       // it back, or shakes it off)
       const to = safeL + (power && chase.seen ? CRUISE_X - 12 : chase.catching ? CATCH_X : CRUISE_X + ((CATCH_X - CRUISE_X) / 2) * chase.heat); // (right of a notch)
       chase.x += Math.max(-10 * dt, Math.min(40 * dt, to - chase.x));
-      if (chase.x >= safeL + CRUISE_X - 0.5) chase.seen = true;
+      if (chase.x >= safeL + CRUISE_X - 0.5 && !chase.seen) { chase.seen = true; meet(hunter()); }
       if (state === 'run' && chase.catching && chase.x >= safeL + CATCH_X - 0.5) { // caught
         speed = 0; chase.caught = true;
         return knockOut('CAUGHT', t('end.caught', { the: theOf(hunter()) }));
@@ -1205,7 +1234,7 @@ function update(dt) {
   // the night: it falls after the day's run, the next animal chases the animal through it, toward its end the sky
   // pales (halfway to day by dawn: the morning) and the sun comes up, and at dawn the animal is home
   const s = far(), n = nightAt(kind, 1); // (the same every run)
-  if (!night && s >= n.from) { night = true; call('sting', 'dusk'); banner(t(moonKind ? 'run.full_moon' : 'run.night'), 24, 2, 0, 2); }
+  if (!night && s >= n.from) { night = true; call('sting', 'dusk'); banner(t('run.night'), 24, 2, 0, 2); }
   paling = night && s >= n.pale;
   sunrise = paling ? Math.min(1, (s - n.pale) / (n.to - n.pale)) : 0;
   const lit = night ? 1 - 0.5 * sunrise : 0;
@@ -1229,7 +1258,7 @@ function update(dt) {
 function updateBits(dt) {
   for (const t of tossed) t.t += dt;
   if (tossed.length) tossed = tossed.filter((t) => t.t < FLY_SECS);
-  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; p.life -= dt; }
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g ?? 300) * dt; p.life -= dt; } // (g: its own fall, or none)
   parts = parts.filter((p) => p.life > 0);
   for (const f of floats) { f.y -= (f.rise ?? 12) * dt; f.life -= dt; }
   floats = floats.filter((f) => f.life > 0);
@@ -1440,6 +1469,10 @@ function updateRow(dt) {
     const sel = row.indexOf(kind);
     carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
   }
+  if (newKind && state === 'title' && !board && at[newKind] !== undefined && rnd() < dt * 5) { // unlocked, not played yet: twinkling, floating up
+    const x = placeX(at[newKind]);
+    parts.push({ x: x + 3 + rnd() * 20, y: GROUND - 3 - rnd() * 20, vx: (rnd() - 0.5) * 6, vy: -6 - rnd() * 8, g: 0, life: 0.4 + rnd() * 0.4, color: COLOR.YELLOW, star: true });
+  }
   if (arriving && state === 'title') { at[arriving] = placeAt(Math.floor(viewL) - 30); arriving = null; } // (the new one: from off the left)
   // each to its place (past the gap, one on), running there
   const others = held ? row.filter((k) => k !== held.k) : row, gap = held ? gapAt(n) : n;
@@ -1504,15 +1537,16 @@ function drawGrabbed(pal) {
 
 // on the title, the one to come, as a shadow: the one that would chase the picked one (if it is not unlocked yet),
 // standing right behind it, left of it (a place is kept for it there: see updateRow)
-const coming = () => { const c = chaserOf(kind); return state === 'title' && !board && !held && !dropped && !ALL && !unlocked(c) ? c : null; };
+const coming = () => { const c = chaserOf(kind); return state === 'title' && !board && !held && !dropped && !ALL && !unlocked(c) && met.includes(c) ? c : null; };
 function toCome(pal) {
   const c = coming();
   if (c && at[kind] !== undefined) {
     const x = placeX(playable().indexOf(kind) + 1); // (the place kept for it, behind the picked one: see updateRow)
     animal(c, 'idle', 0).draw(ctx, x, GROUND - FOOT, shadow(pal, COLOR.DIM));
-    text(ctx, '?', x + 13, GROUND - 31, pal[COLOR.DIM], 'center');
   }
 }
+// a padlock over an animal unlocked but not bought (see padlocked): its shackle in ink, its body golden
+const PADLOCK = ['..xxx..', '.x...x.', '.x...x.', 'xxxxxxx', 'xooooox', 'xooxoox', 'xooxoox', 'xooooox', 'xxxxxxx'];
 // an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
 // faded behind (p: its place in the row)
 function standing(k, p, on, pal) {
@@ -1532,7 +1566,10 @@ function standing(k, p, on, pal) {
     if (r.dir < 0) ctx.restore();
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
-  if (k === newKind && !board) text(ctx, t('title.new'), x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
+  if (padlocked(k)) { // (where the arrow would be, once it stands in its place)
+    if (!jp && !r?.on && !board) PADLOCK.forEach((row, y) => [...row].forEach((c, i) => { if (c !== '.') { ctx.fillStyle = pal[c === 'x' ? COLOR.INK : COLOR.YELLOW]; ctx.fillRect(x + 10 + i, GROUND - 30 + y, 1, 1); } }));
+    return;
+  }
   if (!on || held || jp || launch || feed || loose || begging || treats[k] > 0) return; // (the arrow: not while one is held, jumps, runs off, or after a treat; nor over its treats, which mark it)
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
@@ -1663,9 +1700,8 @@ function scene(pal) {
     ctx.beginPath();
     for (const s of stars) if (s.y >= -SKY && Math.sin(blinkT * 2 + s.p) > -0.6) ctx.rect(s.x, s.y, 1, 1);
     ctx.fill();
-    (moonKind ? fullMoon : moon).draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
+    moon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
   }
-  if (state === 'title' && !board && moonDue()) fullMoon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal); // (tonight: a full moon)
   if (sunrise > 0 && dark > 0) { // the sun coming up behind the hills (none of it below the ground's line), white: as the day comes it is gone into the sky
     const r = 8, cx = Math.round(viewR) - 70, cy = GROUND + r - Math.round(sunrise * 24 - Math.max(0, sunrise - 1) * 14);
     ctx.fillStyle = pal[COLOR.WHITE];
@@ -1713,7 +1749,7 @@ function scene(pal) {
   ctx.globalAlpha = stinks() ? 0.35 : 1; // (faded while the skunk stinks: it runs through them)
   for (const o of obstacles) o.sprite.draw(ctx, onGround(o.x), o.y, pal);
   ctx.globalAlpha = 1;
-  if (chase) { // the next animal (the last: a bear; a full moon: a special one)
+  if (chase) { // the next animal
     const c = hunter();
     const st = stride(c, chase.phase), blink = blinking(blinkT + 1.3), still = chase.caught || chase.there; // (caught it; or joined, in the middle)
     (still ? animal(c, 'idle', idleFrame(c, blinkT), { blink, body: chase.body }) : animal(c, 'run', st.frame, { blink, body: chase.body }))
@@ -1754,7 +1790,12 @@ function scene(pal) {
     }
   }
   let color = null;
-  for (const p of parts) { if (p.color !== color) ctx.fillStyle = pal[color = p.color]; ctx.fillRect(snap(p.x), snap(p.y), 1, p.h || 1); }
+  for (const p of parts) {
+    if (p.color !== color) ctx.fillStyle = pal[color = p.color];
+    const x = snap(p.x), y = snap(p.y);
+    ctx.fillRect(x, y, 1, p.h || 1);
+    if (p.star && p.life > 0.15) { ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); } // (a twinkle: a little cross, a dot as it fades)
+  }
   for (const f of floats) {
     if (f.sprite) f.sprite.draw(ctx, f.x, Math.round(f.y), pal);
     else text(ctx, f.text, f.x, Math.round(f.y), pal[COLOR.INK], 'left', f.size || 1, f.size > 1 ? LOGO : undefined);
@@ -1782,11 +1823,12 @@ function hud(pal) {
     text(ctx, 'LOP HOP', W / 2, 10, pal[COLOR.INK], 'center', 2, LOGO);
     const pick = playable().length > 1;
     if (TOUCH) { if (pick) help(t('title.tap_to_pick'), pal); } // (moving, petting, ducking, jumping: to be found)
+    else if (padlocked(kind)) help(t('title.keys_pick'), pal); // (no running with it)
     else help(t(pick ? 'title.keys_to_pick' : 'title.keys'), pal);
   } else if (state === 'ko' && naming) atTop(() => drawName(pal));
   else if (state === 'ko') {
     if (won) text(ctx, koWhy, W / 2, 20, pal[COLOR.INK], 'center', 2, LOGO); else text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
-    if (gained && koT > 0.3 && (koT > 2 || Math.floor(koT * 4) % 2)) text(ctx, t(ANIMALS[gained].special ? 'end.joins' : 'end.unlocked', { name: nameOf(gained), the: theOf(gained) }), W / 2, 33, pal[7], 'center'); // (unlocked in this run: again, blinking at first, so it is not missed)
+    if (gained && koT > 0.3 && (koT > 2 || Math.floor(koT * 4) % 2)) text(ctx, t('end.unlocked', { name: nameOf(gained) }), W / 2, 33, pal[7], 'center'); // (unlocked in this run: again, blinking at first, so it is not missed)
     if (won && bag && koT > 0.6) { // the treats brought home
       const meal = FOOD[T().food], s = `+${bag}`, w = meal.w + 2 + textWidth(s), x = Math.round(W / 2 - w / 2), y = gained ? 42 : 33;
       meal.draw(ctx, x, y - Math.floor((meal.h - 5) / 2), pal); text(ctx, s, x + meal.w + 2, y, pal[COLOR.INK]);
@@ -1841,7 +1883,7 @@ function fit() {
   SKY = Math.min(Math.floor((VH - H) / 2), TRUNK);
   // under the ground: the line of help at the bottom (5 art pixels under it on every screen, clear of a phone's home bar
   // too), the pads' row between
-  helpY = VH - SKY - 10;
+  helpY = VH - SKY - 10 - (CHEATING ? BTN + 3 : 0); // (?cheats: their buttons under it)
   padRow = Math.max(GROUND + 2, Math.round((GROUND + 1 + helpY - 2 - PAD) / 2));
   stage.style.setProperty('--pad-top', `${view.offsetTop + (SKY + padRow) * px}px`);
   if (fitted === `${cw} ${ch} ${scale}`) return;

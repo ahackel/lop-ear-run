@@ -8,14 +8,13 @@ button.share = Teilen
 button.ok = OK
 title.tap_to_pick = Tipp auf ein Tier zum Wählen
 title.keys_to_pick = < > oder klicken zum Wählen - Leertaste zum Laufen
+title.keys_pick = < > oder klicken zum Wählen
 title.keys = Leertaste zum Laufen
-title.new = Neu!
 page.rotate = Dreh dein Handy quer, um zu spielen
 
 # a run
 run.day = Tag
 run.night = Nacht
-run.full_moon = Vollmond
 run.new_best = Neuer Rekord!
 run.chased = {the} ist hinter dir her!
 run.ouch = Aua!
@@ -32,7 +31,6 @@ end.bumped = K.o.!
 end.tired = Zu müde!
 end.caught = {the} hat dich erwischt!
 end.unlocked = {name} freigeschaltet!
-end.joins = {the} ist dabei!
 end.yours_tap = {the} gehört dir! Tippen zum Wählen
 end.yours_keys = {the} gehört dir! Leertaste oder tippen zum Wählen
 end.again_tap = Tippen für noch einen Lauf

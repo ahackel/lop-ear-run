@@ -35,16 +35,16 @@ export const GOLD_FIRST = 250, GOLD_SECS = [24, 36], DAY_GOLD = 0.1;
 
 const KINDS = Object.keys(ANIMALS);
 const T = (kind) => ANIMALS[kind];
-// who chases an animal at night (and joins it, the first time it gets away till dawn): the next one that is not
-// special (see ANIMALS); the last, the rabbit
-export const chaserOf = (k) => KINDS.slice(KINDS.indexOf(k) + 1).find((c) => !T(c).special) || 'rabbit';
+// who chases an animal at night (and joins it, the first time it gets away till dawn): the next one (see ANIMALS); the
+// last, the rabbit
+export const chaserOf = (k) => KINDS[KINDS.indexOf(k) + 1] || 'rabbit';
 const cycle = (kind) => DAY + NIGHT * T(kind).speed; // (points: a day and its night)
 // how much harder than the start (days), s points into a run
 export const hardness = (kind, s) => s / cycle(kind) + KINDS.indexOf(kind) * HEAD;
 // the day s points into a run is in (1, 2, …), and where that day's night falls, where its chaser comes, where the
 // sky pales, where it ends; the land an animal runs in
 export const dayOf = (kind, s) => Math.floor(s / cycle(kind)) + 1;
-export const landOf = (kind) => LANDS[KINDS.slice(0, KINDS.indexOf(kind)).filter((k) => !T(k).special).length % LANDS.length]; // (each animal's obstacles, round the lands, a special one's the next one's: see LANDS)
+export const landOf = (kind) => LANDS[KINDS.indexOf(kind) % LANDS.length]; // (each animal's obstacles, round the lands: see LANDS)
 export const nightAt = (kind, day) => { const from = (day - 1) * cycle(kind) + DAY; return { from, hunt: from + HUNT * T(kind).speed, pale: day * cycle(kind) - PALE * T(kind).speed, to: day * cycle(kind) }; };
 // how fast the world goes by, d art pixels into a run (before the chase, a bump, a super power): speeding up as it
 // runs, up to a top that rises with every day, and past KNEE ever more slowly, never reaching TOP (an animal's own

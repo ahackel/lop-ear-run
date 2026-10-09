@@ -12,9 +12,8 @@ the treats it brings home.
 - At dawn the run ends, home (HOME!, worth 100): nothing in the way for a screen and more before it, the world comes to
   a stop and the animal runs off to the right, back to the title; the first time, the chaser, unlocked, runs up to
   the middle of the screen and stays there. Then the high scores as after a knock-out.
-- Each animal runs in a land of its own (round the six lands; a special one in the next animal's).
-- Gone: the suns, DAY n at the top right, day 2 and later, ESCAPED! +n, the land's name at the start, the special
-  ones' shadow at the end of the title's row (they have no way in for now: see 3).
+- Each animal runs in a land of its own (round the six lands).
+- Gone: the suns, DAY n at the top right, day 2 and later, ESCAPED! +n, the land's name at the start.
 - The balance page: the chance to get home (at each skill) is the main number; runs that got home end in "dawn".
 - (Tried and dropped: a den to run into at the end; it looked like a hut.)
 
@@ -45,7 +44,11 @@ the treats it brings home.
   further from its chest than at rest; one with a neck, at its end). Let go: after it at once. With none out, now and
   then (every 4 to 10 s) it tries once for its treats over it, begging.
 
-## 3. The full moon: where the special ones come from (done)
+## 3. The full moon: where the special ones come from (built, then taken out: parked)
+
+- Taken out for now: the cheetah, the gorilla, the elephant and the dino are ordinary animals again, each chased by
+  the next (the wolf a little more food, a little less tiring, for its land). The full moon's code is in git (cd2d1f4
+  and before), its art (fullMoon) still in art.js.
 
 - A special one joins only by being got away from, on a full-moon night: it chases instead of the usual animal, and
   faster than it.
@@ -62,5 +65,8 @@ the treats it brings home.
 
 - Longer trips (each trip home makes the next one a day longer): it would bring the days counter back.
 - Dragging the animals into an order that means something (who chases whom): only meaningful once all are unlocked.
-- The animal pack (in-app purchase): the first three free, the rest bought, still unlocked by playing; only the next
-  one shown as a shadow, with a lock after the third; Restore Purchases, and a parental gate if in the Kids category.
+- The animal pack (in-app purchase): the first three free, the rest bought, still unlocked by playing; Restore
+  Purchases, and a parental gate if in the Kids category. Built so far: the next one shown as a shadow only once it has
+  chased (lop.met), no "?"; the dog (and any after the third) joins at dawn as before, padlocked on the title till the
+  pack is bought (lop.pack, the BUY cheat): it can be picked, not run with. Still to do: the purchase itself, the shop
+  behind the gate (tapping the padlock).

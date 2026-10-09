@@ -9,14 +9,13 @@ button.share = Share
 button.ok = OK
 title.tap_to_pick = Tap an animal to pick it
 title.keys_to_pick = < > or click to pick - Space to run
+title.keys_pick = < > or click to pick
 title.keys = Space to run
-title.new = New!
 page.rotate = Turn your phone sideways to play
 
 # a run
 run.day = Day
 run.night = Night
-run.full_moon = Full moon
 run.new_best = New best!
 run.chased = {the} is after you!
 run.ouch = Ouch!
@@ -33,7 +32,6 @@ end.bumped = Knocked out!
 end.tired = Too tired!
 end.caught = Caught by {the}!
 end.unlocked = {name} unlocked!
-end.joins = {the} joins you!
 end.yours_tap = {the} is yours! Tap to pick
 end.yours_keys = {the} is yours! Space or tap to pick
 end.again_tap = Tap to run again
