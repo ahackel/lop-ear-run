@@ -35,8 +35,11 @@ the treats it brings home.
   it and stretches toward it (as petting leans); let go near it and it takes it and eats it, hearts float up. Let go
   elsewhere and the treat goes back to the basket.
 - Treats do nothing else (for now): they are for the animal.
+- An animal has at most 5: food eaten with no room for one more is only food.
 - As built: it goes after one held out in tries, as an idle animation: looks at it, stretches toward it (for one held high:
-  up on its hind legs, near upright, the hind legs straightened, the front paws tucked in, as the rabbit sits up),
+  up on its hind legs, as far as its legs against its body let it (the round, short-legged ones only lean back; the
+  cheetah, the dromedary only half up), the hind legs straightened, the front paws held out in front of its belly; the
+  elephant reaches with its trunk; floppy ears hang down; two little sniffs once stretched out),
   strains a moment, sinks back, rests a second or two still eyeing it, and tries again; its head stays on its body (no
   further from its chest than at rest; one with a neck, at its end). Let go: after it at once. With none out, now and
   then (every 4 to 10 s) it tries once for its treats over it, begging.

@@ -66,7 +66,7 @@ export const make = (rig) => {
     paint: [rig.paint[0]],
     chains: { tail: { at: [-3.6, -0.8], angle: 1.8 }, hump: { at: [3.2, -2.4] }, ...earsBack(rig) } };
 
-  return { ...rig, poses: quadruped(rig, low, { idle: standIdle(rig, { tail: 2.6, swish: 0.15 }) }) };
+  return { ...rig, rears: 0.35, poses: quadruped(rig, low, { idle: standIdle(rig, { tail: 2.6, swish: 0.15 }) }) }; // (rears: only a little up on its hind legs, for a treat: see reaching)
 };
 
 export default make(build);

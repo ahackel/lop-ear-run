@@ -449,17 +449,17 @@ function chainsAt(rig, P, body) {
 
 // the moving parts of an animal on screen (body: kept by the game, one per animal it draws): its chains, stepped by how
 // the animal moves. x, y: where its box is now; wind: how fast the world goes by (the air streams past the runner)
-export function moveBody(body, kind, pose, frame, x, y, wind, dt) {
+export function moveBody(body, kind, pose, frame, x, y, wind, dt, P = null) { // (P: posed already, as no move has it: see moveReaching)
   const rig = RIGS[kind], was = body.at || [x, y];
   if (body.kind !== kind || dt > 0.2 || Math.hypot(x - was[0], y - was[1]) > 40) { body.kind = kind; body.chains = {}; body.move = null; body.landed = Infinity; } // (a new start)
   ease(body, rig, pose, frame, dt);
-  stepChains(body, rig, bodyPosed(rig, kind, pose, frame, body)[0], x, y, dt, wind);
+  stepChains(body, rig, P || bodyPosed(rig, kind, pose, frame, body)[0], x, y, dt, wind);
   body.at = [x, y];
 }
 // a move eased into from the one before (from: that move and its frame; since: how long ago), and from one keyframe to
 // the next; a landing (landed: how long ago, after a jump). Not into or out of sitting or being knocked out: they snap.
 // Both in steps (a few a move, as the frames go), so the frames drawn are few.
-const BLEND = 0.12, SQUASH = 0.2, STEPS = 3, SNAPS = ['idle', 'ko', 'ball'];
+const BLEND = 0.12, SQUASH = 0.2, STEPS = 3, SNAPS = ['idle', 'ko', 'ball', 'reach'];
 function ease(body, rig, pose, frame, dt) {
   const was = body.move, keys = Array.isArray(rig.poses[pose]);
   body.since = (body.since ?? Infinity) + dt; body.landed = (body.landed ?? Infinity) + dt;
@@ -839,48 +839,90 @@ export function petted(kind, frame, joy, t, lean = 0) {
 // An animal reaching for something (on the title: a treat held out, falling, lying on the ground; tx, ty from the corner
 // of its box, in front of it: the game turns it round for one behind): sitting or standing as it does, its body turned
 // about its hip toward it (from where its head is, as seen from its hip: for one above it, up on its hind legs, as near
-// upright as it gets, the hind legs straightened under it (its hip up as far as they reach), the front paws lifted and
-// tucked in, the head kept over the chest; one on two legs already only leaning back; for one low in front, leaning
+// upright as it gets, the hind legs straightened under it (its hip up as far as they reach), the front paws reaching
+// out for it, the head kept over the chest; one on two legs already only leaning back; for one low in front, leaning
 // down to it), its head turned to it (up, down: as far as a head turns) and stretched toward it, a few pixels the
 // further it is, lower still for one low and near, but never further from its chest than it is at rest and a pixel (so
-// it stays on its body; one with a neck (on its chest) keeps its head at the neck's end, turned with it, give or take). eating: its eyes shut happily. amount (0…1): how far it is into reaching (0: as it rests), look:
-// how far its head is turned to it. (Kept as rigFrame keeps frames: the pose in a few steps)
+// it stays on its body; one with a neck (on its chest) keeps its head at the neck's end, turned with it, give or take).
+// One with a trunk (the elephant) reaches with it instead: leaning back only a little, the trunk aimed at it, straighter
+// and longer the further into reaching. amount (0…1): how far it is into reaching (0: as it rests), look: how far its
+// head is turned to it, sniff (0…1): its head lifted a little (sniffing at it). → the posed rig, its
+// growth, a key for the pose (in a few steps: few frames)
 const UPRIGHT = 1.35; // (the most it turns up, in radians)
-export function reaching(kind, tx, ty, eating = false, amount = 1, look = 1) {
+function reachPosed(kind, tx, ty, amount = 1, look = 1, sniff = 0) {
   const rig = RIGS[kind], base = poseOf(rig, 'idle', 0), J = { ...rig.joints, ...base.joints }, n = SIZE[kind] || 0, [k, d] = growth(n);
   const x = (tx - d[0]) / k, y = (ty - d[1]) / k; // (in the rig's own pixels)
   const legs = Object.keys(rig.legs || {}), hinds = legs.filter((l) => rig.legs[l].on === 'hip'), fronts = legs.filter((l) => rig.legs[l].on !== 'hip');
+  const trunk = rig.chains?.trunk && { ...rig.chains.trunk, ...base.chains?.trunk };
   const piv = J.hip, now = Math.atan2(J.head[1] - piv[1], J.head[0] - piv[0]), want = Math.atan2(y - piv[1], x - piv[0]); // (as seen from its hip)
-  const a = Math.round(clamp(1.1 * (want - now), fronts.length ? -UPRIGHT : -0.3, 0.35) * amount * 10) / 10, up = clamp(-a / UPRIGHT, 0, 1);
+  // how far up it gets: by its hind legs against its body (a round one on short legs, the guinea pig's, the hedgehog's,
+  // the boar's, only leans back a little: up on them it would be a ball in the air), or as its rig says (rears)
+  const legLen = (l) => rig.legs[l].thigh + rig.legs[l].shin, tr = rig.torso?.r || 0;
+  const stands = !fronts.length || trunk ? 0 : rig.rears ?? (hinds.length && tr ? clamp((Math.min(...hinds.map(legLen)) / tr - 0.5) / 0.6, 0, 1) : 1);
+  const a = Math.round(clamp(1.1 * (want - now), -Math.max(0.3, UPRIGHT * stands), 0.35) * amount * 10) / 10, up = clamp(-a / UPRIGHT, 0, 1);
   // its hip up: as far as the hind legs reach (straightened, to their paws where they are), at most 3
   const P0 = posedAs(rig, base), rootOf = (l) => base.roots?.[l] || toWorld(P0.F[rig.legs[l].on], rig.legs[l].at);
   const reachLeft = Math.min(3, ...hinds.filter((l) => base.paws[l]).map((l) => rig.legs[l].thigh + rig.legs[l].shin - 0.4 - Math.hypot(...minus(base.paws[l], rootOf(l)))));
-  const lift = Math.round(Math.max(0, reachLeft) * up * 2) / 2, by = [0, -lift];
+  const lift = Math.round(Math.max(0, reachLeft) * up * stands * 2) / 2, by = [0, -lift];
   const rot = (q) => plus(plus(piv, turn(minus(q, piv), a)), by), q2 = (q) => q.map((v) => Math.round(v * 2) / 2);
   const hip = q2(rot(J.hip)), body = rot(J.chest), neck = minus(J.head, J.chest), rest = Math.hypot(neck[0], neck[1]);
   const necked = [...(base.ownShapes ? [] : rig.shapes || []), ...(base.shapes || [])].some((x) => x.name === 'neck' && x.on === 'chest');
   const near = necked ? rot(J.head) : plus(body, turn(neck, -0.6 * a)); // (the head kept over the chest as it turns up; one on a neck, at its end)
-  const low = Math.round(clamp((y - near[1]) / 8, 0, 1) * clamp(1 - (x - near[0] - 6) / 20, 0, 1) * amount * 4) / 4; // (low and near: bending down)
+  const low = trunk ? 0 : Math.round(clamp((y - near[1]) / 8, 0, 1) * clamp(1 - (x - near[0] - 6) / 20, 0, 1) * amount * 4) / 4; // (low and near: bending down)
   const chest = q2(plus(body, [0.5 * low, 1.5 * low]));
   let head = plus(near, [0.8 * low, 2.5 * low]);
-  const to = minus([x, y], head), ha = Math.round(clamp(Math.atan2(to[1], Math.max(to[0], 3)), -1.3, 1.1) * look * 5) / 5; // (behind it, it looks up)
-  head = plus(head, times(unit(to), Math.min(3, Math.hypot(to[0], to[1]) / 5) * amount));
+  const to = minus([x, y], head), ha = Math.round((clamp(Math.atan2(to[1], Math.max(to[0], 3)), trunk ? -0.5 : -1, trunk ? 0.4 : 1.1) * look - 0.1 * sniff) * 10) / 10; // (behind it, it looks up; not straight up: its face would be gone)
+  head = plus(head, times(unit(to), Math.min(trunk ? 1 : 3, Math.hypot(to[0], to[1]) / 5) * amount));
+  head = plus(head, [0, -0.5 * sniff]);
   const nk = minus(head, chest), len = Math.hypot(nk[0], nk[1]); // (no further from its chest than at rest, and a pixel; on a neck, from its end)
   if (len > rest + 1) head = plus(chest, times(nk, (rest + 1) / len));
   const off = minus(head, near), far = Math.hypot(off[0], off[1]);
   head = q2(necked && far > 1.5 ? plus(near, times(off, 1.5 / far)) : head);
   const paws = { ...base.paws };
-  for (const l of fronts) if (base.paws[l]) paws[l] = q2(up ? mix(rot(base.paws[l]), chest, 0.55 * up) : base.paws[l]);
+  const belly = turn([0, 1], a); // (out of its front, as it is turned up)
+  for (const l of fronts) { // up, its front paws held out in front of its belly, a little down, a little toward it (along its body, or up in front of its head, they would be lost in them; no lower than they stand)
+    if (!base.paws[l] || !up) continue;
+    const root = rot(rootOf(l)), out = plus(root, times(unit(plus(plus(belly, [0, 0.5]), times(unit(minus([x, y], root)), 0.3))), 0.98 * legLen(l))); // (straight out: bent, the knee folds it back against the body)
+    const p = mix(base.paws[l], out, Math.min(1, 1.5 * up));
+    paws[l] = q2([p[0], Math.min(p[1], base.paws[l][1])]);
+  }
   const roots = base.roots && Object.fromEntries(Object.entries(base.roots).map(([l, q]) => [l, q2(rot(q))])); // (a sitting one's legs, on no joint)
-  const key = `${kind} reach ${JSON.stringify([hip, chest, head, ha, paws, roots])} ${eating}`;
-  let s = rigFrames.get(key);
-  if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; }
-  const P = posedAs(rig, { ...base, joints: { hip, chest, head }, headAngle: ha, paws, ...(roots && { roots }), turn: { pivot: piv, angle: a, by } });
-  s = drawRig(rig, P, eating ? 'happy' : 'idle', false, chainsAt(rig, P), k, d, FOOT + 1, n > 0);
-  rigFrames.set(key, s);
+  // its floppy ears (chains on its head, not pointed ones: the rabbit's, the dog's, the pig's) not turned up with its head:
+  // hanging as they did, and further down the further up it is (the chains then swing them there)
+  const chains = { ...base.chains }, near2pi = (v, to) => v + 2 * Math.PI * Math.round((to - v) / (2 * Math.PI));
+  for (const name in rig.chains) {
+    const c = { ...rig.chains[name], ...base.chains?.[name] };
+    if (c.on !== 'head' || c.ear || name === 'trunk' || c.angle === undefined) continue;
+    const kept = c.angle + ha - (base.headAngle || 0), down = near2pi(ha - Math.PI, kept); // (its turn as at rest; straight down)
+    chains[name] = { ...base.chains?.[name], angle: Math.round((kept + (down - kept) * 0.5 * up) * 10) / 10 };
+  }
+  let pose = { ...base, joints: { hip, chest, head }, headAngle: ha, paws, ...(roots && { roots }), chains, turn: { pivot: piv, angle: a, by } }, aim = null;
+  if (trunk) { // its trunk at it: its links' middle way (it curls: curl a link) along the line from its root, the rest's turn nearest
+    const f = posedAs(rig, pose).F[trunk.on], root = toWorld(f, trunk.at), dist = Math.hypot(...minus([x, y], root));
+    const curl = trunk.curl + (0.04 - trunk.curl) * amount, links = trunk.links || 1;
+    const at = clamp(Math.atan2(y - root[1], x - root[0]), -1.75, 1.3) - (curl * (links - 1)) / 2, aimed = f.a - at - Math.PI / 2; // (up at most: not back over its head)
+    const angle = near2pi(aimed, trunk.angle);
+    aim = [Math.round((trunk.angle + (angle - trunk.angle) * amount) * 10) / 10, Math.round(curl * 50) / 50, Math.round((trunk.length + (clamp(dist, trunk.length, trunk.length * 1.35) - trunk.length) * amount) * 2) / 2];
+    pose = { ...pose, chains: { ...chains, trunk: { ...base.chains?.trunk, angle: aim[0], curl: aim[1], length: aim[2] } } };
+  }
+  return { rig, P: posedAs(rig, pose), n, k, d, key: `${kind} reach ${JSON.stringify([hip, chest, head, ha, paws, roots, aim, chains])}` };
+}
+// the reaching animal drawn (see reachPosed): its chains as body has them (see moveReaching), or at rest. eating: its
+// eyes shut happily. Its mouth (for the game: where it eats from, in its box): the tip of its trunk, for one with one.
+// (Kept as rigFrame keeps frames)
+export function reaching(kind, tx, ty, eating = false, amount = 1, look = 1, body = null, sniff = 0) {
+  const { rig, P, n, k, d, key } = reachPosed(kind, tx, ty, amount, look, sniff);
+  const chains = chainsAt(rig, P, body?.kind === kind && body.chains && body.at ? body : null), full = `${key} ${eating} ${JSON.stringify(chains)}`;
+  let s = rigFrames.get(full);
+  if (s) { rigFrames.delete(full); rigFrames.set(full, s); return s; }
+  s = drawRig(rig, P, eating ? 'happy' : 'idle', false, chains, k, d, FOOT + 1, n > 0);
+  if (chains.trunk) { const tip = chains.trunk[chains.trunk.length - 1]; s.mouth = [tip[0] * k + d[0], tip[1] * k + d[1]]; }
+  rigFrames.set(full, s);
   if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
   return s;
 }
+// its moving parts (ears, tail, trunk) swung as it reaches (as moveBody does for a move)
+export function moveReaching(body, kind, tx, ty, amount, look, x, y, dt, sniff = 0) { moveBody(body, kind, 'reach', 0, x, y, 0, dt, reachPosed(kind, tx, ty, amount, look, sniff).P); }
 
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
 export function setRig(kind, rig) { RIGS[kind] = withMoves(rig); rigFrames.clear(); worked.clear(); hitboxes.clear(); delete ducks[kind]; }
