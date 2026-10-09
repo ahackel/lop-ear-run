@@ -836,6 +836,38 @@ export function petted(kind, frame, joy, t, lean = 0) {
   return s;
 }
 
+// An animal reaching for something (on the title: a treat held out, falling, lying on the ground; tx, ty from the corner
+// of its box, in front of it: the game turns it round for one behind): sitting as it does, its whole body turned about
+// its hind feet toward it (from where its head is, as seen from its feet: one above it, up on its hind legs, the front
+// paws lifted and tucked in, one on two legs already only leaning back; one low in front, leaning down to it), its head
+// turned to it (up, down: as far as a head turns) and stretched toward it, a few pixels the further it is, lower still
+// for one low and near. eating: its eyes shut happily. (Kept as rigFrame keeps frames: the pose in a few steps)
+export function reaching(kind, tx, ty, eating = false) {
+  const rig = RIGS[kind], base = poseOf(rig, 'idle', 0), J = { ...rig.joints, ...base.joints }, n = SIZE[kind] || 0, [k, d] = growth(n);
+  const x = (tx - d[0]) / k, y = (ty - d[1]) / k; // (in the rig's own pixels)
+  const legs = Object.keys(rig.legs || {}), hinds = legs.filter((l) => rig.legs[l].on === 'hip'), fronts = legs.filter((l) => rig.legs[l].on !== 'hip');
+  const feet = hinds.map((l) => base.paws[l]).filter(Boolean);
+  const piv = feet.length ? [feet.reduce((s, q) => s + q[0], 0) / feet.length, Math.max(...feet.map((q) => q[1]))] : [J.hip[0], FOOT];
+  const now = Math.atan2(J.head[1] - piv[1], J.head[0] - piv[0]), want = Math.atan2(y - piv[1], x - piv[0]); // (as seen from its feet)
+  const a = Math.round(clamp(0.85 * (want - now), fronts.length ? -0.95 : -0.3, 0.35) * 10) / 10, up = clamp(-a / 0.95, 0, 1);
+  const rot = (q) => plus(piv, turn(minus(q, piv), a)), q2 = (q) => q.map((v) => Math.round(v * 2) / 2);
+  const near = rot(J.head), low = Math.round(clamp((y - near[1]) / 8, 0, 1) * clamp(1 - (x - near[0] - 6) / 20, 0, 1) * 4) / 4; // (low and near: bending down)
+  let head = plus(near, [0.8 * low, 2.5 * low]);
+  const to = minus([x, y], head), ha = Math.round(clamp(Math.atan2(to[1], Math.max(to[0], 3)), -1.3, 1.1) * 5) / 5; // (behind it, it looks up)
+  head = q2(plus(head, times(unit(to), Math.min(3.5, Math.hypot(to[0], to[1]) / 5))));
+  const chest = q2(plus(rot(J.chest), [0.5 * low, 1.5 * low])), hip = q2(rot(J.hip));
+  const paws = { ...base.paws };
+  for (const l of fronts) if (base.paws[l]) paws[l] = q2(up ? mix(rot(base.paws[l]), chest, 0.25 * up) : base.paws[l]);
+  const key = `${kind} reach ${JSON.stringify([hip, chest, head, ha, paws])} ${eating}`;
+  let s = rigFrames.get(key);
+  if (s) { rigFrames.delete(key); rigFrames.set(key, s); return s; }
+  const P = posedAs(rig, { ...base, joints: { hip, chest, head }, headAngle: ha, paws, turn: { pivot: piv, angle: a } });
+  s = drawRig(rig, P, eating ? 'happy' : 'idle', false, chainsAt(rig, P), k, d, FOOT + 1, n > 0);
+  rigFrames.set(key, s);
+  if (rigFrames.size > 400) { const old = rigFrames.keys().next().value; rigFrames.get(old).free(); rigFrames.delete(old); }
+  return s;
+}
+
 // for the workshop (tools/workshop.html): an edited rig swapped in (its frames drawn again), and what places its parts
 export function setRig(kind, rig) { RIGS[kind] = withMoves(rig); rigFrames.clear(); worked.clear(); hitboxes.clear(); delete ducks[kind]; }
 export const rigParts = { posed: (kind, move, frame) => posed(RIGS[kind], move, frame), pose: (kind, move, frame) => poseOf(RIGS[kind], move, frame), move: (kind, name) => RIGS[kind].poses[name], chainRest: (kind, P, name) => chainRest(RIGS[kind], P, name), growth: (kind, pose) => growth(grown(kind, pose)), toWorld, toLocal, sdShape, NAMED };
@@ -1247,6 +1279,19 @@ export const moon = fromRows([
   '.mm...',
   '..mmm.',
 ], { m: INK });
+
+// a full moon (a night a special one comes: see the game), its craters faint
+export const fullMoon = fromRows([
+  '..ooooo..',
+  '.owwwwwo.',
+  'owwwcwwwo',
+  'owwwwwwwo',
+  'owcwwwwwo',
+  'owwwwwcwo',
+  'owwwwwwwo',
+  '.owwwwwo.',
+  '..ooooo..',
+], { o: OUT, w: BELLY, c: EAR });
 
 // the golden look of a super power (golden food, the animal flashing): every color but the outlines turned to gold
 const golds = {};

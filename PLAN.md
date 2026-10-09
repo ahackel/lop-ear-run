@@ -36,7 +36,7 @@ the treats it brings home.
   elsewhere and the treat goes back to the basket.
 - Treats do nothing else (for now): they are for the animal.
 
-## 3. The full moon: where the special ones come from
+## 3. The full moon: where the special ones come from (done)
 
 - A special one joins only by being got away from, on a full-moon night: it chases instead of the usual animal, and
   faster than it.
@@ -44,6 +44,10 @@ the treats it brings home.
   animal), announced on the title by the full moon in its sky, so the player picks when to try (open: whether it
   should be tied to treats instead, e.g. it is lured by an animal carrying enough of them).
 - Not got home: the full moon stays till it is.
+- As built: every third run once the animals before the special one are unlocked (counting only those runs), the full
+  moon on the title meaning the next run is one; not got home, it comes back two runs later (it does not stay, so the
+  other animals can still be got meanwhile). Faster: the world 8% faster again while it chases, and it takes half
+  again as long to fall back after a bump. FULL MOON in big letters at dusk, a full moon in the night sky.
 
 ## Parked
 

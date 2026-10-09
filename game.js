@@ -16,7 +16,7 @@
 import { StardriftPlayer, openSongZip } from './engine/src/index.js'; // (by path: Safari before 16.4 knows no import maps)
 import { songFor } from './music.js';
 import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, stride, bird, crow,
-  FOOD, face, FACE_W, cloud, moon, heart, star, golden, flushed, shadow, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
+  FOOD, face, FACE_W, cloud, moon, fullMoon, heart, reaching, star, golden, flushed, shadow, text, textWidth, hits, snap, setScale, idleFrame, jumpFrame, leaps, hitbox, readying,
   JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted, made } from './art.js';
 import { course, pace, drain, hardness, nightAt, random, seedOf, chaserOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
@@ -147,6 +147,7 @@ let state = 'title'; // title | run | ko | paused
 let kind = 'rabbit'; // (the one picked last: see the high scores, which unlock the fox)
 let speed, dist, bonus, alt, vAlt, ducking, phase, obstacles, food, parts, floats;
 let track, ahead, chase, night, hunted, paling, dark, sunrise, homeAt, homeX, homeV, won, koT, streak, duckHeld, queued, jumpHeld, koWhy, blinkT, flash, hundreds, energy, safe, hurtT, slow, power, gold, airJumps, quake, shake = 0;
+let moonKind = null; // (this run's special one, on a full-moon night: see the full moon)
 let bag, tossed; // the run's treats, and those flying into the bag (from where they were eaten)
 let herd, herdT, spits, spitT, drumT; // the yak's stampede (the herd running by), the dromedary's spit (in flight), the gorilla's drumming
 const CLOUDS = [{ x: 60, y: 14 }, { x: 170, y: 28 }, { x: 260, y: 10 }];
@@ -166,7 +167,7 @@ function reset() {
   track = course(kind); ahead = track.next(); chase = null; night = hunted = paling = won = false; dark = sunrise = 0; flash = 0; hundreds = 0;
   homeAt = nightAt(kind, 1).to / SCORE_PER_PX; homeX = homeV = 0; // (where it is home, px into the run; how far it has run off, how fast)
   energy = 100; safe = 0; hurtT = 0; slow = 0; koT = 0;
-  power = 0; gold = null; airJumps = 0; quake = 0; bag = 0; tossed = [];
+  power = 0; gold = null; airJumps = 0; quake = 0; bag = 0; tossed = []; moonKind = null;
   herd = []; herdT = 0; spits = []; spitT = 0; drumT = 0;
   sky = random(seedOf(kind) ^ 0x5c1e5); hillX = groundX = 0; // (the clouds too: as they were)
   clouds = CLOUDS.map((c) => ({ ...c }));
@@ -186,6 +187,9 @@ function start() {
   beat = best(); // the best so far: passing it plays a fanfare
   if (kind === newKind) { newKind = null; keep('new', null); } // (no longer new)
   reset();
+  moonKind = moonDue(); // (the full moon: see moonDue)
+  if (moonable()) keep('moon', moonRuns = moonKind ? 0 : moonRuns + 1);
+  if (rec && moonKind) rec.moon = moonKind;
   state = 'run';
   updateMood();
   call('sting', 'go');
@@ -194,6 +198,7 @@ function start() {
 
 function choose(k) {
   if (inRun() || launch || !ANIMALS[k] || !unlocked(k)) return;
+  loose = null; // (a treat let go goes back)
   pick(k);
   if (state === 'ko') { gained = null; reset(); state = 'title'; }
 }
@@ -240,8 +245,8 @@ function playable() {
 }
 
 // The animals come one by one: a run starts with the rabbit, chased by the guinea pig at night; getting away from it
-// till dawn unlocks it (lop.unlocked, in this browser). The special ones are not in the chase (see chaserOf in level.js);
-// how they join is still to come (one unlocked before stays, ?all opens them).
+// till dawn unlocks it (lop.unlocked, in this browser). The special ones are not in the chase (see chaserOf in level.js):
+// one comes on a full-moon night, chasing instead (see the full moon below).
 let open = ['rabbit'];
 { // (every one that is not special before the furthest unlocked: the newer animals came in between the others; and
   // every one unlocked, special or not)
@@ -249,6 +254,16 @@ let open = ['rabbit'];
   const far = Math.max(0, ...u.filter((k) => !ANIMALS[k].special).map((k) => KINDS.indexOf(k)));
   open = KINDS.filter((k, i) => (i <= far && !ANIMALS[k].special) || u.includes(k));
 }
+// The full moon: once every animal before a special one is unlocked, every MOON_EVERY-th run is a full-moon night (the
+// full moon on the title says the next one is: pick an animal to try it with): the special one chases instead of the
+// usual one, faster (the world MOON_CHASE faster again while it is after the animal, falling back MOON_RECOVER times as
+// slowly), and getting home from it, it joins. (lop.moon: the runs since the last full moon, or since one could come)
+const MOON_EVERY = 3, MOON_CHASE = 1.08, MOON_RECOVER = 1.5;
+let moonRuns = +kept('moon') || 0;
+const nextSpecial = () => KINDS.find((k) => ANIMALS[k].special && !unlocked(k));
+const moonable = () => { const sp = nextSpecial(); return !AUTO && sp && KINDS.slice(0, KINDS.indexOf(sp)).every(unlocked) ? sp : null; }; // (the one a full moon would bring)
+const moonDue = () => (moonRuns >= MOON_EVERY - 1 ? moonable() : null);
+const hunter = () => moonKind || chaserOf(kind); // who chases the animal tonight
 const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device; ?hz=120: up to 120, see frame)
 // ?log: each frame that came late or early, took other than a frame's steps (x2; ?hz=120: x1), or long, on the
 // console (in the iOS app: Xcode's), with what happened just before it (see frame)
@@ -344,7 +359,7 @@ function sparkle(n, v = 40) {
 // (it joins: unlocked), else it turns back; into the high scores as from a knock-out
 const newChase = () => ({ x: -40, heat: 0, catching: false, phase: 0, body: {} });
 function arrive() {
-  const c = chaserOf(kind), joins = !unlocked(c) && !AUTO;
+  const c = hunter(), joins = !unlocked(c) && !AUTO;
   bonus += HOME;
   floats.push({ text: `+${HOME}`, x: RUN_X + 6, y: GROUND - 34, life: 1.2 });
   endRec('dawn');
@@ -460,7 +475,7 @@ stage.addEventListener('pointerdown', (e) => {
   if (naming || scoresOpen()) { startAudio(); return; } // (only their buttons do something)
   if (state === 'title') { // a tap on an animal picks it, a second one (soon after, near it) makes it jump; pressed and moved it is grabbed (see grabbing; the start button runs)
     startAudio();
-    if (onTreat(x, y - SKY) && !held && !launch) { feed = { id: e.pointerId, x, y: y - SKY }; hand('grabbing'); return; } // (a treat taken)
+    if (onTreat(x, y - SKY) && !held && !launch) { feed = { id: e.pointerId, x, y: y - SKY }; faceL = false; hand('grabbing'); return; } // (a treat taken)
     if (tapped && performance.now() - tapped.t < 350 && Math.abs(x - tapped.x) < 12 && Math.abs(y - tapped.y) < 12) { hop(tapped.k); tapped = null; return; }
     const k = y >= 0 && y < VH && !held && animalAt(x);
     if (k) grip = { k, id: e.pointerId, x, y };
@@ -996,7 +1011,7 @@ function update(dt) {
     duck();
     queued = Math.max(0, queued - dt);
     slow = Math.max(0, slow - dt / 1.2);
-    speed = pace(kind, dist) * (chase ? CHASE : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
+    speed = pace(kind, dist) * (chase ? CHASE * (moonKind ? MOON_CHASE : 1) : 1) * (1 - 0.45 * slow) * (powered().boost || 1);
   } else if (won) { // home: the world comes to a stop, the animal runs off to the right; the day comes
     speed *= Math.exp(-4 * dt);
     homeV = Math.min(240, homeV + 400 * dt); homeX += homeV * dt;
@@ -1060,7 +1075,7 @@ function update(dt) {
   groundX = (groundX + dx) % GROUND_LOOP;
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
     // it runs like the animal: its own stride, its tail and ears swung by it
-    const c = chaserOf(kind);
+    const c = hunter();
     chase.phase = (chase.phase + dt * strides(c, Math.max(speed, 60))) % 1;
     const st = stride(c, chase.phase);
     moveBody(chase.body, c, chase.caught ? 'idle' : 'run', chase.caught ? idleFrame(c, blinkT) : st.frame, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), speed, dt);
@@ -1068,7 +1083,7 @@ function update(dt) {
     else if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
-      chase.heat = Math.max(0, chase.heat - dt / (RECOVER + DAY_RECOVER * Math.min(6, hardness(kind, far()))));
+      chase.heat = Math.max(0, chase.heat - dt / ((RECOVER + DAY_RECOVER * Math.min(6, hardness(kind, far()))) * (moonKind ? MOON_RECOVER : 1)));
       // (it comes into sight first, a power or not: the night's banner says it is after the animal; then a power holds
       // it back, or shakes it off)
       const to = safeL + (power && chase.seen ? CRUISE_X - 12 : chase.catching ? CATCH_X : CRUISE_X + ((CATCH_X - CRUISE_X) / 2) * chase.heat); // (right of a notch)
@@ -1076,7 +1091,7 @@ function update(dt) {
       if (chase.x >= safeL + CRUISE_X - 0.5) chase.seen = true;
       if (state === 'run' && chase.catching && chase.x >= safeL + CATCH_X - 0.5) { // caught
         speed = 0; chase.caught = true;
-        return knockOut(`CAUGHT BY THE ${ANIMALS[chaserOf(kind)].name}!`);
+        return knockOut(`CAUGHT BY THE ${ANIMALS[hunter()].name}!`);
       }
     }
   }
@@ -1164,7 +1179,7 @@ function update(dt) {
   // the night: it falls after the day's run, the next animal chases the animal through it, toward its end the sky
   // pales (halfway to day by dawn: the morning) and the sun comes up, and at dawn the animal is home
   const s = far(), n = nightAt(kind, 1); // (the same every run)
-  if (!night && s >= n.from) { night = true; call('sting', 'dusk'); banner('NIGHT', 24, 2, 0, 2); }
+  if (!night && s >= n.from) { night = true; call('sting', 'dusk'); banner(moonKind ? 'FULL MOON' : 'NIGHT', 24, 2, 0, 2); }
   paling = night && s >= n.pale;
   sunrise = paling ? Math.min(1, (s - n.pale) / (n.to - n.pale)) : 0;
   const lit = night ? 1 - 0.5 * sunrise : 0;
@@ -1173,7 +1188,7 @@ function update(dt) {
     hunted = true;
     chase = newChase();
     call('sting', 'chased');
-    banner(`THE ${ANIMALS[chaserOf(kind)].name} IS AFTER YOU!`, 30);
+    banner(`THE ${ANIMALS[hunter()].name} IS AFTER YOU!`, 30);
   }
   if (dist >= homeAt) return arrive();
   if (beat && score() > beat && !AUTO) { // past the best score so far
@@ -1215,22 +1230,62 @@ const animalAt = (x) => playable().find((k) => k !== dropped?.k && at[k] !== und
 // where the hand holds it, px, py the pointer, h how it hangs; dropped: falling, then landing)
 let grip = null, held = null, dropped = null, arriving = null; // (arriving: one just unlocked, to run in)
 // feeding: a treat dragged from over the picked animal (feed: the pointer, where the treat is, in the world's pixels);
-// the animal leans toward it, reaching (as petting leans); let go at its mouth, eaten: happy, hearts
-let feed = null;
-const treatSpot = () => [placeX(at[kind]) + 13, GROUND - 28 - FOOD[ANIMALS[kind].food].h]; // (its middle, its top: over the arrow)
-const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = FOOD[ANIMALS[kind].food]; return (treats[kind] || 0) > 0 && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
-const reachLean = (x) => (feed ? Math.max(-2, Math.min(2, Math.round(((feed.x - (x + 13)) / 14) * 2) / 2)) : 0);
-const reaching = (x) => petted(kind, idleFrame(kind, blinkT), 0.25, blinkT, reachLean(x));
+// the animal reaches for it (see reaching in art.js: its head after it, rearing up for one held high). Let go at its
+// mouth, eaten; elsewhere it falls (loose), the animal after it with its mouth: passing it, caught; on the ground, the
+// animal walks to it (WALK px a second) and eats it there, then goes back to its place. Eaten: happy, hearts
+let feed = null, loose = null; // (loose: { x, y, vy, down, eat }: falling, on the ground; being eaten)
+const WALK = 40, TREAT_FALL = 420;
+const mealOf = () => FOOD[ANIMALS[kind].food];
+const treatSpot = () => [placeX(playable().indexOf(kind) + (coming() ? 1 : 0)) + 13, GROUND - 28 - mealOf().h]; // (its middle, its top: over the arrow, at its place: see updateRow; staying there as it goes after one)
+const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return (treats[kind] || 0) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
+// what the picked animal reaches for (its middle), if anything; its pose, at x; its mouth then
+const treatAt = () => (feed ? [feed.x, feed.y] : loose ? [loose.x + mealOf().w / 2, loose.y + mealOf().h / 2] : null);
+// (faceL: turned round, for one behind it, left of its middle, till it is well right of it again; drawn mirrored)
+let faceL = false;
+function reachFor(x, [tx, ty], eating = false) {
+  if (tx < x + 10) faceL = true; else if (tx > x + 16) faceL = false;
+  return reaching(kind, faceL ? x + 26 - tx : tx - x, ty - (GROUND - FOOT), eating);
+}
+const mouthOf = (sp, x) => [faceL ? x + 26 - (sp.head[0] + 4) : x + sp.head[0] + 4, GROUND - FOOT + sp.head[1] + 8];
+function drawFacing(sp, x, y, pal) {
+  if (!faceL) return sp.draw(ctx, x, y, pal);
+  ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); sp.draw(ctx, x, y, pal); ctx.restore();
+}
+function eatTreat([mx, my]) {
+  treats[kind]--; keep('treats', JSON.stringify(treats));
+  pets[kind] = { joy: 1, t: 0, strokes: 0 };
+  for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: mx - 8 + i * 5, y: my - 10 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
+  for (let i = 0; i < 5; i++) parts.push({ x: mx, y: my, vx: (rnd() - 0.5) * 50, vy: -20 - rnd() * 40, life: 0.4, color: COLOR.FAINT });
+  call('sting', 'reward');
+}
 function dropTreat() {
-  const x = placeX(at[kind]), sp = reaching(x), hx = x + sp.head[0], hy = GROUND - FOOT + sp.head[1];
-  if (Math.hypot(feed.x - hx, feed.y - hy) < 14) { // eaten
-    treats[kind]--; keep('treats', JSON.stringify(treats));
-    pets[kind] = { joy: 1, t: 0, strokes: 0 };
-    for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: hx - 6 + i * 5, y: hy - 4 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
-    for (let i = 0; i < 5; i++) parts.push({ x: hx, y: hy + 2, vx: (rnd() - 0.5) * 50, vy: -20 - rnd() * 40, life: 0.4, color: COLOR.FAINT });
-    call('sting', 'reward');
-  }
+  const x = placeX(at[kind]), mouth = mouthOf(reachFor(x, [feed.x, feed.y]), x);
+  if (Math.hypot(feed.x - mouth[0], feed.y - mouth[1]) < 8) eatTreat(mouth); // (at its mouth)
+  else loose = { x: feed.x - mealOf().w / 2, y: feed.y - mealOf().h / 2, vy: 0, down: false, eat: 0 };
   feed = null; hand('');
+}
+// a treat let go: falling (caught as it passes the mouth), on the ground (walked to, eaten)
+function updateLoose(dt) {
+  const meal = mealOf(), x = placeX(at[kind]), r = runs[kind] || (runs[kind] = { phase: 0, dir: 1, on: false });
+  if (!loose.down) {
+    loose.vy += TREAT_FALL * dt; loose.y += loose.vy * dt;
+    const mouth = mouthOf(reachFor(x, treatAt()), x);
+    if (Math.hypot(loose.x + meal.w / 2 - mouth[0], loose.y + meal.h / 2 - mouth[1]) < 7) { eatTreat(mouth); loose = null; return; } // caught
+    if (loose.y >= GROUND + 1 - meal.h) { loose.y = GROUND + 1 - meal.h; loose.down = true; }
+    return;
+  }
+  // to it: its mouth over it, bent down (as it would be, reaching for it in front of it), from the side it lay on
+  const mouth = reaching(kind, 30, FOOT - 2).head[0] + 4, cx = loose.x + meal.w / 2;
+  loose.side ??= cx < x + 13 ? -1 : 1;
+  const want = loose.side < 0 ? cx - (26 - mouth) : cx - mouth, d = want - x;
+  if (Math.abs(d) > 1 && !loose.eat) {
+    r.on = true; r.dir = Math.sign(d);
+    at[kind] += (Math.sign(d) * Math.min(Math.abs(d), WALK * dt)) / 34;
+    r.phase = (r.phase + dt * strides(kind, WALK)) % 1;
+    return;
+  }
+  r.on = false;
+  if ((loose.eat += dt) > 0.6) { eatTreat(mouthOf(reachFor(x, treatAt()), x)); loose = null; }
 }
 const heldBody = {}; // (its ears and tail)
 const LIFT = 3; // (moved this far, in art pixels: a grab, not a tap)
@@ -1310,7 +1365,8 @@ function updatePets(dt) {
 function updateRow(dt) {
   updatePets(dt);
   updateJumps(dt);
-  if ((grip || held || dropped || feed) && (state !== 'title' || board)) { grip = held = dropped = feed = null; hand(''); } // (run, or off to the high scores, meanwhile)
+  if ((grip || held || dropped || feed || loose) && (state !== 'title' || board || launch)) { grip = held = dropped = feed = loose = null; hand(''); }
+  if (loose) updateLoose(dt); // (run, or off to the high scores, meanwhile)
   const row = playable(), n = row.length, lead = coming() ? row.indexOf(kind) : -1; // (a place left of the picked one: see coming)
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
     const edge = 40, by = held.px < edge ? -(edge - held.px) / edge : held.px > W - edge ? (held.px - (W - edge)) / edge : 0;
@@ -1325,6 +1381,7 @@ function updateRow(dt) {
   others.forEach((k, i) => {
     const p = (i < gap ? i : i + 1) + (lead >= 0 && i >= lead ? 1 : 0), r = runs[k] || (runs[k] = { phase: 0, dir: 1, on: false });
     if (at[k] === undefined) at[k] = p;
+    if (k === kind && loose) return; // (after a treat let go: see updateLoose)
     const d = p - at[k];
     r.on = Math.abs(d) > 0.001 && !(dropped?.k === k && !dropped.landed);
     if (!r.on) return;
@@ -1386,7 +1443,7 @@ const coming = () => { const c = chaserOf(kind); return state === 'title' && !bo
 function toCome(pal) {
   const c = coming();
   if (c && at[kind] !== undefined) {
-    const x = placeX(at[kind] - 1);
+    const x = placeX(playable().indexOf(kind)); // (the place kept for it: see updateRow; not where the picked one is, off after a treat)
     animal(c, 'idle', 0).draw(ctx, x, GROUND - FOOT, shadow(pal, COLOR.DIM));
     text(ctx, '?', x + 13, GROUND - 31, pal[COLOR.DIM], 'center');
   }
@@ -1401,7 +1458,7 @@ function standing(k, p, on, pal) {
   const jp = jumps[k];
   if (jp) animal(k, 'jump', jumpFrame(k, jp.v / (JUMP * ANIMALS[k].jump))).draw(ctx, x, GROUND - FOOT - Math.round(jp.alt), pal); // jumping (a double tap)
   else if (grip?.duck && grip.k === k) animal(k, 'duck', 0).draw(ctx, x, GROUND - FOOT, pal); // pushed down
-  else if (on && feed && !r?.on) reaching(x).draw(ctx, x, GROUND - FOOT, pal); // reaching for a treat
+  else if (on && treatAt() && !r?.on) drawFacing(reachFor(x, treatAt(), loose?.eat > 0.2), x, GROUND - FOOT, pal); // reaching for a treat (eating it)
   else if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
   else if (r?.on) { // running to its place (the way it goes)
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
@@ -1411,13 +1468,7 @@ function standing(k, p, on, pal) {
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
   if (k === newKind && !board) text(ctx, 'NEW!', x + 12, GROUND - 32 + (on ? 0 : 6), pal[7], 'center'); // unlocked, not played yet
-  const left = (treats[k] || 0) - (on && feed ? 1 : 0);
-  if (on && !board && !launch && !held && left > 0) { // its treats, over it: the food, how many
-    const meal = FOOD[ANIMALS[k].food], s = String(left), w = meal.w + 2 + textWidth(s), tx = Math.round(x + 13 - w / 2);
-    const ty = GROUND - 28 - meal.h;
-    meal.draw(ctx, tx, ty, pal); text(ctx, s, tx + meal.w + 2, ty + Math.floor((meal.h - 5) / 2), pal[COLOR.INK]);
-  }
-  if (!on || held || jp || launch) return; // (the arrow: not while one is held, jumps, or runs off)
+  if (!on || held || jp || launch || feed || loose) return; // (the arrow: not while one is held, jumps, runs off, or after a treat)
   const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
   ctx.fillStyle = pal[COLOR.INK];
   ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
@@ -1547,8 +1598,9 @@ function scene(pal) {
     ctx.beginPath();
     for (const s of stars) if (s.y >= -SKY && Math.sin(blinkT * 2 + s.p) > -0.6) ctx.rect(s.x, s.y, 1, 1);
     ctx.fill();
-    moon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
+    (moonKind ? fullMoon : moon).draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal);
   }
+  if (state === 'title' && !board && moonDue()) fullMoon.draw(ctx, W - 60, 10 - Math.round(SKY / 2), pal); // (tonight: a full moon)
   if (sunrise > 0 && dark > 0) { // the sun coming up behind the hills (none of it below the ground's line), white: as the day comes it is gone into the sky
     const r = 8, cx = Math.round(viewR) - 70, cy = GROUND + r - Math.round(sunrise * 24 - Math.max(0, sunrise - 1) * 14);
     ctx.fillStyle = pal[COLOR.WHITE];
@@ -1596,18 +1648,24 @@ function scene(pal) {
   ctx.globalAlpha = stinks() ? 0.35 : 1; // (faded while the skunk stinks: it runs through them)
   for (const o of obstacles) o.sprite.draw(ctx, onGround(o.x), o.y, pal);
   ctx.globalAlpha = 1;
-  if (chase) { // the next animal (the last: a bear)
-    const c = chaserOf(kind);
+  if (chase) { // the next animal (the last: a bear; a full moon: a special one)
+    const c = hunter();
     const st = stride(c, chase.phase), blink = blinking(blinkT + 1.3);
     (chase.caught ? animal(c, 'idle', idleFrame(c, blinkT), { blink, body: chase.body }) : animal(c, 'run', st.frame, { blink, body: chase.body }))
       .draw(ctx, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
   }
 
   if (state === 'title') {
+    toCome(pal); // (behind them: the picked one may go by it, after a treat)
     for (const k of playable()) if (k !== held?.k && k !== dropped?.k) standing(k, at[k], k === kind, pal);
     drawGrabbed(pal);
-    toCome(pal);
-    if (feed) { const meal = FOOD[ANIMALS[kind].food]; meal.draw(ctx, Math.round(feed.x - meal.w / 2), Math.round(feed.y - meal.h / 2), pal); } // (the treat carried)
+    const left = (treats[kind] || 0) - (feed || loose ? 1 : 0);
+    if (!launch && !held && left > 0) { // the picked one's treats, over its place: the food, how many
+      const meal = mealOf(), s = String(left), w = meal.w + 2 + textWidth(s), [cx, ty] = treatSpot(), tx = Math.round(cx - w / 2);
+      meal.draw(ctx, tx, ty, pal); text(ctx, s, tx + meal.w + 2, ty + Math.floor((meal.h - 5) / 2), pal[COLOR.INK]);
+    }
+    if (feed) { const meal = mealOf(); meal.draw(ctx, Math.round(feed.x - meal.w / 2), Math.round(feed.y - meal.h / 2), pal); } // (the treat carried)
+    if (loose) mealOf().draw(ctx, Math.round(loose.x), Math.round(loose.y), pal); // (let go)
   }
   else {
     if (state === 'ko' && !won) dizzyBirds(pal, true);
@@ -1662,7 +1720,7 @@ function hud(pal) {
   } else if (state === 'ko' && naming) atTop(() => drawName(pal));
   else if (state === 'ko') {
     if (won) text(ctx, koWhy, W / 2, 20, pal[COLOR.INK], 'center', 2, LOGO); else text(ctx, koWhy, W / 2, 24, pal[COLOR.INK], 'center');
-    if (gained && koT > 0.3 && (koT > 2 || Math.floor(koT * 4) % 2)) text(ctx, `${ANIMALS[gained].name} UNLOCKED!`, W / 2, 33, pal[7], 'center'); // (unlocked in this run: again, blinking at first, so it is not missed)
+    if (gained && koT > 0.3 && (koT > 2 || Math.floor(koT * 4) % 2)) text(ctx, ANIMALS[gained].special ? `THE ${ANIMALS[gained].name} JOINS YOU!` : `${ANIMALS[gained].name} UNLOCKED!`, W / 2, 33, pal[7], 'center'); // (unlocked in this run: again, blinking at first, so it is not missed)
     if (won && bag && koT > 0.6) { // the treats brought home
       const meal = FOOD[T().food], s = `+${bag}`, w = meal.w + 2 + textWidth(s), x = Math.round(W / 2 - w / 2), y = gained ? 42 : 33;
       meal.draw(ctx, x, y - Math.floor((meal.h - 5) / 2), pal); text(ctx, s, x + meal.w + 2, y, pal[COLOR.INK]);
