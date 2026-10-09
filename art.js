@@ -1392,10 +1392,11 @@ export const heart = fromRows([
 ], { r: BERRY });
 
 // ------------------------------------------------------------------------------------------------- a 3×5 pixel font
-const GLYPHS = {
+export const GLYPHS = {
   A: '25755', B: '65656', C: '34443', D: '65556', E: '74647', F: '74644', G: '34553', H: '55755', I: '72227', J: '11152', K: '55655', L: '44447', M: '57755',
   N: '65555', O: '25552', P: '65644', Q: '25563', R: '65655', S: '34216', T: '72222', U: '55557', V: '55552', W: '55775', X: '55255', Y: '55222', Z: '71247',
   0: '75557', 1: '26227', 2: '61247', 3: '61216', 4: '55711', 5: '74616', 6: '34757', 7: '71222', 8: '75757', 9: '75716',
+  Ä: '525755', Ö: '525552', Ü: '505557', // (German: the dots a row above the letter, the U a row shorter; ß is written SS)
   ' ': '00000', '.': '00002', ':': '02020', '!': '22202', '-': '00700', '/': '11244', '+': '02720', '<': '12421', '>': '42124', '?': '61202',
 };
 export const textWidth = (s) => s.length * 4 - 1;
@@ -1409,7 +1410,7 @@ export function text(ctx, s, x, y, color, align = 'left', size = 1, glyphs = GLY
   ctx.beginPath(); // (every pixel of it in one path: one fill)
   for (let i = 0; i < s.length; i++) {
     const gl = glyphs[s[i]] || GLYPHS[s[i]] || GLYPHS[' '];
-    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (+gl[r] & (4 >> c)) ctx.rect(x + (i * 4 + c) * size, y + r * size, size, size);
+    for (let r = 0, top = gl.length - 5; r < gl.length; r++) for (let c = 0; c < 3; c++) if (+gl[r] & (4 >> c)) ctx.rect(x + (i * 4 + c) * size, y + (r - top) * size, size, size); // (an umlaut's dots: above)
   }
   ctx.fill();
 }

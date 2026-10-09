@@ -150,6 +150,31 @@ const dial = (f) => KINDS.every((k, i) => !i || f(k) > f(KINDS[i - 1]));
 ok(dial((k) => pace(k, 20000)) && dial((k) => drain(k, 0)) && dial((k) => -meals(k, 0)),
   'every animal runs faster, tires sooner and finds less food than the one before');
 
+// every language (lang/<code>.txt): English has every id the game writes (whatever it passes to t, the buttons' and
+// the credits', the animals', the super powers'), and no other; every other language the same ids; all of it in
+// letters the font has, and short enough: a line of help across the screen (with the longest animal), a button's word
+// in its frame
+const { parseLang, LANGS } = await import('../lang.js'), { GLYPHS } = await import('../art.js');
+const src = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
+const ID = /^(page|button|title|run|end|scores|credits)\.[a-z_]+$/;
+const shakers = [...src.slice(src.indexOf('const POWERS'), src.indexOf('};', src.indexOf('const POWERS'))).matchAll(/(\w+): \{[^}]*shakes: true/g)].map((m) => m[1]);
+const wanted = new Set([...[...src.matchAll(/'([a-z_.]+)'/g)].map((m) => m[1]).filter((s) => ID.test(s)), ...['bumped', 'tired', 'caught'].map((w) => `end.${w}`),
+  ...KINDS.flatMap((k) => [`animal.${k}`, `animal.${k}.the`, `power.${k}`]), ...shakers.map((k) => `power.${k}.shaken`)]);
+const langs = Object.fromEntries(LANGS.map((l) => [l, parseLang(readFileSync(new URL(`../lang/${l}.txt`, import.meta.url), 'utf8'))]));
+const longest = (table) => KINDS.map((k) => table[`animal.${k}.the`] || '').sort((a, b) => b.length - a.length)[0];
+for (const [lang, table] of Object.entries(langs)) {
+  const want = lang === 'en' ? wanted : new Set(Object.keys(langs.en)), missing = [...want].filter((id) => !(id in table)), stale = Object.keys(table).filter((id) => !want.has(id));
+  ok(!missing.length && !stale.length, `lang/${lang}.txt has every id the game writes, and no other${missing.length ? ` — missing: ${missing.join(', ')}` : ''}${stale.length ? ` — not written: ${stale.join(', ')}` : ''}`);
+  const game = Object.entries(table).filter(([id]) => !id.startsWith('page.')), unknown = game.filter(([, v]) => [...v.replace(/\{\w+\}/g, '')].some((c) => !GLYPHS[c]));
+  ok(!unknown.length, `lang/${lang}.txt: only letters the font has${unknown.length ? ` — not: ${unknown.map(([, v]) => v).join(' | ')}` : ''}`);
+  const fill = (v) => v.replace(/\{the\}/g, longest(table)).replace(/\{name\}/g, longest(table)).replace(/\{n\}/g, '999');
+  const wide = game.filter(([id, v]) => fill(v).length > 70 || (id.startsWith('button.') && v.length > 7));
+  ok(!wide.length, `lang/${lang}.txt: every line fits the screen, every button's word its frame${wide.length ? ` — not: ${wide.map(([, v]) => fill(v)).join(' | ')}` : ''}`);
+  const holes = (v) => (v.match(/\{\w+\}/g) || []).sort().join(), odd = Object.entries(table).filter(([id, v]) => holes(v) !== holes(langs.en[id] || '') || /\{\w*[A-Z]/.test(v));
+  ok(!odd.length, `lang/${lang}.txt: what goes in ({name}, {the}, {n}) as in English${odd.length ? ` — not: ${odd.map(([id]) => id).join(', ')}` : ''}`);
+  ok(sw.includes(`'lang/${lang}.txt'`), `lang/${lang}.txt is kept offline (sw.js)`);
+}
+
 // the older iPad (Safari 15): nothing newer than it without a fallback
 const newer = oldSafari();
 ok(!newer.length, `nothing newer than Safari 15 without a fallback${newer.length ? `:\n  ${newer.join('\n  ')}` : ''}`);

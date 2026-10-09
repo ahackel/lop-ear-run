@@ -1,0 +1,126 @@
+# Lop Hop auf Deutsch: the ids of en.txt, their words in German (ß and Umlaute as usual: the game writes them in
+# capitals, ß as SS). {name} and the like are what goes in, as in en.txt.
+
+# the title, the buttons
+button.start = Start
+button.back = Zurück
+button.share = Teilen
+button.ok = OK
+title.tap_to_pick = Tipp auf ein Tier zum Wählen
+title.keys_to_pick = < > oder klicken zum Wählen - Leertaste zum Laufen
+title.keys = Leertaste zum Laufen
+title.new = Neu!
+page.rotate = Dreh dein Handy quer, um zu spielen
+
+# a run
+run.day = Tag
+run.night = Nacht
+run.full_moon = Vollmond
+run.new_best = Neuer Rekord!
+run.chased = {the} ist hinter dir her!
+run.ouch = Aua!
+run.boing = Boing!
+run.boom = Bumm!
+run.sniff = Schnupper!
+run.ptoo = Ptui!
+run.paused_tap = Pause - tippen zum Weitermachen
+run.paused_keys = Pause - Leertaste oder tippen
+
+# the end of a run
+end.home = Daheim!
+end.bumped = K.o.!
+end.tired = Zu müde!
+end.caught = {the} hat dich erwischt!
+end.unlocked = {name} freigeschaltet!
+end.joins = {the} ist dabei!
+end.yours_tap = {the} gehört dir! Tippen zum Wählen
+end.yours_keys = {the} gehört dir! Leertaste oder tippen zum Wählen
+end.again_tap = Tippen für noch einen Lauf
+end.again_keys = Leertaste oder tippen für noch einen Lauf
+end.name_tap = Neuer Highscore! Tippen für deinen Namen
+end.name_keys = Neuer Highscore! Leertaste oder klicken für deinen Namen
+
+# the high scores, the credits
+scores.title = Bestenliste
+scores.new = Neuer Highscore!
+credits.title = Mitwirkende
+credits.game = Spiel und Grafik
+credits.music = Musik
+credits.by = von Andreas Hackel
+credits.thanks = Danke fürs Spielen!
+credits.run_kept = {n} Lauf gespeichert
+credits.runs_kept = {n} Läufe gespeichert
+credits.shared = Läufe geteilt
+credits.saved = Läufe gesichert
+credits.copied = Läufe kopiert
+credits.no_share = Teilen geht hier nicht
+
+# the animals: the name, and with its article (the {the} above)
+animal.rabbit = Hase
+animal.rabbit.the = der Hase
+animal.guineapig = Meerschweinchen
+animal.guineapig.the = das Meerschweinchen
+animal.cat = Katze
+animal.cat.the = die Katze
+animal.dog = Hund
+animal.dog.the = der Hund
+animal.pig = Schwein
+animal.pig.the = das Schwein
+animal.cheetah = Gepard
+animal.cheetah.the = der Gepard
+animal.fox = Fuchs
+animal.fox.the = der Fuchs
+animal.hedgehog = Igel
+animal.hedgehog.the = der Igel
+animal.squirrel = Eichhörnchen
+animal.squirrel.the = das Eichhörnchen
+animal.otter = Otter
+animal.otter.the = der Otter
+animal.skunk = Stinktier
+animal.skunk.the = das Stinktier
+animal.gorilla = Gorilla
+animal.gorilla.the = der Gorilla
+animal.wolf = Wolf
+animal.wolf.the = der Wolf
+animal.boar = Wildschwein
+animal.boar.the = das Wildschwein
+animal.bear = Bär
+animal.bear.the = der Bär
+animal.yak = Yak
+animal.yak.the = der Yak
+animal.ostrich = Strauß
+animal.ostrich.the = der Strauß
+animal.elephant = Elefant
+animal.elephant.the = der Elefant
+animal.dromedary = Dromedar
+animal.dromedary.the = das Dromedar
+animal.rhino = Nashorn
+animal.rhino.the = das Nashorn
+animal.dino = Dino
+animal.dino.the = der Dino
+
+# the super powers (and what the chaser says, shaken off)
+power.rabbit = Superhopser!
+power.guineapig = Popcorn!
+power.cat = Sieben Leben!
+power.dog = Die fünf Minuten!
+power.pig = Trüffelnase!
+power.fox = Schlauer Fuchs!
+power.fox.shaken = Abgehängt!
+power.hedgehog = Stachelkugel!
+power.squirrel = Gleitflug!
+power.otter = Bauchrutscher!
+power.skunk = Stinkbombe!
+power.skunk.shaken = Pfui!
+power.wolf = Heulen!
+power.boar = Hauer-Angriff!
+power.bear = Beerenrausch!
+power.yak = Stampede!
+power.yak.shaken = Iih!
+power.ostrich = Flieg!
+power.cheetah = Sprint!
+power.dromedary = Spucke!
+power.rhino = Beben!
+power.gorilla = Brusttrommel!
+power.elephant = Platsch!
+power.dino = Riesendino!

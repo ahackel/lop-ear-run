@@ -1,0 +1,127 @@
+# Lop Hop in English. A line each: an id = its words, written as usual (the game writes them in capitals: its font
+# has no others; page.* are the page's own words). {name} and the like are what goes in. Every id the game writes is
+# here; another language's file has the same ids (one it leaves out is written in English).
+
+# the title, the buttons
+button.start = Start
+button.back = Back
+button.share = Share
+button.ok = OK
+title.tap_to_pick = Tap an animal to pick it
+title.keys_to_pick = < > or click to pick - Space to run
+title.keys = Space to run
+title.new = New!
+page.rotate = Turn your phone sideways to play
+
+# a run
+run.day = Day
+run.night = Night
+run.full_moon = Full moon
+run.new_best = New best!
+run.chased = {the} is after you!
+run.ouch = Ouch!
+run.boing = Boing!
+run.boom = Boom!
+run.sniff = Sniff!
+run.ptoo = Ptoo!
+run.paused_tap = Paused - tap to go on
+run.paused_keys = Paused - Space or tap
+
+# the end of a run
+end.home = Home!
+end.bumped = Knocked out!
+end.tired = Too tired!
+end.caught = Caught by {the}!
+end.unlocked = {name} unlocked!
+end.joins = {the} joins you!
+end.yours_tap = {the} is yours! Tap to pick
+end.yours_keys = {the} is yours! Space or tap to pick
+end.again_tap = Tap to run again
+end.again_keys = Space or tap to run again
+end.name_tap = New high score! Tap to enter your name
+end.name_keys = New high score! Space or click to enter your name
+
+# the high scores, the credits
+scores.title = High scores
+scores.new = New high score!
+credits.title = Credits
+credits.game = Game and art
+credits.music = Music
+credits.by = by Andreas Hackel
+credits.thanks = Thanks for playing!
+credits.run_kept = {n} run kept
+credits.runs_kept = {n} runs kept
+credits.shared = Runs shared
+credits.saved = Runs saved
+credits.copied = Runs copied
+credits.no_share = No way to share here
+
+# the animals: the name, and with its article (the {the} above)
+animal.rabbit = Rabbit
+animal.rabbit.the = the rabbit
+animal.guineapig = Guinea pig
+animal.guineapig.the = the guinea pig
+animal.cat = Cat
+animal.cat.the = the cat
+animal.dog = Dog
+animal.dog.the = the dog
+animal.pig = Pig
+animal.pig.the = the pig
+animal.cheetah = Cheetah
+animal.cheetah.the = the cheetah
+animal.fox = Fox
+animal.fox.the = the fox
+animal.hedgehog = Hedgehog
+animal.hedgehog.the = the hedgehog
+animal.squirrel = Squirrel
+animal.squirrel.the = the squirrel
+animal.otter = Otter
+animal.otter.the = the otter
+animal.skunk = Skunk
+animal.skunk.the = the skunk
+animal.gorilla = Gorilla
+animal.gorilla.the = the gorilla
+animal.wolf = Wolf
+animal.wolf.the = the wolf
+animal.boar = Boar
+animal.boar.the = the boar
+animal.bear = Bear
+animal.bear.the = the bear
+animal.yak = Yak
+animal.yak.the = the yak
+animal.ostrich = Ostrich
+animal.ostrich.the = the ostrich
+animal.elephant = Elephant
+animal.elephant.the = the elephant
+animal.dromedary = Dromedary
+animal.dromedary.the = the dromedary
+animal.rhino = Rhino
+animal.rhino.the = the rhino
+animal.dino = Dino
+animal.dino.the = the dino
+
+# the super powers (and what the chaser says, shaken off)
+power.rabbit = Super hop!
+power.guineapig = Popcorn!
+power.cat = Nine lives!
+power.dog = Zoomies!
+power.pig = Truffle snout!
+power.fox = Sly fox!
+power.fox.shaken = Lost you!
+power.hedgehog = Spike ball!
+power.squirrel = Glide!
+power.otter = Belly slide!
+power.skunk = Stink!
+power.skunk.shaken = Phew!
+power.wolf = Howl!
+power.boar = Tusk charge!
+power.bear = Berry rush!
+power.yak = Stampede!
+power.yak.shaken = Eek!
+power.ostrich = Fly!
+power.cheetah = Sprint!
+power.dromedary = Spit!
+power.rhino = Quake!
+power.gorilla = Chest drum!
+power.elephant = Splash!
+power.dino = Giant dino!
