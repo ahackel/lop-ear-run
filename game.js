@@ -942,15 +942,16 @@ function doneName(save) {
   nameField.blur();
   showScores(entry);
 }
-// the box: what it is for, the name as it is typed (a dash under each letter it can have, a blinking block where the
-// next goes), and its OK button (see buttons)
+// the box: what it is for, the name as it is typed (on a line as long as the longest name, a blinking block where the
+// next letter goes), and its OK button (see buttons)
 function drawName(pal) {
-  const ink = pal[COLOR.INK], { w, h, y } = NAME_BOX, v = cleanName(nameField.value), x = W / 2 - textWidth('M'.repeat(NAME_LEN)) / 2;
+  const ink = pal[COLOR.INK], { w, h, y } = NAME_BOX, v = cleanName(nameField.value), long = textWidth('W'.repeat(NAME_LEN)), x = Math.round(W / 2 - long / 2), end = v ? textWidth(v) + 1 : 0;
   drawButton(W / 2 - w / 2, y, null, false, pal, { w, h }); // (a frame)
   text(ctx, t('scores.new'), W / 2, y + 5, pal[7], 'center');
   text(ctx, v, x, y + 14, ink);
-  for (let i = 0; i < NAME_LEN; i++) { ctx.fillStyle = i < v.length ? ink : pal[COLOR.DIM]; ctx.fillRect(x + i * 4, y + 20, 3, 1); }
-  if (v.length < NAME_LEN && Math.floor(blinkT * 3) % 2 === 0) { ctx.fillStyle = ink; ctx.fillRect(x + v.length * 4, y + 14, 3, 5); }
+  ctx.fillStyle = pal[COLOR.DIM]; ctx.fillRect(x, y + 20, long, 1);
+  if (v) { ctx.fillStyle = ink; ctx.fillRect(x, y + 20, end - 1, 1); } // (under what is typed: in ink)
+  if (v.length < NAME_LEN && Math.floor(blinkT * 3) % 2 === 0) { ctx.fillStyle = ink; ctx.fillRect(x + end, y + 14, 3, 5); }
 }
 
 // the high scores (or the credits), the animal sitting under them (the way out: the BACK button; a key: Space runs,
