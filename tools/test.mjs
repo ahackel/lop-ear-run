@@ -156,7 +156,7 @@ ok(dial((k) => pace(k, 20000)) && dial((k) => drain(k, 0)) && dial((k) => -meals
 // in its frame
 const { parseLang, LANGS } = await import('../lang.js'), { GLYPHS } = await import('../art.js');
 const src = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
-const ID = /^(page|button|title|run|end|scores|credits)\.[a-z_]+$/;
+const ID = /^(page|button|title|run|end|scores|credits|gate|shop)\.[a-z_]+$/;
 const shakers = [...src.slice(src.indexOf('const POWERS'), src.indexOf('};', src.indexOf('const POWERS'))).matchAll(/(\w+): \{[^}]*shakes: true/g)].map((m) => m[1]);
 const wanted = new Set([...[...src.matchAll(/'([a-z_.]+)'/g)].map((m) => m[1]).filter((s) => ID.test(s)), ...['bumped', 'tired', 'caught'].map((w) => `end.${w}`),
   ...KINDS.flatMap((k) => [`animal.${k}`, `animal.${k}.the`, `power.${k}`]), ...shakers.map((k) => `power.${k}.shaken`)]);

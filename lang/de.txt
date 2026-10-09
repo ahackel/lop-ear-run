@@ -53,6 +53,28 @@ credits.saved = Läufe gesichert
 credits.copied = Läufe kopiert
 credits.no_share = Teilen geht hier nicht
 
+# the parental gate, the animal pack's shop (the iOS app's)
+gate.title = Frag einen Erwachsenen
+gate.question = Was ist {a} mal {b}?
+gate.again = Nicht ganz - noch mal
+gate.four = vier
+gate.five = fünf
+gate.six = sechs
+gate.seven = sieben
+gate.eight = acht
+gate.nine = neun
+shop.title = Tierpaket
+shop.more = {n} weitere Tiere - jedes mit eigener Kraft und eigenem Lied
+shop.once = Ein Kauf - keine Werbung - sonst nichts zu kaufen
+shop.buy = Kaufen
+shop.buy_price = Kaufen für {price}
+shop.restore = Käufe wiederherstellen
+shop.owned = Das Tierpaket gehört dir
+shop.thanks = Danke! Jetzt kannst du alle Tiere gewinnen
+shop.restored = Käufe wiederhergestellt
+shop.nothing = Nichts wiederherzustellen
+shop.unavailable = Der Laden ist noch nicht offen
+
 # the animals: the name, and with its article (the {the} above)
 animal.rabbit = Hase
 animal.rabbit.the = der Hase

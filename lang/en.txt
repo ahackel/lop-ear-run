@@ -54,6 +54,28 @@ credits.saved = Runs saved
 credits.copied = Runs copied
 credits.no_share = No way to share here
 
+# the parental gate, the animal pack's shop (the iOS app's)
+gate.title = Ask a grown-up
+gate.question = What is {a} times {b}?
+gate.again = Not quite - try again
+gate.four = four
+gate.five = five
+gate.six = six
+gate.seven = seven
+gate.eight = eight
+gate.nine = nine
+shop.title = Animal pack
+shop.more = {n} more animals - each with its own power and song
+shop.once = One purchase - no ads - nothing else to buy
+shop.buy = Buy
+shop.buy_price = Buy for {price}
+shop.restore = Restore purchases
+shop.owned = The animal pack is yours
+shop.thanks = Thank you! Every animal can be won now
+shop.restored = Purchases restored
+shop.nothing = Nothing to restore
+shop.unavailable = The shop is not open yet
+
 # the animals: the name, and with its article (the {the} above)
 animal.rabbit = Rabbit
 animal.rabbit.the = the rabbit
