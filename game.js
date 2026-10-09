@@ -1248,6 +1248,7 @@ function update(dt) {
       chase.v = chase.there ? 0 : Math.max(25, Math.min(120, (to - chase.x) * 2.5, (chase.v || 0) + 250 * dt)); // (setting off slower than the animal: not into it)
       chase.x = Math.min(to, chase.x + chase.v * dt);
       if (chase.x >= to - 0.5) chase.there = true;
+      if (chase.there && !board && rnd() < dt * 5) twinkle(chase.x + 4); // (new: twinkling already, as on the title)
     }
     else if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
@@ -1476,6 +1477,10 @@ function eaten() {
   for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: mx - 8 + i * 5, y: my - 10 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
   call('sting', 'reward');
 }
+// an animal (in its box at x) just unlocked, not played yet: twinkling, little yellow crosses floating up off it
+function twinkle(x) {
+  parts.push({ x: x + 3 + rnd() * 20, y: GROUND - 3 - rnd() * 20, vx: (rnd() - 0.5) * 6, vy: -6 - rnd() * 8, g: 0, life: 0.4 + rnd() * 0.4, color: COLOR.YELLOW, star: true });
+}
 // a crumb of the treat flying off its mouth, in one of the treat's colors (mostly forward, now and then back)
 function crumb([mx, my]) {
   const colors = [...new Set(mealOf().px)].filter(Boolean), dir = (faceL ? -1 : 1) * (rnd() < 0.75 ? 1 : -0.6);
@@ -1624,10 +1629,7 @@ function updateRow(dt) {
     const sel = row.indexOf(kind);
     carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
   }
-  if (newKind && state === 'title' && !board && at[newKind] !== undefined && rnd() < dt * 5) { // unlocked, not played yet: twinkling, floating up
-    const x = placeX(at[newKind]);
-    parts.push({ x: x + 3 + rnd() * 20, y: GROUND - 3 - rnd() * 20, vx: (rnd() - 0.5) * 6, vy: -6 - rnd() * 8, g: 0, life: 0.4 + rnd() * 0.4, color: COLOR.YELLOW, star: true });
-  }
+  if (newKind && state === 'title' && !board && at[newKind] !== undefined && rnd() < dt * 5) twinkle(placeX(at[newKind])); // unlocked, not played yet
   if (arriving && state === 'title') { at[arriving] = placeAt(Math.floor(viewL) - 30); arriving = null; } // (the new one: from off the left)
   // each to its place (past the gap, one on), running there
   const others = held ? row.filter((k) => k !== held.k) : row, gap = held ? gapAt(n) : n;
