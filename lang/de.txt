@@ -3,7 +3,6 @@
 
 # the title, the buttons
 button.start = Start
-button.back = Zurück
 button.share = Teilen
 button.ok = OK
 title.tap_to_pick = Tipp auf ein Tier zum Wählen

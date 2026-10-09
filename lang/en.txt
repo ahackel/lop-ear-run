@@ -4,7 +4,6 @@
 
 # the title, the buttons
 button.start = Start
-button.back = Back
 button.share = Share
 button.ok = OK
 title.tap_to_pick = Tap an animal to pick it

@@ -627,9 +627,9 @@ function toggleFull() {
 }
 document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) stage.classList.remove('full'); });
 
-// the game's buttons, in its own pixels from the top left of the screen: sound, the high scores, full screen, and after a knock-out, back to
-// the animals; while running only the sound. A button acts when the press ends on it (a phone lets full screen start
-// only then).
+// the game's buttons, in its own pixels from the top left of the screen: sound, the high scores, the credits, full
+// screen, and after a knock-out, back to the animals; while running, and on the high scores, the credits, the gate and
+// the shop, only an arrow back. A button acts when the press ends on it (a phone lets full screen start only then).
 const ICONS = {
   soundOn: ['..x....', '.xx.x..', 'xxx..x.', 'xxx..x.', 'xxx..x.', '.xx.x..', '..x....'],
   soundOff: ['..x....', '.xx....', 'xxx.x.x', 'xxx..x.', 'xxx.x.x', '.xx....', '..x....'],
@@ -638,6 +638,7 @@ const ICONS = {
   full: ['xx...xx', 'x.....x', '.......', '.......', '.......', 'x.....x', 'xx...xx'],
   leave: ['.x...x.', 'xx...xx', '.......', '.......', '.......', 'xx...xx', '.x...x.'],
   home: ['...x...', '..xxx..', '.xxxxx.', 'xxxxxxx', '.x...x.', '.x.x.x.', '.x.x.x.'],
+  back: ['...x...', '..xx...', '.xxxxxx', 'xxxxxxx', '.xxxxxx', '..xx...', '...x...'],
 };
 const ACTS = {
   sound: toggleMute,
@@ -668,13 +669,13 @@ let viewL = 0, viewR = W; // the world's x at the screen's left and right edges 
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
   if (naming) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'named', text: 'button.ok', x: W / 2 - 15, y: NAME_BOX.y + 25, w: 31, h: 13, main: true }]; // (see drawName)
-  if (inRun()) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'home', x: safeL + 4 + BTN + 2, y: 2 }, ...cheats()]; // (the bars: in the middle, see bar)
-  const ids = ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
+  if (inRun()) return [{ id: 'home', icon: 'back', x: safeL + 4, y: 2 }, ...cheats()]; // (only the way home; the bars: in the middle, see bar)
+  // on the high scores, the credits, the gate and the shop only the way back (an arrow, at the top left); else the row of
+  // buttons. On the title, the button that runs (under the writing, over the animals: in the world, from the top of the
+  // screen) in the row of the pads, in the middle
+  const ids = board ? [] : ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
-  // on the title, the button that runs (under the writing, over the animals: in the world, from the top of the screen)
-  // in the row of the pads, in the middle: on the title the button that runs; on the high scores the one back, at the
-  // top right
-  if (board) row.push({ id: 'back', text: 'button.back', x: W - safeR - 35, y: 2, w: 31, h: BTN, main: !board.shop || bought });
+  if (board) row.push({ id: 'back', icon: 'back', x: safeL + 4, y: 2, main: !board.shop || bought });
   const mid = !board && state === 'title' && !padlocked(kind) ? { id: 'start', text: 'button.start', main: true } : null;
   if (board?.gate) for (let i = 0; i < 10; i++) { const d = (i + 1) % 10; row.push({ id: `digit${d}`, text: String(d), x: W / 2 - 64 + i * 13, y: SKY - safeT + 50, w: 11, h: 11 }); } // (1 to 9, then 0)
   if (board?.shop) {
@@ -713,9 +714,9 @@ let pressedBtn = null;
 // a screen's main button (START, BACK, OK, BUY: main) bobs, as food does (see bob; drawn so, pressed where it rests)
 function drawButtons(pal) {
   for (const b of buttons()) {
-    const icon = b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id;
-    if (b.text) drawButton(b.x, b.y + (b.main ? bob() : 0), null, b.id === pressedBtn, pal, b);
-    else drawButton(b.x, b.y, icon, b.id === pressedBtn || (board && !board.gate && !board.shop && b.id === (board.credits ? 'credits' : 'scores')), pal);
+    const icon = b.icon || (b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id), y = b.y + (b.main ? bob() : 0);
+    if (b.text) drawButton(b.x, y, null, b.id === pressedBtn, pal, b);
+    else drawButton(b.x, y, icon, b.id === pressedBtn || (board && !board.gate && !board.shop && b.id === (board.credits ? 'credits' : 'scores')), pal);
   }
   if (TOUCH && !board && inRun()) {
     showPad(pads.left, 'duck', ducking);
