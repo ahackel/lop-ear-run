@@ -20,7 +20,7 @@ import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, 
   JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted, made } from './art.js';
 import { course, pace, drain, hardness, nightAt, random, seedOf, chaserOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
-import { BUILT, ENGINE } from './version.js';
+import { BUILT } from './version.js';
 import { t } from './lang.js'; // (what it writes, in the player's language)
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
@@ -977,10 +977,10 @@ function drawBoard(pal) {
   animal(kind, 'run', st.frame).draw(ctx, x, GROUND - FOOT - st.lift, pal);
   if (sit.dir < 0) ctx.restore();
 }
-// the animal on the high scores (beside them) or the credits (in the middle): it runs there from where it was (its place
+// the animal on the high scores (beside them) and the credits (in the same place): it runs there from where it was (its place
 // on the title; where the run ended), and back to its place on the title after (sit: { x, phase, dir, on: running })
 let sit = null;
-const sitTo = () => (board.credits ? W / 2 - 13 : SCORES_X + 132);
+const sitTo = () => SCORES_X + 132;
 function sitFrom() {
   if (state === 'ko') return won ? Math.min(RUN_X + homeX, viewR) : RUN_X; // (run off home: in from the right)
   return at[kind] !== undefined && carousel !== null ? placeX(at[kind]) : sitTo();
@@ -1016,8 +1016,6 @@ function drawScores(pal) {
 // the credits: who made what (what, dim, on the left; who on the right), on the high scores' screen (board.credits)
 const CREDITS = [ // (ids in lang/, or names: written as they are)
   ['credits.game', 'ANDREAS HACKEL'],
-  ['credits.music', 'STARDRIFT ENGINE'],
-  ['', 'credits.by'],
 ];
 function drawCredits(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
@@ -1026,9 +1024,7 @@ function drawCredits(pal) {
   if (board.runs) text(ctx, t(board.runs > 1 ? 'credits.runs_kept' : 'credits.run_kept', { n: board.runs }), W / 2 - 3, 44, dim, 'right'); // (and SHARE: see buttons)
   if (board.said) help(board.said, pal, pal[7]);
   text(ctx, t('credits.thanks'), W / 2, 16 + (CREDITS.length + 1) * ROW + 1, pal[7], 'center');
-  const v = 16 + (CREDITS.length + 3) * ROW; // which build this is, either side of the animal sitting in the middle
-  text(ctx, `VERSION ${BUILT}`, W / 2 - 32, v, dim, 'right');
-  text(ctx, `ENGINE ${ENGINE.toUpperCase()}`, W / 2 + 32, v, dim);
+  text(ctx, `VERSION ${BUILT}`, W / 2, 58, dim, 'center'); // (which build this is)
 }
 // The animal pack's shop (the iOS app's, see SHOP), behind a parental gate: a sum for a grown-up, its numbers in words,
 // answered on a row of keys (wrong: another sum). Then what the pack has (its animals running by), BUY (its price as

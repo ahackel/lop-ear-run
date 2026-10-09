@@ -68,7 +68,7 @@ npm run rigs       # writes every animal's build the way the workshop saves it
 ```
 
 Once per checkout, `git config core.hooksPath tools/hooks`: at each commit the hook writes `version.js` (when the build
-was made, and which engine it plays), which the credits screen shows.
+was made, and which engine it plays); the credits screen shows when it was made.
 
 In the address: `?cheats` puts orange buttons at the bottom of the screen to get somewhere quickly (in a run WIN: home at dawn at once, POWER: the animal's super power, ENERGY: the energy full again; on the title UNLOCK: the next animal, BUY: the animal pack, as if bought (no padlocks), FOOD: all the treats the picked one can have; RESET: as `?reset`, the cheats still on), its runs not written down, `?reset` starts the game over as the first time (nothing unlocked, no high scores, no treats; the runs written down for balancing kept, `?reset=all`: them too), `?lang=de` (or `=en`) plays it in that language (otherwise: the device's, if there is a file for it, else English), `?music` shows the music's moods and calls under the game, `?all` opens every animal for a visit, `?shop` plays it as the iOS app does (the padlocks, the gate, the shop; with `?cheats` BUY gets the pack at once), `?treats` gives every animal all the treats it can have (5) for a visit (`?treats=2`: 2), `?auto` runs by itself, `?fps` shows the frames a second and the
 work of a frame (on average and at most, in ms: a frame has 16.7 at 60) and the canvas's size, and since the start the
