@@ -1,6 +1,6 @@
 # Lop Hop
 
-A little endless runner: a lop-eared rabbit hops over bushes, cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is days and nights, each day in a land of its own, with obstacles of its own (the meadow: bushes and sunflowers; the desert: cacti and tumbleweeds; the forest: toadstools, pines and stumps; the mountains: rocks and boulders; the canyon: red rock spires; the snow: snowmen, snowy pines and ice; then round again, its name shown at dawn), and it keeps getting harder, with no top: faster (ever more slowly, near a top speed the eye can still follow), closer obstacles, more crows, branches and packs, less food, more tiring, so even a player who never misses runs out of energy in the end. An animal's course is the same every run (what comes and where), and every obstacle can be got past: there is always room to land and jump, duck or stand up in time. A jump pressed just before landing jumps as the animal lands; one pressed while ducking does nothing (let go of the duck first). Food eaten one after another is worth more (25, 50, 75, 100), until a bump or a missed one. At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Getting away till dawn unlocks that one: twenty-one in all, the rabbit the easy start, each after it a little harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs, and a head start on the run's hardness) and worth more points (×1 to ×4). A run earns a sun for every day it reaches, the first too, up to three (three: it got through two nights), and each animal keeps its best (shown over it on the title). Four are special (the cheetah, the gorilla, the elephant, and the dino, last): they never chase, the animal before one is chased by the one after it; a special one joins at the dawn that gives every animal before it three suns. On the title, the animal that would chase the one picked, not unlocked yet, stands behind it as a shadow, and the next special one waits at the end of the row, the three suns it asks for over it. Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. Every animal has a song of its own: the game's song in its key, mode and pace, with its own voices and a motif of its own (the same three recordings). One table of ten high scores, kept in the browser: the animal, name, the run's suns, score. Every run is written down, for balancing the game (see the balance page below). Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
+A little endless runner: a lop-eared rabbit hops over bushes, cacti, rocks and logs, ducks under branches and crows, and eats to keep its energy up. Every bump costs energy; with none left, it is knocked out (birds circle its head). A run is a day and a night (DAY and NIGHT in big letters as they come), each animal in a land of its own, with obstacles of its own (the meadow: bushes and sunflowers; the desert: cacti and tumbleweeds; the forest: toadstools, pines and stumps; the mountains: rocks and boulders; the canyon: red rock spires; the snow: snowmen, snowy pines and ice; then round again), and it gets harder as it goes: faster, closer obstacles, more crows, branches and packs, less food, more tiring. An animal's course is the same every run (what comes and where), and every obstacle can be got past: there is always room to land and jump, duck or stand up in time. A jump pressed just before landing jumps as the animal lands; one pressed while ducking does nothing (let go of the duck first). Food eaten one after another is worth more (25, 50, 75, 100), until a bump or a missed one. At night the next animal chases it, closer with every bump; a second bump while it is close and it catches the animal. Toward the night's end the sky pales and the sun comes up, and at dawn the run ends, home (HOME!, worth 100): the world comes to a stop and the animal runs off to the right, back to the title, and the first time the chaser runs off after it, unlocked (on the title it runs in from the left): twenty-one in all, the rabbit the easy start, each after it a little harder (faster, hungrier, bumps cost more, crows sooner, obstacles closer and in packs, and a head start on the run's hardness) and worth more points (×1 to ×4). Four are special (the cheetah, the gorilla, the elephant, and the dino, last): they never chase, the animal before one is chased by the one after it; how they join is still to come (see PLAN.md). On the title, the animal that would chase the one picked, not unlocked yet, stands behind it as a shadow. Now and then golden food floats high over an obstacle: catching it gives a super power for 8 seconds, each animal its own. Every animal has a song of its own: the game's song in its key, mode and pace, with its own voices and a motif of its own (the same three recordings). One table of ten high scores, kept in the browser: the animal, name, score. Every run is written down, for balancing the game (see the balance page below). Everything, the buttons and the high scores too, is drawn in the game's own low-res pixels.
 
 | Animal | Food | Power |
 |---|---|---|
@@ -41,16 +41,16 @@ The music is [Stardrift](https://github.com/ahackel/stardrift-engine), a procedu
 |---|---|
 | title | `setMood('menu')` |
 | high scores | `setMood('highscore')` |
-| knocked out | `setMood('relaxed')` |
+| knocked out, home | `setMood('relaxed')` |
 | the first stretch, crows from 300, fast from 700 | `exploring`, `tension`, `action` |
-| night falls (after every day's 1000) | `wonder` |
+| night falls (after the day's 1000) | `wonder` |
 | the next animal gives chase (through the night) | `danger` |
 | a super power (golden food, 8 s) | `power`, with `sting('power')` and `sting('powerdown')` |
 | a run starts, a jump, food, a bump, a smash | `sting('go')`, `jump`, `reward`, `bump`, `smash` |
 | night falls, and the chaser comes | `sting('dusk')`, `chased` |
-| dawn: the chaser is left behind (unlocked the first time: `discovery`; already lost: `dawn`) | `sting('escape')` |
+| home, at dawn (the chaser unlocked, the first time: `discovery`) | `sting('escape')` |
 | past the best score so far | `sting('record')` |
-| knocked out (into the high scores) | `sting('alert')` (`fanfare`) |
+| knocked out (into the high scores) | `sting('alert')` (`fanfare`; home: the same) |
 
 ## Working on it
 
@@ -89,12 +89,12 @@ and squashes as it lands.
 The balance is tuned on the balance page (http://localhost:8323/tools/balance.html, with `npm run dev`): every animal's
 dials (speed, jump, drain, meals, …) and the numbers all the animals share, each with a slider, and what they come to,
 worked out by the game's own code: how hard it is to get the next animal (how often a player can run into something
-and still get away from it till the first dawn, half the time; and the chance, missing 1 in 33, 17 or 8), how many days
+and still get home at dawn, away from it, half the time; and the chance, missing 1 in 33, 17 or 8), how many days
 a player who never misses lasts (eating all the food, or 4 in 5), the score that reaches, how fast it goes, how much
 warning an obstacle gives. The ladder shows all twenty-one in a row, each
 meant to be harder than the one before (one that is not is marked), and what was there before behind it. The changes
 are kept in the browser, not yet written to the files. Under the ladder, your runs: for each animal how many, how long,
-how often day 2 and day 3 (three suns) were reached, the tries it took to get the next one, how often a jump or a duck
+how often it got home, the tries it took to get the next one, how often a jump or a duck
 was missed, how much food was eaten, how runs ended. The game writes every run down; played from the dev server (on this computer, or
 an iPad in the house at http://<this computer>.local:8323) they come in by themselves (`data/runs.jsonl`), from the
 app they are shared from the credits (SHARE: AirDrop, Mail, Files…) and dropped onto the balance page.

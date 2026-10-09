@@ -20,8 +20,9 @@ export const START_SPEED = 110, MAX_SPEED = 255, ACCEL = 3; // art pixels per se
 export const SCORE_PER_PX = 0.1;
 export const BRANCHES_FROM = 150, CROWS_FROM = 300, FAST_FROM = 700; // the scores where branches, crows (tension) and speed (action) begin
 // a day's run (points), then the night's (times the animal's speed: about as long whoever runs), the chaser coming
-// that far into it; an animal after the rabbit starts that much harder (in days)
-export const DAY = 1000, NIGHT = 600, HUNT = 170, HEAD = 0.06;
+// that far into it, the sky paling that far before its end (dawn: the den); an animal after the rabbit starts that
+// much harder (in days)
+export const DAY = 1000, NIGHT = 600, HUNT = 170, PALE = 220, HEAD = 0.06;
 // for every day of hardness: faster (px/s), gaps closer (down to MIN_TIGHT), more crows and branches (up to their
 // most), packs more often, food rarer (down to LEAST_FOOD), more tiring
 const DAY_SPEED = 22, DAY_TIGHT = 0.07, MIN_TIGHT = 0.5, DAY_CROWS = 0.035, MOST_CROWS = 0.42, MOST_BRANCHES = 0.62, DAY_PACKS = 0.25;
@@ -40,10 +41,11 @@ export const chaserOf = (k) => KINDS.slice(KINDS.indexOf(k) + 1).find((c) => !T(
 const cycle = (kind) => DAY + NIGHT * T(kind).speed; // (points: a day and its night)
 // how much harder than the start (days), s points into a run
 export const hardness = (kind, s) => s / cycle(kind) + KINDS.indexOf(kind) * HEAD;
-// the day s points into a run is in (1, 2, …), and where that day's night falls, ends, and where its chaser comes
+// the day s points into a run is in (1, 2, …), and where that day's night falls, where its chaser comes, where the
+// sky pales, where it ends; the land an animal runs in
 export const dayOf = (kind, s) => Math.floor(s / cycle(kind)) + 1;
-export const landOf = (day) => LANDS[(day - 1) % LANDS.length]; // (each day's obstacles: see LANDS)
-export const nightAt = (kind, day) => { const from = (day - 1) * cycle(kind) + DAY; return { from, hunt: from + HUNT * T(kind).speed, to: day * cycle(kind) }; };
+export const landOf = (kind) => LANDS[KINDS.slice(0, KINDS.indexOf(kind)).filter((k) => !T(k).special).length % LANDS.length]; // (each animal's obstacles, round the lands, a special one's the next one's: see LANDS)
+export const nightAt = (kind, day) => { const from = (day - 1) * cycle(kind) + DAY; return { from, hunt: from + HUNT * T(kind).speed, pale: day * cycle(kind) - PALE * T(kind).speed, to: day * cycle(kind) }; };
 // how fast the world goes by, d art pixels into a run (before the chase, a bump, a super power): speeding up as it
 // runs, up to a top that rises with every day, and past KNEE ever more slowly, never reaching TOP (an animal's own
 // speed too): at 60 frames a second the eye follows what comes up to some 1½ screens a second (the chase on top), and
@@ -105,7 +107,7 @@ export function course(kind) {
   let n = 0, nextGold = GOLD_FIRST + gold() * 150, ahead = make(0, 120), hunger = gold(); // (hunger: food is due at 1)
   // a piece: its obstacle(s), and what comes in the gap after it (food), made from its own random numbers
   function make(i, at) {
-    const rnd = random(seed + Math.imul(i + 1, 0x9e3779b9)), s = Math.floor(at * SCORE_PER_PX), h = hardness(kind, s), v = pace(kind, at), land = landOf(dayOf(kind, s));
+    const rnd = random(seed + Math.imul(i + 1, 0x9e3779b9)), s = Math.floor(at * SCORE_PER_PX), h = hardness(kind, s), v = pace(kind, at), land = landOf(kind);
     const r = rnd(), items = [];
     if (s >= CROWS_FROM - T(kind).early && r < Math.min(MOST_CROWS, 0.22 + DAY_CROWS * h)) {
       const where = ['low', 'head', 'head', 'high'][Math.floor(rnd() * 4)];

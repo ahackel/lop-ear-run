@@ -26,16 +26,14 @@ async function load(shared) {
   return loaded.get(key);
 }
 
-// Getting the next animal: away from it till the first dawn (see dawn in game.js), for a player who misses: each
+// Getting the next animal: away from it till dawn, home at the den (see arrive in game.js), for a player who misses: each
 // obstacle is run into with a chance (miss, at REF_SPEED; more, the faster it goes: less time to see it coming), which
 // costs energy (BUMP, times the animal's bump), and while the chaser is after it a second bump before it has fallen back
 // (RECOVER, DAY_RECOVER) is caught; it eats 4 in 5 of the food and the golden food (POWER_SECS without losing energy, the
 // chaser falling back). The same course every time (as in the game), the misses at random (TRIALS runs, the same random
 // numbers for every miss rate, so a higher one never does better).
 //   → { secs (the first dawn, without a miss), score (there), half (the miss rate half the players get it at),
-//       chance: [at each of SKILLS], lost: { caught, tired } (the runs lost at SKILLS[1], which way),
-//       dawns: [the chance of the first, second, third dawn at SKILLS[1]], mastery: of the second at SKILLS[0]: day 3,
-//       three suns }
+//       chance: [at each of SKILLS: getting home], lost: { caught, tired } (the runs lost at SKILLS[1], which way) }
 export const SKILLS = [0.03, 0.06, 0.12];
 const REF_SPEED = 220, TRIALS = 600, EATS = 0.8;
 function unlocking(kind, level, c) {
@@ -76,8 +74,7 @@ function unlocking(kind, level, c) {
   for (let i = 0; i < 14; i++) { const mid = (lo + hi) / 2; if (runs(mid).free >= TRIALS / 2) lo = mid; else hi = mid; }
   const at = runs(SKILLS[1]), lost = Math.max(1, at.caught + at.tired);
   return {
-    secs: steps.filter((st) => st.day === 1).reduce((t, st) => t + st.secs, 0), score: n.to * a.mult + c.ESCAPE, half: lo,
-    dawns: [1, 2, 3].map((d) => runs(SKILLS[1], d).free / TRIALS), mastery: runs(SKILLS[0], 2).free / TRIALS,
+    secs: steps.filter((st) => st.day === 1).reduce((t, st) => t + st.secs, 0), score: n.to * a.mult + c.HOME, half: lo,
     chance: SKILLS.map((q) => runs(q).free / TRIALS), lost: { caught: at.caught / lost, tired: at.tired / lost },
   };
 }

@@ -178,11 +178,9 @@ const days = (v) => v ?? 12; // (null: not within 12 days)
 const daysText = (v) => (v == null ? '12+' : v.toFixed(1));
 const METRICS = {
   next: { label: 'Getting the next one', bar: (m) => m.next.half * 100, text: (v) => `${v.toFixed(1)}%`, expect: 'down',
-    note: 'how many obstacles a player can run into (at the rabbit’s first speed; more when faster) and still get away from the next animal till the first dawn, half the time' },
-  nextChance: { label: 'Chance of the next one', bar: (m) => m.next.chance[1] * 100, dot: (m) => m.next.chance[0] * 100, text: (v) => `${Math.round(v)}%`, expect: 'down',
-    note: `bars: the chance to get the next animal, running into ${oneIn(SKILLS[1])} obstacles; dots: ${oneIn(SKILLS[0])}` },
-  dawns: { label: 'Three suns', bar: (m) => m.next.mastery * 100, dot: (m) => m.next.dawns[1] * 100, text: (v) => `${Math.round(v)}%`, expect: 'down',
-    note: `bars: the chance to reach day 3 (three suns: two nights got through), running into ${oneIn(SKILLS[0])} obstacles; dots: ${oneIn(SKILLS[1])}` },
+    note: 'how many obstacles a player can run into (at the rabbit’s first speed; more when faster) and still get home at dawn (away from the next animal), half the time' },
+  nextChance: { label: 'Chance to get home', bar: (m) => m.next.chance[1] * 100, dot: (m) => m.next.chance[0] * 100, text: (v) => `${Math.round(v)}%`, expect: 'down',
+    note: `bars: the chance to get home (and the next animal), running into ${oneIn(SKILLS[1])} obstacles; dots: ${oneIn(SKILLS[0])}` },
   days: { label: 'Days lasted', bar: (m) => days(m.all), dot: (m) => days(m.some), text: daysText, raw: (m) => m.all, expect: 'down',
     note: 'bars: days a player who never misses lasts, eating all the food; dots: eating 4 in 5' },
   score: { label: 'Score reached', bar: (m) => (days(m.some) - 1) * m.cycle * m.mult, text: (v) => Math.round(v / 100) / 10 + 'k', expect: null,
@@ -346,13 +344,10 @@ function tiles() {
     [`${oneIn(SKILLS[0])} missed`, (x) => x.next.chance[0], pct, '', 'next'],
     [`${oneIn(SKILLS[1])} missed`, (x) => x.next.chance[1], pct, '', 'next'],
     [`${oneIn(SKILLS[2])} missed`, (x) => x.next.chance[2], pct, '', 'next'],
-    ['Three suns (day 3), ' + oneIn(SKILLS[1]), (x) => x.next.dawns[1], pct, '', 'next'],
-    ['Three suns (day 3), ' + oneIn(SKILLS[0]), (x) => x.next.mastery, pct, '', 'next'],
-    ['Day 4, ' + oneIn(SKILLS[1]), (x) => x.next.dawns[2], pct, '', 'next'],
     ['Half get it, missing', (x) => x.next.half, (v) => oneIn(v), '', 'next'],
     ['Lost by being caught', (x) => x.next.lost.caught, pct, '(the rest: tired)', 'next'],
-    ['Time to the first dawn', (x) => x.next.secs, (v) => `${Math.round(v)} s`, '', 'next'],
-    ['Score at the first dawn', (x) => x.next.score, (v) => Math.round(v).toLocaleString('en'), '', 'next'],
+    ['Time to the den', (x) => x.next.secs, (v) => `${Math.round(v)} s`, '', 'next'],
+    ['Score at the den', (x) => x.next.score, (v) => Math.round(v).toLocaleString('en'), '', 'next'],
     ['Lasts, eating all', (x) => x.all, (v) => (v == null ? '12+ days' : `day ${v.toFixed(1)}`), 'harder'],
     ['Lasts, eating 4 in 5', (x) => x.some, (v) => (v == null ? '12+ days' : `day ${v.toFixed(1)}`), 'harder'],
     ['Score then (4 in 5)', score, (v) => Math.round(v).toLocaleString('en')],
@@ -447,14 +442,14 @@ function yourRuns() {
   } else {
     const rows = KINDS.filter((k) => runs.some((r) => r.kind === k)).map((k) => {
       const rs = runs.filter((r) => r.kind === k), c = chaserOf(k), got = rs.findIndex((r) => r.unlocked?.includes(c));
-      const ends = ['tired', 'bumped', 'caught', 'home'].map((e) => [e, rs.filter((r) => r.end === e).length]).filter(([, n]) => n).map(([e, n]) => `${e} ${n}`).join(', ');
+      const ends = ['dawn', 'tired', 'bumped', 'caught', 'home'].map((e) => [e, rs.filter((r) => r.end === e).length]).filter(([, n]) => n).map(([e, n]) => `${e} ${n}`).join(', ');
       const reached = (d) => `${Math.round((rs.filter((r) => (r.dawns || 0) >= d).length / rs.length) * 100)}%`;
       const food = pair(rs, 'food');
       return `<tr class="${k === sel ? 'on' : ''}" data-k="${k}"><td>${esc(nameOf(k))}</td><td>${rs.length}</td><td>${clock(sum(rs, (r) => r.secs))}</td><td>${Math.round(sum(rs, (r) => r.secs) / rs.length)} s</td>
-        <td>${reached(1)}</td><td>${reached(2)}</td><td>${got < 0 ? '–' : `${got + 1} (${clock(sum(rs.slice(0, got + 1), (r) => r.secs))})`}</td>
+        <td>${reached(1)}</td><td>${got < 0 ? '–' : `${got + 1} (${clock(sum(rs.slice(0, got + 1), (r) => r.secs))})`}</td>
         <td>${rate(pair(rs, 'jump'))}</td><td>${rate(pair(rs, 'duck'))}</td><td>${food[0] + food[1] ? `${Math.round((food[0] / (food[0] + food[1])) * 100)}%` : '–'}</td><td class="note">${ends}</td></tr>`;
     }).join('');
-    box.innerHTML = `${head}<div class="scroll"><table><thead><tr><th>animal</th><th>runs</th><th>time</th><th>a run</th><th>day 2</th><th>day 3 (3 suns)</th><th>tries to get the ${'next'}</th><th>jumps missed</th><th>ducks missed</th><th>food eaten</th><th>ended</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    box.innerHTML = `${head}<div class="scroll"><table><thead><tr><th>animal</th><th>runs</th><th>time</th><th>a run</th><th>got home</th><th>tries to get the ${'next'}</th><th>jumps missed</th><th>ducks missed</th><th>food eaten</th><th>ended</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   $('runFiles').onchange = async (e) => { for (const f of e.target.files) { try { addRuns(parseRuns(await f.text())); } catch { /* not runs */ } } };
 }

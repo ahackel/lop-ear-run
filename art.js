@@ -1282,13 +1282,6 @@ export const star = fromRows([
   '.y.y.',
 ], { y: YELLOW });
 
-// a sun, a dot: a day a run reached, on the title and in the high scores
-export const sun = fromRows([
-  'yyy',
-  'yyy',
-  'yyy',
-], { y: YELLOW });
-
 export const heart = fromRows([
   'rr.rr',
   'rrrrr',
