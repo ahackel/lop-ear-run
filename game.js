@@ -248,7 +248,7 @@ const chooseNext = (d) => choose(nextKind(kind, d));
 let order = [];
 { const o = keptJSON('order'); if (Array.isArray(o)) order = o.map(renamed).filter((k, i, a) => ANIMALS[k] && a.indexOf(k) === i); }
 // the ones on the title (the others stay a surprise), in that order; one not in it (unlocked since) after the one before
-// it among the animals
+// it among the animals; the padlocked ones always last (see padlocked; nothing goes after them: see gapAt)
 function playable() {
   const row = order.filter(unlocked);
   for (const k of KINDS) {
@@ -256,7 +256,7 @@ function playable() {
     const before = KINDS.slice(0, KINDS.indexOf(k)).reverse().find((b) => row.includes(b));
     row.splice(before ? row.indexOf(before) + 1 : 0, 0, k);
   }
-  return row;
+  return [...row.filter((k) => !padlocked(k)), ...row.filter(padlocked)];
 }
 
 // The animals come one by one: a run starts with the rabbit, chased by the guinea pig at night; getting away from it
@@ -279,6 +279,7 @@ function meet(k) { if (!met.includes(k)) { met.push(k); keep('met', JSON.stringi
 const FREE = 3; // (the rabbit, the guinea pig, the cat)
 let bought = kept('pack') === '1';
 const padlocked = (k) => !bought && !ALL && KINDS.indexOf(k) >= FREE;
+const treatsOf = (k) => (padlocked(k) ? 0 : treats[k] || 0); // (a padlocked one: none shown, none to feed it)
 const FPS = Q.has('fps'); // ?fps: frames a second, and the work of a frame (to check a device; ?hz=120: up to 120, see frame)
 // ?log: each frame that came late or early, took other than a frame's steps (x2; ?hz=120: x1), or long, on the
 // console (in the iOS app: Xcode's), with what happened just before it (see frame)
@@ -514,6 +515,7 @@ stage.addEventListener('pointermove', (e) => {
   // (a finger: it hangs further below it, so as to be seen, and is lifted only once it would hang clear of the ground)
   const below = e.pointerType === 'touch' ? (FINGER * (viewR - viewL)) / viewRect.width : 0;
   grip.moved = true;
+  if (padlocked(grip.k)) return; // (a padlocked one stays where it is)
   if (below && y - SKY + below > GROUND - hangDepth(grip.k) - 2) return;
   const [sx, sy] = heldAt(grip.k);
   delete jumps[grip.k]; // (caught in the air)
@@ -677,7 +679,7 @@ const CHEATS = [
   { id: 'cheat.energy', text: 'ENERGY', when: () => state === 'run' }, // the energy full again
   { id: 'cheat.unlock', text: 'UNLOCK', when: () => state === 'title' && !ALL && KINDS.some((k) => !unlocked(k)) }, // the next animal, running in
   { id: 'cheat.buy', text: 'BUY', when: () => state === 'title' && !bought && !ALL }, // the animal pack, as if bought
-  { id: 'cheat.food', text: 'FOOD', when: () => state === 'title' && (treats[kind] || 0) < MAX_TREATS }, // all the treats the picked one can have
+  { id: 'cheat.food', text: 'FOOD', when: () => state === 'title' && !padlocked(kind) && (treats[kind] || 0) < MAX_TREATS }, // all the treats the picked one can have
   { id: 'cheat.reset', text: 'RESET', when: () => true }, // the game as the first time (see ?reset), cheats still on
 ];
 function cheats() {
@@ -1294,7 +1296,7 @@ let feed = null, loose = null; // (loose: { x, y, vy, down, eat }: falling, on t
 const WALK = 40, TREAT_FALL = 420;
 const mealOf = () => FOOD[ANIMALS[kind].food];
 const treatSpot = () => [placeX(playable().indexOf(kind)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: where the arrow would be, at its place: see updateRow; staying there as it goes after one)
-const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return (treats[kind] || 0) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
+const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return treatsOf(kind) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
 // what the picked animal reaches for (its middle), if anything; its pose, at x; its mouth then
 const treatAt = () => (feed ? [feed.x, feed.y] : loose ? [loose.x + mealOf().w / 2, loose.y + mealOf().h / 2] : null);
 // (faceL: turned round, for one behind it, left of its middle, till it is well right of it again; drawn mirrored)
@@ -1313,7 +1315,7 @@ const reach = { t: 0, rest: 0.25, amount: 0, look: 0, strain: 0.7, sniff: 0 };
 const SNIFFS = 2, SNIFF_SECS = 1 / 3; // (stretched out, it sniffs at it: two little nods, a third of a second each)
 let begging = false, begWait = 3;
 const begAt = () => { const [cx, cy] = treatSpot(); return [cx, cy + mealOf().h / 2]; };
-const canBeg = () => state === 'title' && !board && !held && !dropped && !grip && !launch && !arriving && !pets[kind] && !jumps[kind] && !runs[kind]?.on && (treats[kind] || 0) > 0;
+const canBeg = () => state === 'title' && !board && !held && !dropped && !grip && !launch && !arriving && !pets[kind] && !jumps[kind] && !runs[kind]?.on && treatsOf(kind) > 0;
 function updateReach(dt) {
   reach.sniff = 0;
   if (!treatAt()) {
@@ -1389,8 +1391,8 @@ const FINGER = 40; // (on a touch screen, an animal hangs this much further belo
 const SQUASH_SECS = 0.2;
 const RUN = 2.2; // how fast the others run to their places (places a second)
 const runs = {}; // (an animal running to its place: how far in its stride, which way)
-// the place a held animal would go to
-const gapAt = (n) => Math.max(0, Math.min(n - 1, Math.round(placeAt(held.x - heldAt(held.k)[0]))));
+// the place a held animal would go to (n in the row, with it), never past the padlocked ones (they stay last)
+const gapAt = (n) => Math.max(0, Math.min(n - 1 - playable().filter(padlocked).length, Math.round(placeAt(held.x - heldAt(held.k)[0]))));
 function letGo() {
   const k = held.k, row = playable().filter((o) => o !== k);
   row.splice(gapAt(row.length + 1), 0, k);
@@ -1761,7 +1763,7 @@ function scene(pal) {
     for (const k of playable()) if (k !== held?.k && k !== dropped?.k && k !== kind) standing(k, at[k], false, pal);
     if (kind !== held?.k && kind !== dropped?.k && at[kind] !== undefined) standing(kind, at[kind], true, pal); // (the picked one in front of them)
     drawGrabbed(pal);
-    const left = treats[kind] || 0;
+    const left = treatsOf(kind);
     if (!launch && !held && !feed && !loose && left > 0) { // the picked one's treats, over its place: the food, how many (not while one is out)
       const meal = mealOf(), s = String(left), w = meal.w + 2 + textWidth(s), [cx, ty] = treatSpot(), tx = Math.round(cx - w / 2);
       meal.draw(ctx, tx, ty, pal); text(ctx, s, tx + meal.w + 2, ty + Math.floor((meal.h - 5) / 2), pal[COLOR.INK]);

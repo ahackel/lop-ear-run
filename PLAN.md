@@ -68,5 +68,5 @@ the treats it brings home.
 - The animal pack (in-app purchase): the first three free, the rest bought, still unlocked by playing; Restore
   Purchases, and a parental gate if in the Kids category. Built so far: the next one shown as a shadow only once it has
   chased (lop.met), no "?"; the dog (and any after the third) joins at dawn as before, padlocked on the title till the
-  pack is bought (lop.pack, the BUY cheat): it can be picked, not run with. Still to do: the purchase itself, the shop
+  pack is bought (lop.pack, the BUY cheat): it can be picked, not run with, fed or moved, last in the row. Still to do: the purchase itself, the shop
   behind the gate (tapping the padlock).
