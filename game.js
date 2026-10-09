@@ -961,7 +961,34 @@ function drawBoard(pal) {
   if (board.shop) return drawShop(pal);
   (board.credits ? drawCredits : drawScores)(pal);
   if (gained && state === 'ko' && !board.credits) help(t('end.unlocked', { name: nameOf(gained) }), pal, pal[7]); // (after a run: see hud)
-  animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, board.credits ? W / 2 - 13 : SCORES_X + 132, GROUND - FOOT, pal);
+  if (!sit) return;
+  if (!sit.on) return animal(kind, 'idle', idleFrame(kind, blinkT), { blink: blinking() }).draw(ctx, Math.round(sit.x), GROUND - FOOT, pal);
+  const st = stride(kind, sit.phase), x = Math.round(sit.x); // running there (the way it goes)
+  if (sit.dir < 0) { ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); }
+  animal(kind, 'run', st.frame).draw(ctx, x, GROUND - FOOT - st.lift, pal);
+  if (sit.dir < 0) ctx.restore();
+}
+// the animal on the high scores (beside them) or the credits (in the middle): it runs there from where it was (its place
+// on the title; where the run ended), and back to its place on the title after (sit: { x, phase, dir, on: running })
+let sit = null;
+const sitTo = () => (board.credits ? W / 2 - 13 : SCORES_X + 132);
+function sitFrom() {
+  if (state === 'ko') return won ? Math.min(RUN_X + homeX, viewR) : RUN_X; // (run off home: in from the right)
+  return at[kind] !== undefined && carousel !== null ? placeX(at[kind]) : sitTo();
+}
+function updateSit(dt) {
+  if (!board || board.gate || board.shop) { // closed: on the title, to its place in the row from here
+    if (sit && !board && state === 'title' && carousel !== null) at[kind] = placeAt(sit.x);
+    if (!board) sit = null;
+    return;
+  }
+  sit ||= { x: sitFrom(), phase: 0, dir: 1, on: false };
+  const d = sitTo() - sit.x, v = RUN * 34;
+  sit.on = Math.abs(d) > 0.5;
+  if (!sit.on) { sit.x = sitTo(); return; }
+  sit.dir = Math.sign(d);
+  sit.x += sit.dir * Math.min(Math.abs(d), v * dt);
+  sit.phase = (sit.phase + dt * strides(kind, v)) % 1;
 }
 function drawScores(pal) {
   const ink = pal[COLOR.INK], dim = pal[COLOR.DIM];
@@ -1122,6 +1149,7 @@ function update(dt) {
   drawn = {};
   blinkT += dt;
   updateRow(dt);
+  updateSit(dt);
   if (board?.shop) updateParade(dt);
   if (launch) { // off to the run
     launch.t += dt; launch.v += 900 * dt; // (some 150 px: to the edge, about)
