@@ -217,7 +217,7 @@ function choose(k) {
   pick(k);
   if (state === 'ko') { gained = null; reset(); state = 'title'; }
 }
-const pick = (k) => { kind = k; keep('animal', k); songOf(k); }; // (kept for the next visit)
+const pick = (k) => { kind = k; chew = 0; keep('animal', k); songOf(k); }; // (kept for the next visit)
 // the animal's own song (the same song, played its way: music.js), never abruptly: the one playing fades out over
 // SONG_FADE seconds, then the new one starts from its beginning, in the mood the game is in. Picked again meanwhile:
 // the last one picked (the one playing: it comes back)
@@ -1051,7 +1051,8 @@ function update(dt) {
     if (launch.t >= LAUNCH_SECS) start();
   }
   fadeIn = Math.max(0, fadeIn - dt);
-  if (state === 'title' && (treatAt() || begging) && !runs[kind]?.on && at[kind] !== undefined) moveReaching(body, kind, ...reachTo(placeX(at[kind]), treatAt() || begAt()), reach.amount, reach.look, W / 2 - 13, GROUND - FOOT, dt, reach.sniff); // (reaching for a treat: see standing)
+  if (state === 'title' && chew > 0 && !runs[kind]?.on && at[kind] !== undefined) { const [tx, ty, a, look, nod] = chewPose(); moveReaching(body, kind, tx, ty, a, look, W / 2 - 13, GROUND - FOOT, dt, nod); } // (chewing: see standing)
+  else if (state === 'title' && (treatAt() || begging) && !runs[kind]?.on && at[kind] !== undefined) moveReaching(body, kind, ...reachTo(placeX(at[kind]), treatAt() || begAt()), reach.amount, reach.look, W / 2 - 13, GROUND - FOOT, dt, reach.sniff); // (reaching for a treat: see standing)
   else { const [pose, f] = animalPose(); moveBody(body, kind, pose, f, state === 'title' ? W / 2 - 13 + (launch?.x || 0) : RUN_X, state === 'title' ? GROUND - FOOT : animalY(), state === 'run' ? speed : 0, dt); } // (on the title: where it settles, so sliding there does not fling its ears)
   if (state === 'ko') koT += dt;
   if (AUTO && state === 'ko' && koT > 3) start();
@@ -1293,7 +1294,7 @@ let grip = null, held = null, dropped = null, arriving = null; // (arriving: one
 // mouth, eaten; elsewhere it falls (loose), the animal after it with its mouth: passing it, caught; on the ground, the
 // animal walks to it (WALK px a second) and eats it there, then goes back to its place. Eaten: happy, hearts
 let feed = null, loose = null; // (loose: { x, y, vy, down, eat }: falling, on the ground; being eaten)
-const WALK = 40, TREAT_FALL = 420;
+const WALK = 40, TREAT_FALL = 420, CARRY_FROM = 8; // (CARRY_FROM: art pixels from its place)
 const mealOf = () => FOOD[ANIMALS[kind].food];
 const treatSpot = () => [placeX(playable().indexOf(kind)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: where the arrow would be, at its place: see updateRow; staying there as it goes after one)
 const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return treatsOf(kind) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
@@ -1317,6 +1318,7 @@ let begging = false, begWait = 3;
 const begAt = () => { const [cx, cy] = treatSpot(); return [cx, cy + mealOf().h / 2]; };
 const canBeg = () => state === 'title' && !board && !held && !dropped && !grip && !launch && !arriving && !pets[kind] && !jumps[kind] && !runs[kind]?.on && treatsOf(kind) > 0;
 function updateReach(dt) {
+  if (chew > 0 && (chew -= dt) <= 0 || state !== 'title' || board) chew = 0;
   reach.sniff = 0;
   if (!treatAt()) {
     if (begging && !canBeg()) begging = false; // (petted, picked up, off to a run: it stops)
@@ -1346,9 +1348,22 @@ function drawFacing(sp, x, y, pal) {
   if (!faceL) return sp.draw(ctx, x, y, pal);
   ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); sp.draw(ctx, x, y, pal); ctx.restore();
 }
+// a treat eaten: chewing it (CHEW_SECS, its head nodding up and down CHEWS times, its eyes shut happily), then happy
+const CHEW_SECS = 0.8, CHEWS = 3;
+let chew = 0; // (seconds of chewing left)
 function eatTreat([mx, my]) {
   treats[kind]--; keep('treats', JSON.stringify(treats));
   pets[kind] = { joy: 1, t: 0, strokes: 0 };
+  chew = CHEW_SECS;
+}
+// chewing: as it reaches a little toward a point low in front of it (in its box), its head nodding (see sniff in reachPosed)
+function chewPose() {
+  const u = 1 - chew / CHEW_SECS;
+  return [30, FOOT - 6, 0.35, 1, 4 * Math.sin(u * CHEWS * Math.PI * 2)];
+}
+function chewing() {
+  const [tx, ty, amount, look, nod] = chewPose();
+  return reaching(kind, tx, ty, true, amount, look, body, nod);
   for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: mx - 8 + i * 5, y: my - 10 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
   for (let i = 0; i < 5; i++) parts.push({ x: mx, y: my, vx: (rnd() - 0.5) * 50, vy: -20 - rnd() * 40, life: 0.4, color: COLOR.FAINT });
   call('sting', 'reward');
@@ -1369,10 +1384,23 @@ function updateLoose(dt) {
     if (loose.y >= GROUND + 1 - meal.h) { loose.y = GROUND + 1 - meal.h; loose.down = true; }
     return;
   }
+  if (loose.carried) { // in its mouth, back to its place (see standing), and eaten there
+    const home = playable().indexOf(kind), dp = home - at[kind];
+    if (Math.abs(dp) > 0.001) {
+      r.on = true; r.dir = -Math.sign(dp); // (further in the row: to the left)
+      at[kind] += Math.sign(dp) * Math.min(Math.abs(dp), (WALK * dt) / 34);
+      r.phase = (r.phase + dt * strides(kind, WALK)) % 1;
+      return;
+    }
+    r.on = false; faceL = false;
+    eatTreat(mouthOf(animal(kind, 'idle', 0), x)); loose = null;
+    return;
+  }
   // to it: its mouth over it, bent down (as it would be, reaching for it in front of it), from the side it lay on
   const bent = reaching(kind, 30, FOOT - 2), mouth = bent.mouth ? bent.mouth[0] : bent.head[0] + 4, cx = loose.x + meal.w / 2;
   loose.side ??= cx < x + 13 ? -1 : 1;
   const want = loose.side < 0 ? cx - (26 - mouth) : cx - mouth, d = want - x;
+  loose.far ??= Math.abs(d) > CARRY_FROM; // (far from its place: picked up and carried back)
   if (Math.abs(d) > 1 && !loose.eat) {
     r.on = true; r.dir = Math.sign(d);
     at[kind] -= (Math.sign(d) * Math.min(Math.abs(d), WALK * dt)) / 34; // (a place further: to the left)
@@ -1380,7 +1408,10 @@ function updateLoose(dt) {
     return;
   }
   r.on = false;
-  if ((loose.eat += dt) > 0.6) { eatTreat(mouthOf(reachFor(x, treatAt()), x)); loose = null; }
+  if ((loose.eat += dt) > (loose.far ? 0.3 : 0.6)) { // (far: picked up, a moment bent down to it; else eaten there)
+    if (loose.far) loose.carried = true;
+    else { eatTreat(mouthOf(reachFor(x, treatAt()), x)); loose = null; }
+  }
 }
 const heldBody = {}; // (its ears and tail)
 const LIFT = 3; // (moved this far, in art pixels: a grab, not a tap)
@@ -1559,12 +1590,15 @@ function standing(k, p, on, pal) {
   const jp = jumps[k];
   if (jp) animal(k, 'jump', jumpFrame(k, jp.v / (JUMP * ANIMALS[k].jump))).draw(ctx, x, GROUND - FOOT - Math.round(jp.alt), pal); // jumping (a double tap)
   else if (grip?.duck && grip.k === k) animal(k, 'duck', 0).draw(ctx, x, GROUND - FOOT, pal); // pushed down
-  else if (on && (treatAt() || begging) && !r?.on) drawFacing(reachFor(x, treatAt() || begAt(), loose?.eat > 0.2), x, GROUND - FOOT, pal); // reaching for a treat (eating it; begging for one)
+  else if (on && chew > 0 && !r?.on) drawFacing(chewing(), x, GROUND - FOOT, pal); // chewing a treat
+  else if (on && (treatAt() || begging) && !r?.on) drawFacing(reachFor(x, treatAt() || begAt(), loose?.eat > 0.2 && !loose.far), x, GROUND - FOOT, pal); // reaching for a treat (eating it; begging for one)
   else if (pt && !r?.on) petted(k, on ? idleFrame(k, blinkT) : 0, pt.joy, pt.t, pt.lean).draw(ctx, x, GROUND - FOOT, pal); // being petted
   else if (r?.on) { // running to its place (the way it goes)
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
     if (r.dir < 0) { ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); }
-    animal(k, 'run', st.frame, { blink: on && blinking() }).draw(ctx, x, y, pal);
+    const sp = animal(k, 'run', st.frame, { blink: on && blinking() });
+    sp.draw(ctx, x, y, pal);
+    if (on && loose?.carried) { const m = mealOf(), [mx, my] = sp.mouth || [sp.head[0] + 4, sp.head[1] + 8]; m.draw(ctx, Math.round(x + mx - m.w / 2), Math.round(y + my - m.h / 2), pal); } // (a treat carried home in its mouth)
     if (r.dir < 0) ctx.restore();
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
@@ -1759,6 +1793,7 @@ function scene(pal) {
   }
 
   if (state === 'title') {
+    if (loose && !loose.carried) mealOf().draw(ctx, Math.round(loose.x), Math.round(loose.y), pal); // (let go: behind the animals; carried: see standing)
     toCome(pal); // (behind them: the picked one may go by it, after a treat)
     for (const k of playable()) if (k !== held?.k && k !== dropped?.k && k !== kind) standing(k, at[k], false, pal);
     if (kind !== held?.k && kind !== dropped?.k && at[kind] !== undefined) standing(kind, at[kind], true, pal); // (the picked one in front of them)
@@ -1769,7 +1804,6 @@ function scene(pal) {
       meal.draw(ctx, tx, ty, pal); text(ctx, s, tx + meal.w + 2, ty + Math.floor((meal.h - 5) / 2), pal[COLOR.INK]);
     }
     if (feed) { const meal = mealOf(); meal.draw(ctx, Math.round(feed.x - meal.w / 2), Math.round(feed.y - meal.h / 2), pal); } // (the treat carried)
-    if (loose) mealOf().draw(ctx, Math.round(loose.x), Math.round(loose.y), pal); // (let go)
   }
   else {
     if (state === 'ko' && !won) dizzyBirds(pal, true);
