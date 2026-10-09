@@ -1389,7 +1389,8 @@ let begging = false, begWait = 3;
 const begAt = () => { const [cx, cy] = treatSpot(); return [cx, cy + mealOf().h / 2]; };
 const canBeg = () => state === 'title' && !board && !held && !dropped && !grip && !launch && !arriving && !pets[kind] && !jumps[kind] && !runs[kind]?.on && treatsOf(kind) > 0;
 function updateReach(dt) {
-  if (chew > 0 && (chew -= dt) <= 0 || state !== 'title' || board) chew = 0;
+  if (chew > 0 && (state !== 'title' || board)) chew = 0; // (off to a run, or the high scores: no more chewing)
+  else if (chew > 0 && (chew -= dt) <= 0) { chew = 0; if (at[kind] !== undefined) eaten(); }
   if (chew > 0 && at[kind] !== undefined && rnd() < dt * 12) crumb(mouthOf(chewing(), placeX(at[kind]))); // (crumbs as it chews)
   reach.sniff = 0;
   if (!treatAt()) {
@@ -1427,6 +1428,13 @@ function eatTreat([mx, my]) {
   treats[kind]--; keep('treats', JSON.stringify(treats));
   pets[kind] = { joy: 1, t: 0, strokes: 0 };
   chew = CHEW_SECS;
+  for (let i = 0; i < 5; i++) crumb([mx, my]);
+}
+// eaten up (chewed): happy, hearts float up from its head, a chime
+function eaten() {
+  const x = placeX(at[kind]), [mx, my] = mouthOf(animal(kind, 'idle', 0), x);
+  for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: mx - 8 + i * 5, y: my - 10 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
+  call('sting', 'reward');
 }
 // a crumb of the treat flying off its mouth, in one of the treat's colors (mostly forward, now and then back)
 function crumb([mx, my]) {
@@ -1441,9 +1449,6 @@ function chewPose() {
 function chewing() {
   const [tx, ty, amount, look, nod] = chewPose();
   return reaching(kind, tx, ty, true, amount, look, body, nod);
-  for (let i = 0; i < 3; i++) floats.push({ sprite: heart, x: mx - 8 + i * 5, y: my - 10 - i * 3, life: 0.9 + i * 0.15, rise: 16 });
-  for (let i = 0; i < 5; i++) crumb([mx, my]);
-  call('sting', 'reward');
 }
 function dropTreat() {
   const x = placeX(at[kind]), mouth = mouthOf(reachFor(x, [feed.x, feed.y]), x);
