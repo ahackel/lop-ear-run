@@ -79,13 +79,14 @@ const POWERS = {
 };
 const powered = () => (power > 0 ? POWERS[kind] : {}); // the super power on now (none: {})
 const T = () => ANIMALS[kind]; // the animal's dials (see art.js)
-const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?scale, ?hz, ?log)
+const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?treats, ?scale, ?hz, ?log)
 
 // what this browser keeps (localStorage, lop.<name>; in a private window perhaps nothing): get, set (null: removed)
 const kept = (k) => { try { return localStorage.getItem(`lop.${k}`); } catch { return null; } };
 const keptJSON = (k) => { try { return JSON.parse(kept(k)); } catch { return null; } };
-const treats = keptJSON('treats') || {}; // (see FLY_SECS)
-const keep = (k, v) => { try { if (v === null) localStorage.removeItem(`lop.${k}`); else localStorage.setItem(`lop.${k}`, v); } catch { /* no storage */ } };
+const CHEAT_TREATS = Q.has('treats'); // ?treats (=n): every animal n treats (20), for this visit (nothing saved)
+const treats = CHEAT_TREATS ? new Proxy({}, { get: (o, k) => (k in o ? o[k] : +Q.get('treats') || 20) }) : keptJSON('treats') || {}; // (see FLY_SECS)
+const keep = (k, v) => { if (CHEAT_TREATS && k === 'treats') return; try { if (v === null) localStorage.removeItem(`lop.${k}`); else localStorage.setItem(`lop.${k}`, v); } catch { /* no storage */ } };
 
 // --------------------------------------------------------------------------------------------------------- the music
 const music = new StardriftPlayer();
@@ -1244,7 +1245,23 @@ const treatAt = () => (feed ? [feed.x, feed.y] : loose ? [loose.x + mealOf().w /
 let faceL = false;
 function reachFor(x, [tx, ty], eating = false) {
   if (tx < x + 10) faceL = true; else if (tx > x + 16) faceL = false;
-  return reaching(kind, faceL ? x + 26 - tx : tx - x, ty - (GROUND - FOOT), eating);
+  return reaching(kind, faceL ? x + 26 - tx : tx - x, ty - (GROUND - FOOT), eating, reach.amount, reach.look);
+}
+// how it goes after a treat held out: in tries, as an idle animation, not all the time. A try: it looks at it, stretches
+// toward it, strains after it a moment (bobbing a little), sinks back; then it rests, still eyeing it, a second or two
+// (some of each try's lengths a little different), and tries again. One let go: after it at once, all out
+const reach = { t: 0, rest: 0.25, amount: 0, look: 0, strain: 0.7 };
+function updateReach(dt) {
+  if (!treatAt()) { reach.t = reach.amount = reach.look = 0; reach.rest = 0.25; return; } // (taken up: a glance, then a first try)
+  if (loose) { reach.amount = Math.min(1, reach.amount + 6 * dt); reach.look = 1; return; }
+  const LOOK = 0.3, UP = 0.45, DOWN = 0.45, t = (reach.t += dt), s = reach.strain;
+  if (t < reach.rest) { reach.amount = 0; reach.look += (0.6 - reach.look) * Math.min(1, 6 * dt); return; } // resting, eyeing it
+  const u = t - reach.rest;
+  if (u < LOOK) { reach.look = 0.6 + 0.4 * ease(u / LOOK); reach.amount = 0.15 * ease(u / LOOK); } // it looks
+  else if (u < LOOK + UP) { reach.look = 1; reach.amount = 0.15 + 0.85 * ease((u - LOOK) / UP); } // it stretches
+  else if (u < LOOK + UP + s) reach.amount = 0.9 + 0.1 * Math.cos(((u - LOOK - UP) / s) * Math.PI * 4); // it strains
+  else if (u < LOOK + UP + s + DOWN) { reach.amount = 1 - ease((u - LOOK - UP - s) / DOWN); reach.look = 1 - 0.4 * ease((u - LOOK - UP - s) / DOWN); } // it sinks back
+  else { reach.t = 0; reach.rest = 1 + rnd() * 1.2; reach.strain = 0.5 + rnd() * 0.6; reach.look = 0.6; }
 }
 const mouthOf = (sp, x) => [faceL ? x + 26 - (sp.head[0] + 4) : x + sp.head[0] + 4, GROUND - FOOT + sp.head[1] + 8];
 function drawFacing(sp, x, y, pal) {
@@ -1366,6 +1383,7 @@ function updateRow(dt) {
   updatePets(dt);
   updateJumps(dt);
   if ((grip || held || dropped || feed || loose) && (state !== 'title' || board || launch)) { grip = held = dropped = feed = loose = null; hand(''); }
+  updateReach(dt);
   if (loose) updateLoose(dt); // (run, or off to the high scores, meanwhile)
   const row = playable(), n = row.length, lead = coming() ? row.indexOf(kind) : -1; // (a place left of the picked one: see coming)
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
@@ -1659,8 +1677,8 @@ function scene(pal) {
     toCome(pal); // (behind them: the picked one may go by it, after a treat)
     for (const k of playable()) if (k !== held?.k && k !== dropped?.k) standing(k, at[k], k === kind, pal);
     drawGrabbed(pal);
-    const left = (treats[kind] || 0) - (feed || loose ? 1 : 0);
-    if (!launch && !held && left > 0) { // the picked one's treats, over its place: the food, how many
+    const left = treats[kind] || 0;
+    if (!launch && !held && !feed && !loose && left > 0) { // the picked one's treats, over its place: the food, how many (not while one is out)
       const meal = mealOf(), s = String(left), w = meal.w + 2 + textWidth(s), [cx, ty] = treatSpot(), tx = Math.round(cx - w / 2);
       meal.draw(ctx, tx, ty, pal); text(ctx, s, tx + meal.w + 2, ty + Math.floor((meal.h - 5) / 2), pal[COLOR.INK]);
     }

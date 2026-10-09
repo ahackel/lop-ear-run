@@ -70,7 +70,7 @@ npm run rigs       # writes every animal's build the way the workshop saves it
 Once per checkout, `git config core.hooksPath tools/hooks`: at each commit the hook writes `version.js` (when the build
 was made, and which engine it plays), which the credits screen shows.
 
-In the address: `?music` shows the music's moods and calls under the game, `?all` opens every animal for a visit, `?auto` runs by itself, `?fps` shows the frames a second and the
+In the address: `?music` shows the music's moods and calls under the game, `?all` opens every animal for a visit, `?treats` gives every animal 20 treats for a visit (`?treats=5`: 5), `?auto` runs by itself, `?fps` shows the frames a second and the
 work of a frame (on average and at most, in ms: a frame has 16.7 at 60) and the canvas's size, and since the start the
 frames that took other than a 60th of a second's steps (UNEVEN) and those over 50 ms while running (LONG), `?scale=3`
 draws the game 3 screen pixels an art pixel (fewer than the screen has: the page scales it up), `?hz=120` draws up to 120

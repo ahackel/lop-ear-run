@@ -35,6 +35,9 @@ the treats it brings home.
   it and stretches toward it (as petting leans); let go near it and it takes it and eats it, hearts float up. Let go
   elsewhere and the treat goes back to the basket.
 - Treats do nothing else (for now): they are for the animal.
+- As built: it goes after one held out in tries, as an idle animation: looks at it, stretches toward it (up on its hind
+  legs for one held high), strains a moment, sinks back, rests a second or two still eyeing it, and tries again; its
+  head stays on its body (less give for the sitting ones). Let go: after it at once.
 
 ## 3. The full moon: where the special ones come from (done)
 
