@@ -1597,8 +1597,8 @@ function standing(k, p, on, pal) {
     const st = stride(k, r.phase), y = GROUND - FOOT - st.lift;
     if (r.dir < 0) { ctx.save(); ctx.translate(2 * x + 26, 0); ctx.scale(-1, 1); }
     const sp = animal(k, 'run', st.frame, { blink: on && blinking() });
+    if (on && loose?.carried) { const m = mealOf(), [mx, my] = sp.mouth || [sp.head[0] + 4, sp.head[1] + 8]; m.draw(ctx, Math.round(x + mx - m.w / 2), Math.round(y + my - m.h / 2), pal); } // (a treat carried home in its mouth, behind it)
     sp.draw(ctx, x, y, pal);
-    if (on && loose?.carried) { const m = mealOf(), [mx, my] = sp.mouth || [sp.head[0] + 4, sp.head[1] + 8]; m.draw(ctx, Math.round(x + mx - m.w / 2), Math.round(y + my - m.h / 2), pal); } // (a treat carried home in its mouth)
     if (r.dir < 0) ctx.restore();
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
