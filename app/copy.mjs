@@ -23,5 +23,5 @@ for (const f of files) {
 const proj = fs.readFileSync(path.join(import.meta.dirname, 'ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
 const app = `${proj.match(/MARKETING_VERSION = ([\d.]+);/)[1]} (${proj.match(/CURRENT_PROJECT_VERSION = (\d+);/)[1]})`;
 const version = path.join(www, 'version.js');
-fs.writeFileSync(version, fs.readFileSync(version, 'utf8').replace("APP = ''", `APP = '${app}'`));
+fs.writeFileSync(version, fs.readFileSync(version, 'utf8').replace("APP_VERSION = ''", `APP_VERSION = '${app}'`));
 console.log(`copied ${files.length} files into www/, the app's version ${app}`);

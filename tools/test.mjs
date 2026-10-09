@@ -3,6 +3,7 @@
 // Safari 15 (tools/old-safari.mjs).
 import { oldSafari } from './old-safari.mjs'; // (first: it takes away what Safari 15 lacks before the rest loads)
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { Engine } from '../engine/src/engine/engine.js';
 import { openSongZip } from '../engine/src/bundle.js';
 import { loadSamples, songSamples } from '../engine/src/samples.js';
@@ -178,6 +179,12 @@ for (const [lang, table] of Object.entries(langs)) {
 // the older iPad (Safari 15): nothing newer than it without a fallback
 const newer = oldSafari();
 ok(!newer.length, `nothing newer than Safari 15 without a fallback${newer.length ? `:\n  ${newer.join('\n  ')}` : ''}`);
+
+// every file of the game parses (the rest above loads only some of them: a slip in game.js would pass, and the page stay blank)
+const broken = ['game.js', 'art.js', 'level.js', 'music.js', 'lang.js', 'version.js'].filter((f) => {
+  try { execFileSync(process.execPath, ['--check', new URL(`../${f}`, import.meta.url).pathname], { stdio: 'pipe' }); return false; } catch { return true; }
+});
+ok(!broken.length, `every file of the game parses${broken.length ? ` (not ${broken.join(', ')}: node --check says why)` : ''}`);
 
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);
