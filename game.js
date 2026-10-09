@@ -84,11 +84,19 @@ const T = () => ANIMALS[kind]; // the animal's dials (see art.js)
 // an animal's name, and with its article (THE RABBIT), in the player's language
 const nameOf = (k) => t(`animal.${k}`), theOf = (k) => t(`animal.${k}.the`);
 for (const p of document.querySelectorAll('#rotate p')) p.textContent = t('page.rotate'); // (the page's only words the player sees)
-const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?treats, ?scale, ?hz, ?log)
+const Q = new URLSearchParams(location.search); // (the address's switches: ?auto, ?fps, ?all, ?treats, ?scale, ?hz, ?log, ?reset)
 
 // what this browser keeps (localStorage, lop.<name>; in a private window perhaps nothing): get, set (null: removed)
 const kept = (k) => { try { return localStorage.getItem(`lop.${k}`); } catch { return null; } };
 const keptJSON = (k) => { try { return JSON.parse(kept(k)); } catch { return null; } };
+// ?reset: the game as the first time (nothing unlocked, no high scores, no treats, no name, the sound on), the runs
+// written down for balancing kept (?reset=all: them too); then gone from the address, so a reload does not reset again
+if (Q.has('reset')) {
+  const runs = Q.get('reset') !== 'all' ? ['lop.runs', 'lop.runsSent', 'lop.runNow'] : [];
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith('lop.') && !runs.includes(k)) localStorage.removeItem(k); } catch { /* no storage */ }
+  Q.delete('reset');
+  history.replaceState(null, '', location.pathname + (Q.toString() ? `?${Q}` : '') + location.hash);
+}
 const CHEAT_TREATS = Q.has('treats'); // ?treats (=n): every animal n treats (as many as it can have), for this visit (nothing saved)
 const treats = CHEAT_TREATS ? new Proxy({}, { get: (o, k) => (k in o ? o[k] : Math.min(MAX_TREATS, +Q.get('treats') || MAX_TREATS)) }) : keptJSON('treats') || {}; // (see FLY_SECS)
 if (!CHEAT_TREATS) for (const k in treats) treats[k] = Math.min(MAX_TREATS, treats[k]); // (kept from before there was a most)
@@ -362,8 +370,8 @@ function sparkle(n, v = 40) {
   }
 }
 
-// dawn: home, the run is over, won. The animal runs off to the right (see update), the chaser after it the first time
-// (it joins: unlocked), else it turns back; into the high scores as from a knock-out
+// dawn: home, the run is over, won. The animal runs off to the right (see update); the chaser, the first time (it joins:
+// unlocked), runs up to the middle of the screen and stays there, else it turns back; into the high scores as from a knock-out
 const newChase = () => ({ x: -40, heat: 0, catching: false, phase: 0, body: {} });
 function arrive() {
   const c = hunter(), joins = !unlocked(c) && !AUTO;
@@ -456,8 +464,8 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape') return goHome();
   if (JUMP_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) press(); }
   else if (DUCK_KEYS.includes(e.code)) { e.preventDefault(); startAudio(); if (!e.repeat) duck(true); }
-  else if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseNext(-1); }
-  else if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chooseNext(1); }
+  else if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseNext(1); } // (the row goes right to left)
+  else if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chooseNext(-1); }
 });
 addEventListener('keyup', (e) => {
   if (JUMP_KEYS.includes(e.code)) release();
@@ -628,8 +636,8 @@ const ACTS = {
   share: () => shareRuns(),
   full: toggleFull,
   home: goHome,
-  prev: () => chooseNext(-1),
-  next: () => chooseNext(1),
+  prev: () => chooseNext(1), // (the one to the left: the row goes right to left)
+  next: () => chooseNext(-1),
   start: press,
   back: () => leaveScores(),
   named: () => doneName(true),
@@ -1089,10 +1097,15 @@ function update(dt) {
   if (chase) { // the chaser runs up behind, closer with every bump (and back while a super power lasts)
     // it runs like the animal: its own stride, its tail and ears swung by it
     const c = hunter();
-    chase.phase = (chase.phase + dt * strides(c, Math.max(speed, 60))) % 1;
-    const st = stride(c, chase.phase);
-    moveBody(chase.body, c, chase.caught ? 'idle' : 'run', chase.caught ? idleFrame(c, blinkT) : st.frame, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), speed, dt);
-    if (chase.joining) { chase.x += (homeV + 30) * dt; if (chase.x > Math.max(W, viewR) + 10) chase = null; } // (off after the animal)
+    chase.phase = (chase.phase + dt * strides(c, chase.joining ? chase.v || 0 : Math.max(speed, 60))) % 1;
+    const st = stride(c, chase.phase), still = chase.caught || chase.there;
+    moveBody(chase.body, c, still ? 'idle' : 'run', still ? idleFrame(c, blinkT) : st.frame, chase.x + 4, GROUND - FOOT - (still ? 0 : st.lift), speed, dt);
+    if (chase.joining) { // (up to the middle, slowing as it comes, and it stays: the animal runs off without it)
+      const to = W / 2 - 17; // (drawn 4 to the right: in the middle, as on the high scores)
+      chase.v = chase.there ? 0 : Math.max(25, Math.min(120, (to - chase.x) * 2.5, (chase.v || 0) + 250 * dt)); // (setting off slower than the animal: not into it)
+      chase.x = Math.min(to, chase.x + chase.v * dt);
+      if (chase.x >= to - 0.5) chase.there = true;
+    }
     else if (chase.leaving) { chase.x -= (state === 'run' ? 60 : 30) * dt; if (chase.x < -40) chase = null; }
     else if (!chase.caught) {
       if (power) chase.catching = false;
@@ -1229,11 +1242,13 @@ const GROUND_LOOP = 600;
 const groundBits = Array.from({ length: 70 }, () => ({ x: Math.floor(scenery() * GROUND_LOOP), kind: scenery() < 0.15 ? 'tuft' : scenery() < 0.5 ? 'dash' : 'dot', y: 2 + Math.floor(scenery() * 4) }));
 let stageBg = null, stageInk = null;
 // the title's animals in a row, the one picked in the middle: the row slides to it (carousel: where it is now, in
-// places); each animal slides to its own place too (at), as the order changes or a gap opens for a grabbed one
+// places); each animal slides to its own place too (at), as the order changes or a gap opens for a grabbed one. The row
+// goes from right to left: the first on the right, each one unlocked after it to the left (it comes in from the left,
+// running, and stops behind the others)
 let carousel = null;
 const at = {};
-const placeX = (p) => Math.round(W / 2 - 13 + (p - carousel) * 34); // a place in the row → x on the screen
-const placeAt = (x) => (x - (W / 2 - 13)) / 34 + carousel; // … and back
+const placeX = (p) => Math.round(W / 2 - 13 - (p - carousel) * 34); // a place in the row → x on the screen
+const placeAt = (x) => carousel - (x - (W / 2 - 13)) / 34; // … and back
 const animalAt = (x) => playable().find((k) => k !== dropped?.k && at[k] !== undefined && x >= placeX(at[k]) - 2 && x < placeX(at[k]) + 26);
 
 // grabbing an animal on the title (Dungeon Keeper's hand): pressed and moved a little, it is picked up by the middle of
@@ -1249,7 +1264,7 @@ let grip = null, held = null, dropped = null, arriving = null; // (arriving: one
 let feed = null, loose = null; // (loose: { x, y, vy, down, eat }: falling, on the ground; being eaten)
 const WALK = 40, TREAT_FALL = 420;
 const mealOf = () => FOOD[ANIMALS[kind].food];
-const treatSpot = () => [placeX(playable().indexOf(kind) + (coming() ? 1 : 0)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: where the arrow would be, at its place: see updateRow; staying there as it goes after one)
+const treatSpot = () => [placeX(playable().indexOf(kind)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: where the arrow would be, at its place: see updateRow; staying there as it goes after one)
 const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return (treats[kind] || 0) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
 // what the picked animal reaches for (its middle), if anything; its pose, at x; its mouth then
 const treatAt = () => (feed ? [feed.x, feed.y] : loose ? [loose.x + mealOf().w / 2, loose.y + mealOf().h / 2] : null);
@@ -1329,7 +1344,7 @@ function updateLoose(dt) {
   const want = loose.side < 0 ? cx - (26 - mouth) : cx - mouth, d = want - x;
   if (Math.abs(d) > 1 && !loose.eat) {
     r.on = true; r.dir = Math.sign(d);
-    at[kind] += (Math.sign(d) * Math.min(Math.abs(d), WALK * dt)) / 34;
+    at[kind] -= (Math.sign(d) * Math.min(Math.abs(d), WALK * dt)) / 34; // (a place further: to the left)
     r.phase = (r.phase + dt * strides(kind, WALK)) % 1;
     return;
   }
@@ -1417,26 +1432,26 @@ function updateRow(dt) {
   if ((grip || held || dropped || feed || loose) && (state !== 'title' || board || launch)) { grip = held = dropped = feed = loose = null; hand(''); }
   updateReach(dt);
   if (loose) updateLoose(dt); // (run, or off to the high scores, meanwhile)
-  const row = playable(), n = row.length, lead = coming() ? row.indexOf(kind) : -1; // (a place left of the picked one: see coming)
+  const row = playable(), n = row.length, lead = coming() ? row.indexOf(kind) : -1; // (a place left of the picked one, behind it: see coming)
   if (held) { // near an edge the row scrolls (the further in, the faster), to the end and no further
     const edge = 40, by = held.px < edge ? -(edge - held.px) / edge : held.px > W - edge ? (held.px - (W - edge)) / edge : 0;
-    carousel = Math.max(0, Math.min(n - 1, carousel + by * 8 * dt));
+    carousel = Math.max(0, Math.min(n - 1, carousel - by * 8 * dt)); // (the left: further in the row)
   } else {
-    const sel = row.indexOf(kind) + (lead >= 0 ? 1 : 0);
+    const sel = row.indexOf(kind);
     carousel = carousel === null ? sel : carousel + (sel - carousel) * Math.min(1, dt * 10);
   }
   if (arriving && state === 'title') { at[arriving] = placeAt(Math.floor(viewL) - 30); arriving = null; } // (the new one: from off the left)
   // each to its place (past the gap, one on), running there
   const others = held ? row.filter((k) => k !== held.k) : row, gap = held ? gapAt(n) : n;
   others.forEach((k, i) => {
-    const p = (i < gap ? i : i + 1) + (lead >= 0 && i >= lead ? 1 : 0), r = runs[k] || (runs[k] = { phase: 0, dir: 1, on: false });
+    const p = (i < gap ? i : i + 1) + (lead >= 0 && i > lead ? 1 : 0), r = runs[k] || (runs[k] = { phase: 0, dir: 1, on: false });
     if (at[k] === undefined) at[k] = p;
     if (k === kind && loose) return; // (after a treat let go: see updateLoose)
     const d = p - at[k];
     r.on = Math.abs(d) > 0.001 && !(dropped?.k === k && !dropped.landed);
     if (!r.on) return;
     at[k] += Math.sign(d) * Math.min(Math.abs(d), RUN * dt);
-    r.dir = Math.sign(d);
+    r.dir = -Math.sign(d); // (the way it goes on the screen: further in the row, to the left)
     r.phase = (r.phase + dt * strides(k, RUN * 34)) % 1;
   });
   if (held) { // where it is held follows the hand (quickly: it has some weight), never so low it would touch the ground
@@ -1493,7 +1508,7 @@ const coming = () => { const c = chaserOf(kind); return state === 'title' && !bo
 function toCome(pal) {
   const c = coming();
   if (c && at[kind] !== undefined) {
-    const x = placeX(playable().indexOf(kind)); // (the place kept for it: see updateRow; not where the picked one is, off after a treat)
+    const x = placeX(playable().indexOf(kind) + 1); // (the place kept for it, behind the picked one: see updateRow)
     animal(c, 'idle', 0).draw(ctx, x, GROUND - FOOT, shadow(pal, COLOR.DIM));
     text(ctx, '?', x + 13, GROUND - 31, pal[COLOR.DIM], 'center');
   }
@@ -1700,9 +1715,9 @@ function scene(pal) {
   ctx.globalAlpha = 1;
   if (chase) { // the next animal (the last: a bear; a full moon: a special one)
     const c = hunter();
-    const st = stride(c, chase.phase), blink = blinking(blinkT + 1.3);
-    (chase.caught ? animal(c, 'idle', idleFrame(c, blinkT), { blink, body: chase.body }) : animal(c, 'run', st.frame, { blink, body: chase.body }))
-      .draw(ctx, chase.x + 4, GROUND - FOOT - (chase.caught ? 0 : st.lift), pal);
+    const st = stride(c, chase.phase), blink = blinking(blinkT + 1.3), still = chase.caught || chase.there; // (caught it; or joined, in the middle)
+    (still ? animal(c, 'idle', idleFrame(c, blinkT), { blink, body: chase.body }) : animal(c, 'run', st.frame, { blink, body: chase.body }))
+      .draw(ctx, chase.x + 4, GROUND - FOOT - (still ? 0 : st.lift), pal);
   }
 
   if (state === 'title') {

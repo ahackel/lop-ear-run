@@ -10,8 +10,8 @@ the treats it brings home.
   sky pales through the morning colours, the stars fade and a white sun comes up behind the hills (gone into the sky
   as the day comes).
 - At dawn the run ends, home (HOME!, worth 100): nothing in the way for a screen and more before it, the world comes to
-  a stop and the animal runs off to the right, back to the title; the first time, the chaser runs off after it,
-  unlocked. Then the high scores as after a knock-out.
+  a stop and the animal runs off to the right, back to the title; the first time, the chaser, unlocked, runs up to
+  the middle of the screen and stays there. Then the high scores as after a knock-out.
 - Each animal runs in a land of its own (round the six lands; a special one in the next animal's).
 - Gone: the suns, DAY n at the top right, day 2 and later, ESCAPED! +n, the land's name at the start, the special
   ones' shadow at the end of the title's row (they have no way in for now: see 3).
@@ -22,7 +22,8 @@ the treats it brings home.
 
 - Starting a run: the picked animal runs off to the right edge of the title while the screen fades out quickly, then
   the run fades in (run again: only the fade in).
-- A newly unlocked animal comes onto the title running in from the left.
+- A newly unlocked animal comes onto the title running in from the left, and stops behind the others: the row goes
+  from right to left, the first on the right.
 
 ## 2. Treats (done)
 
