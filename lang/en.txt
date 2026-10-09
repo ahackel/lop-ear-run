@@ -4,6 +4,7 @@
 
 # the title, the buttons
 button.start = Start
+button.back = Back
 button.share = Share
 button.ok = OK
 title.tap_to_pick = Tap an animal to pick it
@@ -37,6 +38,7 @@ end.again_tap = Tap to run again
 end.again_keys = Space or tap to run again
 end.name_tap = New high score! Tap to enter your name
 end.name_keys = New high score! Space or click to enter your name
+end.name_button = Enter name
 
 # the high scores, the credits
 scores.title = High scores

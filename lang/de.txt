@@ -3,6 +3,7 @@
 
 # the title, the buttons
 button.start = Start
+button.back = Zurück
 button.share = Teilen
 button.ok = OK
 title.tap_to_pick = Tipp auf ein Tier zum Wählen
@@ -36,6 +37,7 @@ end.again_tap = Tippen für noch einen Lauf
 end.again_keys = Leertaste oder tippen für noch einen Lauf
 end.name_tap = Neuer Highscore! Tippen für deinen Namen
 end.name_keys = Neuer Highscore! Leertaste oder klicken für deinen Namen
+end.name_button = Name eingeben
 
 # the high scores, the credits
 scores.title = Bestenliste
