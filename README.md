@@ -115,7 +115,7 @@ app they are shared from the credits (SHARE: AirDrop, Mail, Files…) and droppe
 | `song.zip` | the music: the song and its recordings, loaded as it is (`music.loadZip`); a new version comes from the [editor](https://github.com/ahackel/stardrift)'s *Export for a game*, saved over it |
 | `engine/` | a copy of the Stardrift engine's code (`engine/VERSION` says which commit; its recordings come in `song.zip`); `npm run engine` refreshes it |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable app: offline files, name, icons, landscape |
-| `app/` | the iOS app (Capacitor): `npm install` and `npm run sync` there copy the game's files into `www/` and the Xcode project (`ios/`), `npm run open` opens it in Xcode |
+| `app/` | the iOS app (Capacitor): `npm install` and `npm run sync` there copy the game's files into `www/` and the Xcode project (`ios/`), `npm run open` opens it in Xcode, `npm run testflight` (`-- patch`, `minor` or `major` to raise the version, nothing for another build of it) tests, archives and uploads a build to TestFlight, then commits and tags the new numbers (`ios-1.0.1-3`); it wants nothing uncommitted and the App Store Connect app (`de.andreashackel.lophop`) made |
 
 ## License
 

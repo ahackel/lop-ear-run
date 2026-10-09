@@ -20,7 +20,7 @@ import { W, H, GROUND, PALETTES, COLOR, FOOT, ANIMALS, TRUNK, animal, moveBody, 
   JUMP, GRAVITY, hill, strides, rgb, luma, holdUp, swing, moveHung, hung, hangDepth, heldAt, petted, made } from './art.js';
 import { course, pace, drain, hardness, nightAt, random, seedOf, chaserOf, SCORE_PER_PX, CROWS_FROM, FAST_FROM, CHASE } from './level.js';
 import { ease } from './animals/kit.js';
-import { BUILT } from './version.js';
+import { BUILT, APP } from './version.js';
 import { t } from './lang.js'; // (what it writes, in the player's language)
 
 const view = document.getElementById('game'), vctx = view.getContext('2d');
@@ -1024,7 +1024,7 @@ function drawCredits(pal) {
   if (board.runs) text(ctx, t(board.runs > 1 ? 'credits.runs_kept' : 'credits.run_kept', { n: board.runs }), W / 2 - 3, 44, dim, 'right'); // (and SHARE: see buttons)
   if (board.said) help(board.said, pal, pal[7]);
   text(ctx, t('credits.thanks'), W / 2, 16 + (CREDITS.length + 1) * ROW + 1, pal[7], 'center');
-  text(ctx, `VERSION ${BUILT}`, W / 2, 58, dim, 'center'); // (which build this is)
+  text(ctx, `VERSION ${APP || BUILT}`, W / 2, 58, dim, 'center'); // (which build this is: the app's version, or when the web's was made)
 }
 // The animal pack's shop (the iOS app's, see SHOP), behind a parental gate: a sum for a grown-up, its numbers in words,
 // answered on a row of keys (wrong: another sum). Then what the pack has (its animals running by), BUY (its price as
