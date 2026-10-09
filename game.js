@@ -238,6 +238,9 @@ function songOf(k) {
     music.setVolume(muted ? 0 : 1, 0.05);
   }, muted ? 0 : SONG_FADE * 1000);
 }
+// bobbing (food, golden food, a screen's main button): a pixel up and back down, over and over (p: where in it, so food
+// does not bob all at once)
+const bob = (p = 0) => (Math.sin(blinkT * 5 + p) > 0 ? -1 : 0);
 const inRun = () => state === 'run' || state === 'paused';
 const KINDS = Object.keys(ANIMALS);
 const renamed = (k) => (k === 'sabre' ? 'elephant' : k); // (kept in this browser under an animal's old name: the sabre-tooth became the elephant)
@@ -664,19 +667,19 @@ let SKY = 0, VH = H; // the sky added above the world, where the screen is talle
 let viewL = 0, viewR = W; // the world's x at the screen's left and right edges (see fit: a little less than all of it, or a little more)
 let safeL = 0, safeR = 0, safeT = 0; // how much of the game a phone's notch (or its round corners), on the left and right, or a tablet's status bar, at the top, may cover (see fit)
 function buttons() {
-  if (naming) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'named', text: 'button.ok', x: W / 2 - 15, y: NAME_BOX.y + 25, w: 31, h: 13 }]; // (see drawName)
+  if (naming) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'named', text: 'button.ok', x: W / 2 - 15, y: NAME_BOX.y + 25, w: 31, h: 13, main: true }]; // (see drawName)
   if (inRun()) return [{ id: 'sound', x: safeL + 4, y: 2 }, { id: 'home', x: safeL + 4 + BTN + 2, y: 2 }, ...cheats()]; // (the bars: in the middle, see bar)
   const ids = ['sound', 'scores', 'credits', ...(CAN_FULL ? ['full'] : []), ...(state !== 'title' || board ? ['home'] : [])];
   const row = ids.map((id, i) => ({ id, x: safeL + 4 + i * (BTN + 2), y: 2 }));
   // on the title, the button that runs (under the writing, over the animals: in the world, from the top of the screen)
   // in the row of the pads, in the middle: on the title the button that runs; on the high scores the one back, at the
   // top right
-  if (board) row.push({ id: 'back', text: 'button.back', x: W - safeR - 35, y: 2, w: 31, h: BTN });
-  const mid = !board && state === 'title' && !padlocked(kind) ? { id: 'start', text: 'button.start' } : null;
+  if (board) row.push({ id: 'back', text: 'button.back', x: W - safeR - 35, y: 2, w: 31, h: BTN, main: !board.shop || bought });
+  const mid = !board && state === 'title' && !padlocked(kind) ? { id: 'start', text: 'button.start', main: true } : null;
   if (board?.gate) for (let i = 0; i < 10; i++) { const d = (i + 1) % 10; row.push({ id: `digit${d}`, text: String(d), x: W / 2 - 64 + i * 13, y: SKY - safeT + 50, w: 11, h: 11 }); } // (1 to 9, then 0)
   if (board?.shop) {
     const buy = store.price ? t('shop.buy_price', { price: store.price }) : t('shop.buy'), restore = t('shop.restore');
-    if (!bought) row.push({ id: 'buy', text: buy, x: Math.round(W / 2 - (textWidth(buy) + 12) / 2), y: SKY - safeT + 30, w: textWidth(buy) + 12, h: 13 });
+    if (!bought) row.push({ id: 'buy', text: buy, x: Math.round(W / 2 - (textWidth(buy) + 12) / 2), y: SKY - safeT + 30, w: textWidth(buy) + 12, h: 13, main: true });
     row.push({ id: 'restore', text: restore, x: Math.round(W / 2 - (textWidth(restore) + 8) / 2), y: SKY - safeT + 46, w: textWidth(restore) + 8, h: 11 });
   }
   if (board?.credits && board.runs) row.push({ id: 'share', text: 'button.share', x: W / 2 + 2, y: SKY - safeT + 41, w: 31, h: 11 }); // (the runs: see drawCredits)
@@ -707,10 +710,11 @@ function cheats() {
 const picking = () => state === 'title' && !board && carousel !== null && playable().length > 1;
 const buttonAt = (x, y) => (y -= safeT, buttons().find((b) => x >= b.x - 1 && x < b.x + (b.w || BTN) + 1 && y >= b.y - 1 && y < b.y + (b.h || BTN) + 1));
 let pressedBtn = null;
+// a screen's main button (START, BACK, OK, BUY: main) bobs, as food does (see bob; drawn so, pressed where it rests)
 function drawButtons(pal) {
   for (const b of buttons()) {
     const icon = b.id === 'sound' ? (muted ? 'soundOff' : 'soundOn') : b.id === 'full' ? (isFull() ? 'leave' : 'full') : b.id;
-    if (b.text) drawButton(b.x, b.y, null, b.id === pressedBtn, pal, b);
+    if (b.text) drawButton(b.x, b.y + (b.main ? bob() : 0), null, b.id === pressedBtn, pal, b);
     else drawButton(b.x, b.y, icon, b.id === pressedBtn || (board && !board.gate && !board.shop && b.id === (board.credits ? 'credits' : 'scores')), pal);
   }
   if (TOUCH && !board && inRun()) {
@@ -1402,7 +1406,7 @@ let grip = null, held = null, dropped = null, arriving = null; // (arriving: one
 let feed = null, loose = null; // (loose: { x, y, vy, down, eat }: falling, on the ground; being eaten)
 const WALK = 40, TREAT_FALL = 420, CARRY_FROM = 8; // (CARRY_FROM: art pixels from its place)
 const mealOf = () => FOOD[ANIMALS[kind].food];
-const treatSpot = () => [placeX(playable().indexOf(kind)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: where the arrow would be, at its place: see updateRow; staying there as it goes after one)
+const treatSpot = () => [placeX(playable().indexOf(kind)) + 13, GROUND - 25 - mealOf().h]; // (its middle, its top: over it, at its place: see updateRow; staying there as it goes after one)
 const onTreat = (x, y) => { const [cx, cy] = treatSpot(), m = mealOf(); return treatsOf(kind) > 0 && !loose && Math.abs(x - cx) <= m.w / 2 + 6 && y >= cy - 4 && y <= cy + m.h + 3; };
 // what the picked animal reaches for (its middle), if anything; its pose, at x; its mouth then
 const treatAt = () => (feed ? [feed.x, feed.y] : loose ? [loose.x + mealOf().w / 2, loose.y + mealOf().h / 2] : null);
@@ -1697,7 +1701,7 @@ function toCome(pal) {
 }
 // a padlock over an animal unlocked but not bought (see padlocked): its shackle in ink, its body golden
 const PADLOCK = ['..xxx..', '.x...x.', '.x...x.', 'xxxxxxx', 'xooooox', 'xooxoox', 'xooxoox', 'xooooox', 'xxxxxxx'];
-// an animal standing on the title (and the high scores): the one picked in front, with an arrow over it, the others
+// an animal standing on the title (and the high scores): the one picked in front, the others
 // faded behind (p: its place in the row)
 function standing(k, p, on, pal) {
   const x = placeX(p), r = runs[k];
@@ -1719,14 +1723,7 @@ function standing(k, p, on, pal) {
     if (r.dir < 0) ctx.restore();
   } else (on && !board ? animalSprite() : animal(k, 'idle', on ? idleFrame(k, blinkT) : 0, { blink: on && blinking() })).draw(ctx, x + (on && launch ? Math.round(launch.x) : 0), GROUND - FOOT, pal); // (off to a run)
   ctx.globalAlpha = 1;
-  if (padlocked(k)) { // (where the arrow would be, once it stands in its place)
-    if (!jp && !r?.on && !board) PADLOCK.forEach((row, y) => [...row].forEach((c, i) => { if (c !== '.') { ctx.fillStyle = pal[c === 'x' ? COLOR.INK : COLOR.YELLOW]; ctx.fillRect(x + 10 + i, GROUND - 30 + y, 1, 1); } }));
-    return;
-  }
-  if (!on || held || jp || launch || feed || loose || begging || treats[k] > 0) return; // (the arrow: not while one is held, jumps, runs off, or after a treat; nor over its treats, which mark it)
-  const ax = x + 11, ay = GROUND - 25 + Math.round(Math.sin(blinkT * 5) * 0.6);
-  ctx.fillStyle = pal[COLOR.INK];
-  ctx.fillRect(ax - 2, ay, 5, 1); ctx.fillRect(ax - 1, ay + 1, 3, 1); ctx.fillRect(ax, ay + 2, 1, 1);
+  if (padlocked(k) && !jp && !r?.on && !board) PADLOCK.forEach((row, y) => [...row].forEach((c, i) => { if (c !== '.') { ctx.fillStyle = pal[c === 'x' ? COLOR.INK : COLOR.YELLOW]; ctx.fillRect(x + 10 + i, GROUND - 30 + y, 1, 1); } })); // (over it, once it stands in its place)
 }
 
 // a bar at the top, in the middle, at y: an icon, a frame, filled that much (0…1) in a color
@@ -1881,14 +1878,14 @@ function scene(pal) {
   // what lies on the ground moves with it, rounded with it to the same screen pixel (on its own, it could be one off)
   const onGround = (x) => snap(x + groundX) - scroll;
   const meal = FOOD[ANIMALS[kind].food];
-  const hungry = state === 'run' && energy < LOW; // (the food glints, bobs higher: see LOW)
+  const hungry = state === 'run' && energy < LOW; // (the food glints: see LOW)
   for (const f of food) {
-    const x = onGround(f.x), y = f.y + Math.round(Math.sin(blinkT * 5 + f.x * 0.1) * (hungry ? 2 : 1));
+    const x = onGround(f.x), y = f.y + bob(f.x * 0.1);
     meal.draw(ctx, x, y, pal);
     if (hungry && (blinkT * 2.5 + f.x * 0.013) % 1 < 0.3) { ctx.fillStyle = pal[7]; ctx.fillRect(x + meal.w, y - 3, 1, 3); ctx.fillRect(x + meal.w - 1, y - 2, 3, 1); }
   }
   if (gold) { // golden, with a glint going round it
-    const x = onGround(gold.x), y = gold.y + Math.round(Math.sin(blinkT * 5));
+    const x = onGround(gold.x), y = gold.y + bob();
     meal.draw(ctx, x, y, golden(pal));
     const a = blinkT * 6;
     ctx.fillStyle = pal[COLOR.YELLOW];
