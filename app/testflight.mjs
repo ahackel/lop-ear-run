@@ -71,6 +71,6 @@ try {
 
 run('git', ['add', pbxproj, pkg], game);
 run('git', ['commit', '-m', `TestFlight ${version} (${build})`], game);
-run('git', ['tag', `ios-${version}-${build}`], game);
+run('git', ['tag', '-a', `ios-${version}-${build}`, '-m', `TestFlight ${version} (${build})`], game);
 console.log(`\nuploaded Lop Hop ${version} (${build}): App Store Connect processes it for TestFlight in about 10–30 minutes.`);
 console.log(`committed and tagged ios-${version}-${build}; git push --follow-tags to share them.`);
